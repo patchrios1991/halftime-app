@@ -1,30 +1,150 @@
+// ─── AllocationScreen ─────────────────────────────────────────────────────────
 import { useState } from "react";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
 import Bar from "../../components/Bar";
+import Card from "../../components/Card";
+import Badge from "../../components/Badge";
 import Pill from "../../components/Pill";
+import { useMyPods, usePod } from "../../hooks/usePod";
+import { useGames } from "../../hooks/useGames";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { deleteGame } from "../../api/games";
+
+const MEMBER_COLORS = ["#C8F135", "#34D399", "#A78BFA", "#FBBF24", "#F87171", "#60A5FA"];
 
 const METHOD_INFO = {
   snake:   { icon: "🐍", name: "Snake Draft",    desc: "Reverse-order picks each round. Fairest over a full season." },
   lottery: { icon: "🎲", name: "Random Lottery", desc: "Weighted by ownership %. Pure chance — great for casual pods." },
-  ai:      { icon: "🤖", name: "AI Fairness",    desc: "ML model balances quality, recency, preferences & conflicts." },
+  ai:      { icon: "🤖", name: "AI Fairness",    desc: "Balances quality, recency & share % for maximum fairness." },
+};
+
+const TIERS = ["standard", "premium", "marquee"];
+
+const inputStyle = {
+  width: "100%", padding: "9px 12px", background: "#0D1F12",
+  border: `1px solid ${T.green}`, borderRadius: 8, color: T.white,
+  fontSize: 13, fontFamily: "Calibri,sans-serif", outline: "none", boxSizing: "border-box",
 };
 
 export default function AllocationScreen({ state, dispatch }) {
-  const [running, setRunning] = useState(false);
+  const [method, setMethod]     = useState(state.allocationMethod || "snake");
+  const [showAddGame, setShowAddGame] = useState(false);
+  const [gameForm, setGameForm] = useState({
+    opponent: "", game_date: "", game_time: "19:30", face_value: "", tier: "standard",
+  });
+  const [addingGame, setAddingGame]   = useState(false);
+  const [addGameErr, setAddGameErr]   = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
-  const runIt = () => {
-    setRunning(true);
-    setTimeout(() => {
-      dispatch({ type: "RUN_ALLOCATION", method: state.allocationMethod });
-      setRunning(false);
-    }, 1800);
-  };
+  if (!currentUserId && isSupabaseConfigured) {
+    supabase.auth.getSession().then(({ data: { session } }) =>
+      session?.user?.id && setCurrentUserId(session.user.id));
+  }
 
-  const myGames = Object.entries(state.assignments)
-    .filter(([, mid]) => mid === "m1")
-    .map(([gid]) => state.games.find(g => g.id === Number(gid)))
-    .filter(Boolean);
+  const { pods }           = useMyPods();
+  const activePod          = pods?.[0] ?? null;
+  const activePodId        = activePod?.id ?? null;
+  const { pod: fullPod, members: rawMembers, refresh: refreshPod } = usePod(activePodId);
+  const { games, runAllocation, allocating, refresh: refreshGames } = useGames(activePodId);
+
+  const isCaptain = fullPod?.captain_id === currentUserId;
+
+  // Map members for display
+  const members = rawMembers.map((m, idx) => ({
+    ...m,
+    id:       m.user_id,
+    name:     m.user_id === currentUserId ? "You" : (m.profiles?.display_name || "Member"),
+    initials: m.profiles?.avatar_initials || "??",
+    share:    parseFloat(m.share_pct) || 0,
+    color:    MEMBER_COLORS[idx % MEMBER_COLORS.length],
+  }));
+
+  // Allocation state from DB
+  const allocationDone = fullPod?.allocation_done || false;
+  const allocationMethod = fullPod?.allocation_method || method;
+
+  // Per-member game counts from DB
+  function gamesForMember(userId) {
+    return games.filter(g => g.assignments?.[0]?.user_id === userId);
+  }
+
+  // My allocated games
+  const myGames = gamesForMember(currentUserId);
+
+  // Format date for display
+  function fmtDate(dateStr) {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+  function fmtTime(timeStr) {
+    if (!timeStr) return "";
+    const [h, min] = timeStr.split(":");
+    const hour = parseInt(h);
+    return `${hour > 12 ? hour - 12 : hour}:${min} ${hour >= 12 ? "PM" : "AM"}`;
+  }
+
+  async function handleAddGame() {
+    setAddGameErr(null);
+    if (!gameForm.opponent.trim()) return setAddGameErr("Opponent is required");
+    if (!gameForm.game_date)       return setAddGameErr("Date is required");
+    if (!gameForm.face_value)      return setAddGameErr("Face value is required");
+    setAddingGame(true);
+    try {
+      const { addGame } = await import("../../api/games");
+      await addGame(activePodId, {
+        ...gameForm,
+        sport_emoji: fullPod?.sport_emoji || "🏀",
+      });
+      setGameForm({ opponent: "", game_date: "", game_time: "19:30", face_value: "", tier: "standard" });
+      setShowAddGame(false);
+      await refreshGames();
+    } catch (e) {
+      setAddGameErr(e.message);
+    } finally {
+      setAddingGame(false);
+    }
+  }
+
+  async function handleDeleteGame(gameId) {
+    try {
+      await deleteGame(gameId);
+      await refreshGames();
+    } catch (e) {
+      console.error("Delete game:", e.message);
+    }
+  }
+
+  async function handleRunAllocation() {
+    try {
+      await runAllocation(fullPod, rawMembers, method);
+      await refreshPod();
+      dispatch({ type: "RUN_ALLOCATION", method });
+    } catch (e) {
+      console.error("Allocation error:", e.message);
+    }
+  }
+
+  // ── No pod ──────────────────────────────────────────────────────────────────
+  if (isSupabaseConfigured && !activePodId) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", padding: 32, minHeight: "60vh", textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+          fontFamily: "Georgia,serif", marginBottom: 8 }}>No pod yet</div>
+        <div style={{ fontSize: 12, color: T.mist, marginBottom: 20 }}>
+          Create or join a pod to run allocation.
+        </div>
+        <button onClick={() => dispatch({ type: "SET_SCREEN", screen: "pod" })}
+          style={{ padding: "12px 24px", background: T.lime, color: T.dark, border: "none",
+            borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          Go to Pod →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ paddingBottom: 80 }}>
@@ -32,120 +152,227 @@ export default function AllocationScreen({ state, dispatch }) {
         <div style={{ fontSize: 20, fontWeight: 700, color: T.white,
           fontFamily: "Georgia,serif", marginBottom: 4 }}>Allocation Engine ⚡</div>
         <div style={{ fontSize: 12, color: T.mist }}>
-          Distribute {state.games.length} games across {state.members.length} pod members
+          {games.length} game{games.length !== 1 ? "s" : ""} · {members.length} member{members.length !== 1 ? "s" : ""} · {fullPod?.name || "—"}
         </div>
       </div>
 
       <div style={{ padding: 14 }}>
-        {/* Method picker */}
-        <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
-          fontFamily: "Georgia,serif", marginBottom: 10 }}>Choose Allocation Method</div>
 
-        {Object.entries(METHOD_INFO).map(([key, { icon, name, desc }]) => (
-          <div
-            key={key}
-            onClick={() => !state.allocationDone && dispatch({ type: "SET_METHOD", method: key })}
-            style={{
-              background: state.allocationMethod === key ? `${T.lime}18` : T.forest,
-              border: `1px solid ${state.allocationMethod === key ? T.lime + "55" : "#1A4A2E"}`,
-              borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-              cursor: state.allocationDone ? "default" : "pointer",
-              display: "flex", gap: 12, alignItems: "center",
-            }}>
-            <div style={{ fontSize: 28 }}>{icon}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700,
-                color: state.allocationMethod === key ? T.lime : T.white }}>{name}</div>
-              <div style={{ fontSize: 11, color: T.mist, marginTop: 2 }}>{desc}</div>
+        {/* ── Game Management (captain only) ── */}
+        {isCaptain && (
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white, fontFamily: "Georgia,serif" }}>
+                🎟️ Season Games ({games.length})
+              </div>
+              {!allocationDone && (
+                <div onClick={() => setShowAddGame(v => !v)}
+                  style={{ fontSize: 11, color: T.lime, fontWeight: 700, cursor: "pointer" }}>
+                  {showAddGame ? "✕ Cancel" : "+ Add Game"}
+                </div>
+              )}
             </div>
-            {state.allocationMethod === key && <div style={{ color: T.lime, fontSize: 18 }}>✓</div>}
-          </div>
-        ))}
 
-        {/* Run button */}
-        {!state.allocationDone && (
-          <button
-            onClick={runIt}
-            disabled={running}
-            style={{
-              width: "100%", padding: "14px",
-              background: running ? "#1A4A2E" : T.lime,
-              color: T.dark, border: "none", borderRadius: 12,
-              fontSize: 15, fontWeight: 700, fontFamily: "Georgia,serif",
-              cursor: running ? "not-allowed" : "pointer",
-              marginTop: 8, marginBottom: 16,
-            }}>
-            {running ? "🤖 Running allocation…" : `Run ${METHOD_INFO[state.allocationMethod].name} →`}
-          </button>
+            {/* Add game form */}
+            {showAddGame && (
+              <div style={{ background: "#0D1F12", borderRadius: 10, padding: 12, marginBottom: 12,
+                border: `1px solid ${T.green}` }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  <div style={{ gridColumn: "1/-1" }}>
+                    <input style={inputStyle} placeholder="Opponent (e.g. Lakers)"
+                      value={gameForm.opponent} onChange={e => setGameForm(f => ({ ...f, opponent: e.target.value }))} />
+                  </div>
+                  <input style={inputStyle} type="date" value={gameForm.game_date}
+                    onChange={e => setGameForm(f => ({ ...f, game_date: e.target.value }))} />
+                  <input style={inputStyle} type="time" value={gameForm.game_time}
+                    onChange={e => setGameForm(f => ({ ...f, game_time: e.target.value }))} />
+                  <input style={inputStyle} type="number" placeholder="Face value ($)"
+                    value={gameForm.face_value} onChange={e => setGameForm(f => ({ ...f, face_value: e.target.value }))} />
+                  <select style={{ ...inputStyle, cursor: "pointer" }} value={gameForm.tier}
+                    onChange={e => setGameForm(f => ({ ...f, tier: e.target.value }))}>
+                    {TIERS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                  </select>
+                </div>
+                {addGameErr && <div style={{ color: T.red, fontSize: 11, marginBottom: 6 }}>{addGameErr}</div>}
+                <button onClick={handleAddGame} disabled={addingGame}
+                  style={{ width: "100%", padding: "9px", background: T.lime, color: T.dark,
+                    border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {addingGame ? "Adding…" : "Add Game"}
+                </button>
+              </div>
+            )}
+
+            {/* Game list */}
+            {games.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "16px 0", color: T.mist, fontSize: 12 }}>
+                No games yet — add your season schedule above.
+              </div>
+            ) : (
+              games.map(g => {
+                const assignedTo = g.assignments?.[0]?.user_id;
+                const assignee   = members.find(m => m.id === assignedTo);
+                return (
+                  <div key={g.id} style={{ display: "flex", justifyContent: "space-between",
+                    alignItems: "center", padding: "8px 0", borderBottom: "1px solid #1A4A2E" }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T.white }}>
+                        {fullPod?.sport_emoji || "🏀"} vs. {g.opponent}
+                      </div>
+                      <div style={{ fontSize: 10, color: T.mist }}>
+                        {fmtDate(g.game_date)} · {fmtTime(g.game_time)} · ${g.face_value}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <Pill label={g.tier}
+                        color={g.tier === "marquee" ? T.lime : g.tier === "premium" ? T.teal : T.mist} />
+                      {assignee
+                        ? <Badge color={assignee.id === currentUserId ? T.lime : T.mist}>
+                            {assignee.name}
+                          </Badge>
+                        : !allocationDone && (
+                          <div onClick={() => handleDeleteGame(g.id)}
+                            style={{ color: T.red, fontSize: 16, cursor: "pointer", lineHeight: 1, opacity: 0.6 }}>✕</div>
+                        )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </Card>
         )}
 
-        {/* Results */}
-        {state.allocationDone && (
+        {/* ── Method picker ── */}
+        {!allocationDone && (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 10 }}>Choose Allocation Method</div>
+
+            {Object.entries(METHOD_INFO).map(([key, { icon, name, desc }]) => (
+              <div key={key} onClick={() => setMethod(key)}
+                style={{
+                  background: method === key ? `${T.lime}18` : T.forest,
+                  border: `1px solid ${method === key ? T.lime + "55" : "#1A4A2E"}`,
+                  borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+                  cursor: "pointer", display: "flex", gap: 12, alignItems: "center",
+                }}>
+                <div style={{ fontSize: 28 }}>{icon}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700,
+                    color: method === key ? T.lime : T.white }}>{name}</div>
+                  <div style={{ fontSize: 11, color: T.mist, marginTop: 2 }}>{desc}</div>
+                </div>
+                {method === key && <div style={{ color: T.lime, fontSize: 18 }}>✓</div>}
+              </div>
+            ))}
+
+            {isCaptain ? (
+              <button onClick={handleRunAllocation} disabled={allocating || games.length === 0}
+                style={{
+                  width: "100%", padding: "14px",
+                  background: games.length === 0 ? "#1A4A2E" : allocating ? "#1A4A2E" : T.lime,
+                  color: T.dark, border: "none", borderRadius: 12,
+                  fontSize: 15, fontWeight: 700, fontFamily: "Georgia,serif",
+                  cursor: games.length === 0 || allocating ? "not-allowed" : "pointer",
+                  marginTop: 8, marginBottom: 16, opacity: games.length === 0 ? 0.5 : 1,
+                }}>
+                {allocating
+                  ? "🤖 Running allocation…"
+                  : games.length === 0
+                    ? "Add games first"
+                    : `Run ${METHOD_INFO[method].name} →`}
+              </button>
+            ) : (
+              <div style={{ textAlign: "center", padding: "14px 0", color: T.mist, fontSize: 12 }}>
+                Only the pod captain can run allocation.
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Results ── */}
+        {allocationDone && (
           <div>
             <div style={{ background: `${T.lime}12`, border: `1px solid ${T.lime}33`,
               borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
               <div style={{ fontSize: 13, color: T.lime, fontWeight: 700, marginBottom: 4 }}>
-                ✓ Allocation complete — {METHOD_INFO[state.allocationMethod].name}
+                ✓ Allocation complete — {METHOD_INFO[allocationMethod]?.name || allocationMethod}
               </div>
               <div style={{ fontSize: 11, color: T.mist }}>
-                {myGames.length} games assigned to you · All results logged on-chain
+                {myGames.length} game{myGames.length !== 1 ? "s" : ""} assigned to you
               </div>
             </div>
 
+            {/* Per-member summary */}
             <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
               fontFamily: "Georgia,serif", marginBottom: 10 }}>Results Summary</div>
-            {state.members.map(m => {
-              const count = Object.values(state.assignments).filter(id => id === m.id).length;
-              const fair = (m.share / 100) * state.games.length;
-              const diff = count - fair;
+            {members.map(m => {
+              const mGames = gamesForMember(m.id);
+              const fair   = (m.share / 100) * games.length;
+              const diff   = mGames.length - fair;
               return (
                 <div key={m.id} style={{ background: T.forest, borderRadius: 10,
                   padding: "10px 12px", marginBottom: 8,
-                  border: `1px solid ${m.id === "m1" ? T.lime + "44" : "#1A4A2E"}` }}>
+                  border: `1px solid ${m.id === currentUserId ? T.lime + "44" : "#1A4A2E"}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between",
                     alignItems: "center", marginBottom: 6 }}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <Avatar initials={m.initials} size={28} color={m.color} verified={m.verified} />
-                      <span style={{ fontSize: 12, color: m.id === "m1" ? T.lime : T.white,
+                      <Avatar initials={m.initials} size={28} color={m.color} />
+                      <span style={{ fontSize: 12, color: m.id === currentUserId ? T.lime : T.white,
                         fontWeight: 700 }}>{m.name}</span>
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: T.lime,
-                        fontFamily: "Georgia,serif" }}>{count}</span>
+                        fontFamily: "Georgia,serif" }}>{mGames.length}</span>
                       <span style={{ fontSize: 10, color: T.mist }}>games</span>
                       <span style={{ fontSize: 10, color: Math.abs(diff) <= 0.5 ? T.teal : T.amber }}>
-                        ({diff >= 0 ? "+" : ""}{diff.toFixed(1)} vs fair)
+                        ({diff >= 0 ? "+" : ""}{diff.toFixed(1)})
                       </span>
                     </div>
                   </div>
-                  <Bar value={count} max={state.games.length} color={m.color} h={4} />
+                  <Bar value={mGames.length} max={games.length} color={m.color} h={4} />
                 </div>
               );
             })}
 
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
-              fontFamily: "Georgia,serif", marginBottom: 10, marginTop: 14 }}>
-              Your {myGames.length} Games
-            </div>
-            {myGames.map(g => (
-              <div key={g.id} style={{ background: T.forest, borderRadius: 10,
-                padding: "10px 12px", marginBottom: 6,
-                border: `1px solid ${T.lime}33`,
-                display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>
-                    {g.sport} vs. {g.opp}
+            {/* My games */}
+            {myGames.length > 0 && (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                  fontFamily: "Georgia,serif", marginBottom: 10, marginTop: 14 }}>
+                  Your {myGames.length} Games
+                </div>
+                {myGames.map(g => (
+                  <div key={g.id} style={{ background: T.forest, borderRadius: 10,
+                    padding: "10px 12px", marginBottom: 6, border: `1px solid ${T.lime}33`,
+                    display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>
+                        {fullPod?.sport_emoji || "🏀"} vs. {g.opponent}
+                      </div>
+                      <div style={{ fontSize: 10, color: T.mist }}>
+                        {fmtDate(g.game_date)} · {fmtTime(g.game_time)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.lime,
+                        fontFamily: "Georgia,serif" }}>${g.face_value}</div>
+                      <Pill label={g.tier}
+                        color={g.tier === "marquee" ? T.lime : g.tier === "premium" ? T.teal : T.mist} />
+                    </div>
                   </div>
-                  <div style={{ fontSize: 10, color: T.mist }}>{g.date} · {g.time}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.lime,
-                    fontFamily: "Georgia,serif" }}>${g.val}</div>
-                  <Pill label={g.tier}
-                    color={g.tier === "marquee" ? T.lime : g.tier === "premium" ? T.teal : T.mist} />
-                </div>
-              </div>
-            ))}
+                ))}
+              </>
+            )}
+
+            {/* Captain can re-run */}
+            {isCaptain && (
+              <button onClick={handleRunAllocation} disabled={allocating}
+                style={{ width: "100%", marginTop: 14, padding: "11px",
+                  background: "transparent", border: `1px solid ${T.mist}44`,
+                  color: T.mist, borderRadius: 10, fontSize: 12, cursor: "pointer" }}>
+                {allocating ? "Running…" : "↺ Re-run allocation"}
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -44,15 +44,26 @@ export async function addGames(podId, gamesArray) {
  * then we upsert all assignments in a single batch.
  */
 export async function runAndSaveAllocation(pod, games, members, method) {
+  // Map real DB format to engine format
+  const engineGames   = games.map(g => ({
+    id:   g.id,
+    val:  parseFloat(g.face_value) || 0,
+    tier: g.tier || "standard",
+  }));
+  const engineMembers = members.map(m => ({
+    id:    m.user_id,
+    share: parseFloat(m.share_pct) || 0,
+  }));
+
   // Run the selected algorithm
   let assignmentMap; // { gameId: memberId }
   if (method === "snake") {
-    const { assignments } = runSnakeDraft(games, members);
+    const { assignments } = runSnakeDraft(engineGames, engineMembers);
     assignmentMap = assignments;
   } else if (method === "lottery") {
-    assignmentMap = runLottery(games, members);
+    assignmentMap = runLottery(engineGames, engineMembers);
   } else {
-    assignmentMap = runAIFairness(games, members);
+    assignmentMap = runAIFairness(engineGames, engineMembers);
   }
 
   // Build rows for DB (game UUIDs → profile UUIDs)
@@ -89,6 +100,12 @@ export async function runAndSaveAllocation(pod, games, members, method) {
     .eq("id", pod.id);
 
   return assignmentMap;
+}
+
+/** Delete a game (captain only) */
+export async function deleteGame(gameId) {
+  const { error } = await supabase.from("games").delete().eq("id", gameId);
+  if (error) throw error;
 }
 
 /** Confirm attendance for a game */
