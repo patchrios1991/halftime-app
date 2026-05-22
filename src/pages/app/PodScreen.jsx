@@ -93,21 +93,13 @@ export default function PodScreen({ state, dispatch }) {
     setConnectLoading(true);
     setConnectError(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-connect-account`,
-        {
-          method:  "POST",
-          headers: {
-            "Content-Type":  "application/json",
-            "Authorization": `Bearer ${session?.access_token}`,
-          },
-        }
-      );
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
+      const { data, error } = await supabase.functions.invoke("create-connect-account", {
+        method: "POST",
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       // Open Stripe's hosted onboarding in the same tab
-      window.location.href = json.url;
+      window.location.href = data.url;
     } catch (e) {
       setConnectError(e.message);
       setConnectLoading(false);
