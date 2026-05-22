@@ -1,3 +1,4 @@
+// ─── PodScreen ────────────────────────────────────────────────────────────────
 import { useState } from "react";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
@@ -5,31 +6,103 @@ import Badge from "../../components/Badge";
 import Bar from "../../components/Bar";
 import Card from "../../components/Card";
 import EscrowPaymentScreen from "./EscrowPaymentScreen";
-import { useMyPods } from "../../hooks/usePod";
-import { isSupabaseConfigured } from "../../lib/supabase";
+import { useMyPods, usePod } from "../../hooks/usePod";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+
+// Deterministic color per member slot
+const MEMBER_COLORS = ["#C8F135", "#34D399", "#A78BFA", "#FBBF24", "#F87171", "#60A5FA"];
+function slotColor(idx) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
 
 export default function PodScreen({ state, dispatch }) {
-  const [tab, setTab] = useState("members");
+  const [tab, setTab]           = useState("members");
   const [showPayment, setShowPayment] = useState(false);
 
-  // Real pod data — pod_members is filtered to current user only by getMyPods()
-  const { pods, loading: podsLoading } = useMyPods();
-  const realPod        = pods?.[0] ?? null;
-  const activePodId    = realPod?.id ?? null;
-  const podDisplayName = realPod?.name ?? "Section 114 Squad";
-  const realMyMember   = realPod?.pod_members?.[0] ?? null;
+  // Current user
+  const [currentUserId, setCurrentUserId] = useState(null);
+  if (!currentUserId && isSupabaseConfigured) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) setCurrentUserId(session.user.id);
+    });
+  }
 
-  // Escrow funded status — real DB when connected, mock state otherwise
-  const myEscrowFunded = isSupabaseConfigured
-    ? Boolean(realMyMember?.escrow_funded)
-    : Boolean(state.members.find(m => m.id === "m1")?.escrowFunded);
+  // My pods → find the first one
+  const { pods } = useMyPods();
+  const myPodRow      = pods?.[0] ?? null;
+  const activePodId   = myPodRow?.id ?? null;
+  const myMemberRow   = myPodRow?.pod_members?.[0] ?? null;
 
-  // Amount — real cost from DB or fallback to mock share%
-  const myAmount = parseFloat(realMyMember?.cost) || (((realMyMember?.share_pct ?? 25) / 100) * 1850);
+  // Full pod with ALL members (requires SECURITY DEFINER RLS policy)
+  const { pod: fullPod, escrowBalance: realEscrowBalance, refresh: refreshPod } = usePod(activePodId);
+
+  // Current user's membership info
+  const myEscrowFunded = Boolean(myMemberRow?.escrow_funded);
+  const myAmount       = parseFloat(myMemberRow?.cost) || 0;
+  const mySharePct     = parseFloat(myMemberRow?.share_pct) || 25;
+
+  // Map real DB members to display format
+  const realMembers = (fullPod?.pod_members ?? []).map((m, idx) => ({
+    id:           m.user_id,
+    name:         m.user_id === currentUserId ? "You" : (m.profiles?.display_name || "Member"),
+    initials:     m.profiles?.avatar_initials || "??",
+    share:        parseFloat(m.share_pct) || 0,
+    credits:      m.bid_credits || 0,
+    color:        slotColor(idx),
+    verified:     m.profiles?.verified || false,
+    escrowFunded: m.escrow_funded || false,
+    isMe:         m.user_id === currentUserId,
+  }));
+
+  // Fall back to mock members when no real data yet
+  const members = realMembers.length > 0 ? realMembers : state.members;
+
+  // Pod display info
+  const podName    = fullPod?.name    ?? myPodRow?.name    ?? "My Pod";
+  const teamName   = fullPod?.team_name ?? myPodRow?.team_name ?? "Team";
+  const sportEmoji = fullPod?.sport_emoji ?? "🏀";
+  const season     = fullPod?.season  ?? "2025-26";
+  const maxMembers = fullPod?.max_members ?? 6;
+  const totalCost  = parseFloat(fullPod?.season_cost ?? myPodRow?.season_cost ?? 0);
+
+  // Escrow totals
+  const escrowRequired = myAmount > 0
+    ? (myAmount / (mySharePct / 100))          // back-calculate total from my share
+    : totalCost;
+  const escrowFundedCount = members.filter(m => m.escrowFunded).length;
+  const escrowPct = escrowRequired > 0
+    ? Math.round((realEscrowBalance / escrowRequired) * 100)
+    : 0;
 
   function handlePaymentSuccess() {
     setShowPayment(false);
+    refreshPod();
     dispatch({ type: "FUND_ESCROW" });
+  }
+
+  // No pod yet → prompt to get one
+  if (isSupabaseConfigured && !activePodId) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", padding: 32, minHeight: "60vh", textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🏟️</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+          fontFamily: "Georgia,serif", marginBottom: 8 }}>You're not in a pod yet</div>
+        <div style={{ fontSize: 12, color: T.mist, marginBottom: 24, lineHeight: 1.6 }}>
+          Create your own pod as captain, or browse open pods looking for members.
+        </div>
+        <button onClick={() => dispatch({ type: "SET_SCREEN", screen: "create_pod" })}
+          style={{ marginBottom: 10, width: "100%", maxWidth: 280, padding: "13px",
+            background: T.lime, color: T.dark, border: "none", borderRadius: 10,
+            fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+          🏆 Create a Pod
+        </button>
+        <button onClick={() => dispatch({ type: "SET_SCREEN", screen: "browse_pods" })}
+          style={{ width: "100%", maxWidth: 280, padding: "13px",
+            background: "transparent", color: T.white, border: `1.5px solid ${T.green}`,
+            borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+          🔍 Find a Pod
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -39,20 +112,24 @@ export default function PodScreen({ state, dispatch }) {
       <div style={{ background: `linear-gradient(160deg,${T.dark},${T.forest})`,
         padding: "20px 16px 20px", borderBottom: "1px solid #1A4A2E" }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontSize: 40 }}>🏀</div>
+          <div style={{ fontSize: 40 }}>{sportEmoji}</div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.white,
-              fontFamily: "Georgia,serif" }}>Section 114 Squad</div>
-            <div style={{ fontSize: 11, color: T.mist }}>Chicago Bulls · Season 2025–26</div>
-            <div style={{ marginTop: 4 }}><Badge color={T.lime}>Active Pod</Badge></div>
+              fontFamily: "Georgia,serif" }}>{podName}</div>
+            <div style={{ fontSize: 11, color: T.mist }}>{teamName} · Season {season}</div>
+            <div style={{ marginTop: 4 }}>
+              <Badge color={fullPod?.status === "active" ? T.lime : T.amber}>
+                {fullPod?.status === "active" ? "Active Pod" : "Recruiting"}
+              </Badge>
+            </div>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
           {[
-            { l: "Members", v: `${state.members.length}/6` },
-            { l: "My Share", v: "25%" },
-            { l: "My Cost",  v: "$1,850" },
-            { l: "Renewal",  v: "94%" },
+            { l: "Members",  v: `${members.length}/${maxMembers}` },
+            { l: "My Share", v: `${mySharePct}%` },
+            { l: "My Cost",  v: myAmount > 0 ? `$${myAmount.toFixed(0)}` : "—" },
+            { l: "Escrow",   v: `${escrowPct}%` },
           ].map(({ l, v }) => (
             <div key={l} style={{ background: "#ffffff08", borderRadius: 8,
               padding: "8px 4px", textAlign: "center" }}>
@@ -76,24 +153,24 @@ export default function PodScreen({ state, dispatch }) {
       </div>
 
       <div style={{ padding: 14 }}>
-        {/* Members tab */}
+
+        {/* ── Members tab ── */}
         {tab === "members" && (
           <div>
-            {/* Real-data escrow status for the current user */}
-            {isSupabaseConfigured && (
+            {/* My escrow card */}
+            {myAmount > 0 && (
               <Card style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>Your escrow</div>
                     <div style={{ fontSize: 11, color: T.mist, marginTop: 2 }}>
-                      ${myAmount.toFixed(2)} · {realMyMember?.share_pct ?? 25}% share
+                      ${myAmount.toFixed(2)} · {mySharePct}% share
                     </div>
                   </div>
                   {myEscrowFunded
                     ? <Badge color={T.lime}>💳 Funded</Badge>
                     : (
-                      <div
-                        onClick={() => setShowPayment(true)}
+                      <div onClick={() => setShowPayment(true)}
                         style={{ background: `${T.lime}22`, color: T.lime,
                           border: `1px solid ${T.lime}44`, borderRadius: 20,
                           padding: "4px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
@@ -103,17 +180,19 @@ export default function PodScreen({ state, dispatch }) {
                 </div>
               </Card>
             )}
-            {state.members.map(m => {
+
+            {/* Member cards */}
+            {members.map((m, idx) => {
               const count = Object.values(state.assignments).filter(id => id === m.id).length;
               return (
-                <Card key={m.id} style={{ marginBottom: 10 }} glow={m.id === "m1"}>
+                <Card key={m.id ?? idx} style={{ marginBottom: 10 }} glow={m.isMe || m.id === "m1"}>
                   <div style={{ display: "flex", justifyContent: "space-between",
-                    alignItems: "center", marginBottom: 10 }}>
+                    alignItems: "center", marginBottom: state.allocationDone ? 10 : 0 }}>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <Avatar initials={m.initials} size={42} color={m.color} verified={m.verified} />
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700,
-                          color: m.id === "m1" ? T.lime : T.white,
+                          color: (m.isMe || m.id === "m1") ? T.lime : T.white,
                           fontFamily: "Georgia,serif" }}>{m.name}</div>
                         <div style={{ fontSize: 10, color: T.mist }}>
                           {m.share}% ownership · {m.credits} bid credits
@@ -123,24 +202,14 @@ export default function PodScreen({ state, dispatch }) {
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
                       {m.verified
                         ? <Badge color={T.teal}>✓ Verified</Badge>
-                        : (
-                          <div
-                            onClick={() => dispatch({ type: "VERIFY_MEMBER", memberId: m.id })}
-                            style={{ background: `${T.amber}22`, color: T.amber,
-                              border: `1px solid ${T.amber}44`, borderRadius: 20,
-                              padding: "2px 9px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
-                            ⚠ Verify →
-                          </div>
-                        )}
+                        : <Badge color={T.amber}>⏳ Unverified</Badge>
+                      }
                       {m.escrowFunded
                         ? <Badge color={T.lime}>💳 Funded</Badge>
-                        : (
-                          <div style={{ background: `${T.amber}22`, color: T.amber,
+                        : <div style={{ background: `${T.amber}22`, color: T.amber,
                             border: `1px solid ${T.amber}44`, borderRadius: 20,
-                            padding: "2px 9px", fontSize: 10, fontWeight: 700 }}>
-                            Pending
-                          </div>
-                        )}
+                            padding: "2px 9px", fontSize: 10, fontWeight: 700 }}>Pending</div>
+                      }
                     </div>
                   </div>
                   {state.allocationDone && (
@@ -157,20 +226,24 @@ export default function PodScreen({ state, dispatch }) {
                 </Card>
               );
             })}
-            <div style={{ padding: "12px 0", textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: T.mist, marginBottom: 8 }}>
-                {6 - state.members.length} spots remaining in this pod
+
+            {/* Invite prompt if spots remain */}
+            {members.length < maxMembers && (
+              <div style={{ padding: "12px 0", textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: T.mist, marginBottom: 8 }}>
+                  {maxMembers - members.length} spot{maxMembers - members.length !== 1 ? "s" : ""} remaining in this pod
+                </div>
+                <button style={{ padding: "9px 20px", background: "transparent", color: T.lime,
+                  border: `1px solid ${T.lime}44`, borderRadius: 8, fontSize: 12,
+                  fontWeight: 700, cursor: "pointer" }}>
+                  + Invite a Member
+                </button>
               </div>
-              <button style={{ padding: "9px 20px", background: "transparent", color: T.lime,
-                border: `1px solid ${T.lime}44`, borderRadius: 8, fontSize: 12,
-                fontWeight: 700, cursor: "pointer" }}>
-                + Invite a Member
-              </button>
-            </div>
+            )}
           </div>
         )}
 
-        {/* Escrow tab */}
+        {/* ── Escrow tab ── */}
         {tab === "escrow" && (
           <div>
             <Card style={{ marginBottom: 12 }}>
@@ -178,10 +251,10 @@ export default function PodScreen({ state, dispatch }) {
                 fontFamily: "Georgia,serif", marginBottom: 14 }}>Pod Escrow Status</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                 {[
-                  { l: "Total Season Cost", v: "$7,400",                          c: T.white },
-                  { l: "My Share (25%)",    v: "$1,850",                          c: T.lime  },
-                  { l: "Funded So Far",     v: `$${state.escrowBalance}`,         c: T.teal  },
-                  { l: "Outstanding",       v: `$${state.escrowRequired - state.escrowBalance}`, c: T.amber },
+                  { l: "Total Season Cost", v: `$${totalCost.toLocaleString()}`,         c: T.white },
+                  { l: `My Share (${mySharePct}%)`, v: `$${myAmount.toFixed(2)}`,        c: T.lime  },
+                  { l: "Funded So Far",     v: `$${realEscrowBalance.toFixed(2)}`,       c: T.teal  },
+                  { l: "Outstanding",       v: `$${Math.max(0, escrowRequired - realEscrowBalance).toFixed(2)}`, c: T.amber },
                 ].map(({ l, v, c }) => (
                   <div key={l} style={{ background: "#ffffff06", borderRadius: 8, padding: 10 }}>
                     <div style={{ fontSize: 9, color: T.mist }}>{l}</div>
@@ -190,29 +263,26 @@ export default function PodScreen({ state, dispatch }) {
                   </div>
                 ))}
               </div>
-              <Bar value={state.escrowBalance} max={state.escrowRequired} h={8} />
+              <Bar value={realEscrowBalance} max={escrowRequired || 1} h={8} />
               <div style={{ fontSize: 10, color: T.mist, marginTop: 5 }}>
-                {Math.round((state.escrowBalance / state.escrowRequired) * 100)}% funded
-                · Protected by Stripe Treasury (FDIC-insured)
+                {escrowPct}% funded · Protected by Stripe (FDIC-insured)
               </div>
-              {!myEscrowFunded && (
-                <button
-                  onClick={() => setShowPayment(true)}
-                  style={{
-                    marginTop: 14, width: "100%", padding: "13px 0",
+              {!myEscrowFunded && myAmount > 0 && (
+                <button onClick={() => setShowPayment(true)}
+                  style={{ marginTop: 14, width: "100%", padding: "13px 0",
                     background: T.lime, color: T.dark, border: "none",
-                    borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer",
-                  }}
-                >
-                  Fund my escrow share — ${myAmount?.toFixed(2)}
+                    borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  Fund my escrow share — ${myAmount.toFixed(2)}
                 </button>
               )}
             </Card>
+
+            {/* Per-member escrow */}
             <Card>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
                 fontFamily: "Georgia,serif", marginBottom: 12 }}>Per-Member Escrow</div>
-              {state.members.map(m => (
-                <div key={m.id} style={{ display: "flex", justifyContent: "space-between",
+              {members.map((m, idx) => (
+                <div key={m.id ?? idx} style={{ display: "flex", justifyContent: "space-between",
                   alignItems: "center", padding: "9px 0", borderBottom: "1px solid #1A4A2E" }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <Avatar initials={m.initials} size={28} color={m.color} />
@@ -220,7 +290,11 @@ export default function PodScreen({ state, dispatch }) {
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.lime,
-                      fontFamily: "Georgia,serif" }}>$462.50</span>
+                      fontFamily: "Georgia,serif" }}>
+                      {totalCost > 0
+                        ? `$${((totalCost * m.share) / 100).toFixed(2)}`
+                        : `${m.share}%`}
+                    </span>
                     {m.escrowFunded
                       ? <Badge color={T.teal}>✓ Funded</Badge>
                       : <span style={{ fontSize: 10, color: T.amber, fontWeight: 700 }}>Pending</span>}
@@ -231,14 +305,14 @@ export default function PodScreen({ state, dispatch }) {
           </div>
         )}
 
-        {/* Rules tab */}
+        {/* ── Rules tab ── */}
         {tab === "rules" && (
           <div>
             <Card style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
                 fontFamily: "Georgia,serif", marginBottom: 12 }}>Pod Agreement</div>
               {[
-                ["Allocation method",  "Snake Draft (voted by pod)"],
+                ["Allocation method",  fullPod?.allocation_method ?? "Snake Draft"],
                 ["Playoff rule",       "Bid credits auction, min 24h notice"],
                 ["Resale policy",      "Any member may resell; profits split by share"],
                 ["No-show policy",     "72h notice required to release game back to pod"],
@@ -254,7 +328,7 @@ export default function PodScreen({ state, dispatch }) {
               ))}
             </Card>
             <div style={{ fontSize: 11, color: T.mist, textAlign: "center", padding: "8px 0" }}>
-              All rules recorded on-chain · Last updated Jan 2026
+              All rules recorded on-chain · Last updated {new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })}
             </div>
           </div>
         )}
@@ -262,10 +336,10 @@ export default function PodScreen({ state, dispatch }) {
     </div>
 
     {/* Escrow payment modal */}
-    {showPayment && (
+    {showPayment && activePodId && (
       <EscrowPaymentScreen
         podId={activePodId}
-        podName={podDisplayName}
+        podName={podName}
         amount={myAmount}
         onSuccess={handlePaymentSuccess}
         onClose={() => setShowPayment(false)}

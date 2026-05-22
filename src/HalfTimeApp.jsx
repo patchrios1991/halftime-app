@@ -5,16 +5,19 @@ import { T } from "./tokens";
 import { reducer } from "./store/reducer";
 import { initialState } from "./store/initialState";
 import { useAuth } from "./hooks/useAuth";
+import { useMyPods } from "./hooks/usePod";
 import { isSupabaseConfigured } from "./lib/supabase";
 
 // Pages
-import Onboarding       from "./pages/app/Onboarding";
-import Dashboard        from "./pages/app/Dashboard";
-import AllocationScreen from "./pages/app/AllocationScreen";
-import ScheduleScreen   from "./pages/app/ScheduleScreen";
-import PodScreen        from "./pages/app/PodScreen";
-import ResaleScreen     from "./pages/app/ResaleScreen";
-import ProfileScreen    from "./pages/app/ProfileScreen";
+import Onboarding        from "./pages/app/Onboarding";
+import Dashboard         from "./pages/app/Dashboard";
+import AllocationScreen  from "./pages/app/AllocationScreen";
+import ScheduleScreen    from "./pages/app/ScheduleScreen";
+import PodScreen         from "./pages/app/PodScreen";
+import ResaleScreen      from "./pages/app/ResaleScreen";
+import ProfileScreen     from "./pages/app/ProfileScreen";
+import CreatePodScreen   from "./pages/app/CreatePodScreen";
+import BrowsePodsScreen  from "./pages/app/BrowsePodsScreen";
 
 // Components
 import Wordmark from "./components/Wordmark";
@@ -84,17 +87,26 @@ export default function HalfTimeApp() {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, isAuthenticated, signOut } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
-  const noNav = ["onboarding"];
+  const { pods, loading: podsLoading } = useMyPods();
+  const noNav = ["onboarding", "create_pod", "browse_pods"];
 
   const clearToast = useCallback(() => dispatch({ type: "CLEAR_TOAST" }), []);
 
   // ── Auth gate ────────────────────────────────────────────────────────────────
-  // Only enforce when Supabase is actually configured (demo mode bypasses this)
   useEffect(() => {
     if (!authLoading && !isAuthenticated && isSupabaseConfigured) {
       navigate("/auth/signin", { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate]);
+
+  // ── Auto-skip onboarding for users who already have a pod ────────────────────
+  useEffect(() => {
+    if (!podsLoading && isAuthenticated && isSupabaseConfigured) {
+      if (pods.length > 0 && state.screen === "onboarding") {
+        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
+      }
+    }
+  }, [podsLoading, pods.length, isAuthenticated, state.screen]);
 
   // ── Auto-clear toast ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -153,7 +165,13 @@ export default function HalfTimeApp() {
         overflowY: "auto",
       }}>
         {state.screen === "onboarding" && (
-          <Onboarding state={state} dispatch={dispatch} />
+          <Onboarding dispatch={dispatch} />
+        )}
+        {state.screen === "create_pod" && (
+          <CreatePodScreen dispatch={dispatch} />
+        )}
+        {state.screen === "browse_pods" && (
+          <BrowsePodsScreen dispatch={dispatch} />
         )}
         {state.screen === "dashboard" && (
           <Dashboard state={state} dispatch={dispatch} profile={profile} />

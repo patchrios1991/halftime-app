@@ -112,6 +112,43 @@ export async function markAllocationDone(podId, method) {
   return updatePod(podId, { allocation_done: true, allocation_method: method });
 }
 
+/** Join a recruiting pod as a member (equal share of remaining %) */
+export async function joinPod(podId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) throw new Error("Must be signed in to join a pod");
+
+  const { data: pod, error: podErr } = await supabase
+    .from("pods")
+    .select("season_cost, max_members, status")
+    .eq("id", podId)
+    .single();
+  if (podErr) throw podErr;
+  if (pod.status !== "recruiting") throw new Error("This pod is no longer recruiting");
+
+  const { data: members, error: memberErr } = await supabase
+    .from("pod_members")
+    .select("share_pct, user_id")
+    .eq("pod_id", podId);
+  if (memberErr) throw memberErr;
+
+  if (members.some(m => m.user_id === user.id))
+    throw new Error("You are already a member of this pod");
+
+  const usedPct       = members.reduce((sum, m) => sum + parseFloat(m.share_pct || 0), 0);
+  const remainingSpots = (pod.max_members || 6) - members.length;
+  if (remainingSpots <= 0) throw new Error("This pod is full");
+
+  const sharePct = Math.round((100 - usedPct) / remainingSpots);
+  const cost     = (parseFloat(pod.season_cost) * sharePct) / 100;
+
+  const { error: joinErr } = await supabase
+    .from("pod_members")
+    .insert({ pod_id: podId, user_id: user.id, share_pct: sharePct, cost, tier: "starter" });
+
+  if (joinErr) throw joinErr;
+}
+
 /** Get the escrow balance for a pod (sum of succeeded payments) */
 export async function getPodEscrowBalance(podId) {
   const { data, error } = await supabase
