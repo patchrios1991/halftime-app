@@ -14,8 +14,10 @@ const MEMBER_COLORS = ["#C8F135", "#34D399", "#A78BFA", "#FBBF24", "#F87171", "#
 function slotColor(idx) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
 
 export default function PodScreen({ state, dispatch }) {
-  const [tab, setTab]           = useState("members");
+  const [tab, setTab]               = useState("members");
   const [showPayment, setShowPayment] = useState(false);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectError, setConnectError]     = useState(null);
 
   // Current user
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -76,6 +78,40 @@ export default function PodScreen({ state, dispatch }) {
     setShowPayment(false);
     refreshPod();
     dispatch({ type: "FUND_ESCROW" });
+  }
+
+  // ── Captain detection + payout info ─────────────────────────────────────────
+  const isCaptain = fullPod?.captain_id === currentUserId;
+  const captainMember = (fullPod?.pod_members ?? []).find(m => m.user_id === fullPod?.captain_id);
+  const captainProfile = captainMember?.profiles;
+  const captainHasConnect   = Boolean(captainProfile?.connect_account_id);
+  const captainIsOnboarded  = Boolean(captainProfile?.connect_onboarded);
+  const payoutStatus        = fullPod?.payout_status ?? "pending";
+  const payoutAmount        = fullPod?.payout_amount ?? 0;
+
+  async function handleSetupPayouts() {
+    setConnectLoading(true);
+    setConnectError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-connect-account`,
+        {
+          method:  "POST",
+          headers: {
+            "Content-Type":  "application/json",
+            "Authorization": `Bearer ${session?.access_token}`,
+          },
+        }
+      );
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      // Open Stripe's hosted onboarding in the same tab
+      window.location.href = json.url;
+    } catch (e) {
+      setConnectError(e.message);
+      setConnectLoading(false);
+    }
   }
 
   // No pod yet → prompt to get one
@@ -276,6 +312,97 @@ export default function PodScreen({ state, dispatch }) {
                 </button>
               )}
             </Card>
+
+            {/* ── Captain payout setup ── */}
+            {isCaptain && (
+              <Card style={{ marginBottom: 12, border: `1px solid ${payoutStatus === "paid" ? T.teal + "44" : T.lime + "22"}` }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                  fontFamily: "Georgia,serif", marginBottom: 10 }}>💰 Captain Payout</div>
+
+                {/* Already paid out */}
+                {payoutStatus === "paid" && (
+                  <div style={{ background: `${T.teal}12`, border: `1px solid ${T.teal}33`,
+                    borderRadius: 10, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 13, color: T.teal, fontWeight: 700, marginBottom: 4 }}>
+                      ✅ Payout sent — ${payoutAmount.toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.mist }}>
+                      Funds transferred to your bank account. Check your Stripe Express Dashboard for details.
+                    </div>
+                  </div>
+                )}
+
+                {/* Onboarded, waiting for full funding */}
+                {payoutStatus !== "paid" && captainIsOnboarded && (
+                  <div>
+                    <div style={{ background: `${T.lime}10`, border: `1px solid ${T.lime}33`,
+                      borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, color: T.lime, fontWeight: 700, marginBottom: 2 }}>
+                        ✓ Bank account connected
+                      </div>
+                      <div style={{ fontSize: 11, color: T.mist }}>
+                        Once all {members.length} members fund their escrow, ${(escrowRequired * (1 - 0.03)).toFixed(2)} will be automatically transferred to your bank account.
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: T.mist }}>
+                      {escrowFundedCount}/{members.length} members funded · 3% platform fee applies
+                    </div>
+                  </div>
+                )}
+
+                {/* Has account ID but not finished onboarding */}
+                {payoutStatus !== "paid" && captainHasConnect && !captainIsOnboarded && (
+                  <div>
+                    <div style={{ background: `${T.amber}10`, border: `1px solid ${T.amber}33`,
+                      borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, color: T.amber, fontWeight: 700, marginBottom: 2 }}>
+                        ⚠ Setup incomplete
+                      </div>
+                      <div style={{ fontSize: 11, color: T.mist }}>
+                        Your Stripe onboarding wasn't finished. Tap below to complete it.
+                      </div>
+                    </div>
+                    <button onClick={handleSetupPayouts} disabled={connectLoading}
+                      style={{ width: "100%", padding: "11px", background: T.amber,
+                        color: T.dark, border: "none", borderRadius: 8,
+                        fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                      {connectLoading ? "Loading…" : "Complete payout setup →"}
+                    </button>
+                  </div>
+                )}
+
+                {/* No connect account yet */}
+                {payoutStatus !== "paid" && !captainHasConnect && (
+                  <div>
+                    <p style={{ fontSize: 12, color: T.mist, margin: "0 0 12px", lineHeight: 1.6 }}>
+                      Connect your bank account so members' escrow payments are automatically transferred to you once the pod is fully funded.
+                    </p>
+                    {connectError && (
+                      <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{connectError}</div>
+                    )}
+                    <button onClick={handleSetupPayouts} disabled={connectLoading}
+                      style={{ width: "100%", padding: "13px", background: T.lime,
+                        color: T.dark, border: "none", borderRadius: 10,
+                        fontSize: 14, fontWeight: 700, cursor: "pointer",
+                        opacity: connectLoading ? 0.6 : 1 }}>
+                      {connectLoading ? "Opening Stripe…" : "💳 Set up payouts →"}
+                    </button>
+                    <div style={{ fontSize: 10, color: T.mist, textAlign: "center", marginTop: 8 }}>
+                      Powered by Stripe · Bank-level security · Takes ~2 min
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* Non-captain: show payout info */}
+            {!isCaptain && payoutStatus !== "paid" && captainIsOnboarded && (
+              <Card style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6 }}>
+                  💡 Once all members fund, <strong style={{ color: T.white }}>${(escrowRequired * 0.97).toFixed(2)}</strong> will be automatically sent to {captainProfile?.display_name || "your captain"} to cover the season tickets.
+                </div>
+              </Card>
+            )}
 
             {/* Per-member escrow */}
             <Card>

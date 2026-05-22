@@ -168,6 +168,24 @@ serve(async (req: Request) => {
         const allFunded = members?.every((m: { escrow_funded: boolean }) => m.escrow_funded) ?? false;
         if (allFunded) {
           await supabase.from("pods").update({ status: "active" }).eq("id", pod_id);
+
+          // Auto-trigger payout if captain has Connect account set up
+          try {
+            await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/payout-pod`,
+              {
+                method:  "POST",
+                headers: {
+                  "Content-Type":  "application/json",
+                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({ podId: pod_id }),
+              }
+            );
+          } catch (payoutErr) {
+            // Non-fatal — captain can trigger manually from the app
+            console.warn("Auto-payout skipped:", payoutErr);
+          }
         }
 
         await supabase.from("notifications").insert({

@@ -56,7 +56,7 @@ export async function getPodById(podId) {
     .from("pods")
     .select(`
       *,
-      pod_members(*, profiles(id, display_name, avatar_initials, verified, trust_score)),
+      pod_members(*, profiles(id, display_name, avatar_initials, verified, trust_score, connect_account_id, connect_onboarded)),
       games(*, assignments(user_id, method, confirmed))
     `)
     .eq("id", podId)
