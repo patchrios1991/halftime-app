@@ -49,7 +49,7 @@ function Landing() {
         ))}
       </div>
       <div style={{ fontSize: 11, color: T.mist, marginTop: 8 }}>
-        🔒 MVP Demo · All data is local · No real payments processed
+        🔒 Payments secured by Stripe · Data encrypted at rest
       </div>
     </div>
   );
