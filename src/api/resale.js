@@ -3,7 +3,9 @@ import { supabase } from "../lib/supabase";
 
 /** List a game for resale */
 export async function listGameForResale({ gameId, podId, askPrice }) {
-  const user = (await supabase.auth.getUser()).data.user;
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("resale_listings")
     .insert({
@@ -65,7 +67,7 @@ export async function completeResale({ listingId, soldPrice, podMembers }) {
 export async function getResaleListings(podId) {
   const { data, error } = await supabase
     .from("resale_listings")
-    .select("*, games(opponent, game_date, face_value), profiles(display_name)")
+    .select("*, games(opponent, game_date, face_value), profiles!seller_id(display_name)")
     .eq("pod_id", podId)
     .order("listed_at", { ascending: false });
 
@@ -75,7 +77,9 @@ export async function getResaleListings(podId) {
 
 /** Get payouts earned by the current user */
 export async function getMyPayouts() {
-  const user = (await supabase.auth.getUser()).data.user;
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) return [];
   const { data, error } = await supabase
     .from("resale_payouts")
     .select("*, resale_listings(sold_price, games(opponent, game_date))")

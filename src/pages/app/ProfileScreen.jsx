@@ -1,49 +1,55 @@
+// ─── ProfileScreen ────────────────────────────────────────────────────────────
 import { useNavigate } from "react-router-dom";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
 import Badge from "../../components/Badge";
 import Card from "../../components/Card";
+import { useMyPods } from "../../hooks/usePod";
 
-export default function ProfileScreen({ state, profile, signOut }) {
+export default function ProfileScreen({ profile, dispatch, signOut }) {
   const navigate = useNavigate();
-  const me = state.members[0]; // demo fallback
+  const { pods } = useMyPods();
 
-  // Prefer real profile fields, fall back to demo values
-  const displayName     = profile?.display_name     ?? "Jordan K.";
-  const avatarInitials  = profile?.avatar_initials  ?? "YO";
-  const trustScore      = profile?.trust_score      ?? 98;
-  const bidCredits      = profile?.bid_credits      ?? me?.credits ?? 100;
-  const isVerified      = profile?.verified         ?? true;
+  const displayName    = profile?.display_name    ?? "—";
+  const avatarInitials = profile?.avatar_initials ?? "YO";
+  const trustScore     = profile?.trust_score     ?? 0;
+  const bidCredits     = profile?.bid_credits     ?? 0;
+  const isVerified     = profile?.verified        ?? false;
+
+  const memberSince = profile?.created_at
+    ? new Date(profile.created_at).toLocaleDateString("en-US", {
+        month: "long", year: "numeric",
+      })
+    : "—";
 
   async function handleSignOut() {
-    try {
-      await signOut?.();
-      navigate("/auth/signin", { replace: true });
-    } catch {
-      // If signOut fails (demo mode), just navigate anyway
-      navigate("/auth/signin", { replace: true });
-    }
+    try { await signOut?.(); } catch {}
+    navigate("/auth/signin", { replace: true });
   }
 
   return (
     <div style={{ paddingBottom: 80 }}>
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div style={{ background: T.dark, padding: "28px 16px 20px", borderBottom: "1px solid #1A4A2E" }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 14 }}>
           <Avatar initials={avatarInitials} size={58} color={T.lime} verified={isVerified} />
           <div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.white,
               fontFamily: "Georgia,serif" }}>{displayName}</div>
-            <div style={{ fontSize: 11, color: T.mist, marginBottom: 5 }}>Member since Jan 2026</div>
+            <div style={{ fontSize: 11, color: T.mist, marginBottom: 5 }}>
+              Member since {memberSince}
+            </div>
             {isVerified
               ? <Badge color={T.teal}>✓ Fully Verified</Badge>
               : <Badge color={T.amber}>⏳ Pending Verification</Badge>
             }
           </div>
         </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
           {[
             { l: "Trust Score", v: `${trustScore}/100` },
-            { l: "Pods",        v: "1 active" },
+            { l: "Pods",        v: `${pods.length} active` },
             { l: "Bid Credits", v: `${bidCredits} pts` },
           ].map(({ l, v }) => (
             <div key={l} style={{ background: "#ffffff08", borderRadius: 8,
@@ -57,11 +63,18 @@ export default function ProfileScreen({ state, profile, signOut }) {
       </div>
 
       <div style={{ padding: 14 }}>
+        {/* ── Account settings ───────────────────────────────────────────── */}
         <Card style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.white,
             fontFamily: "Georgia,serif", marginBottom: 12 }}>⚙️ Account</div>
-          {["Payment Methods", "Identity Documents", "Notification Preferences",
-            "Playoff Rights Manager", "Pod Agreements", "Help & Support"].map((item, i, arr) => (
+          {[
+            "Payment Methods",
+            "Identity Documents",
+            "Notification Preferences",
+            "Playoff Rights Manager",
+            "Pod Agreements",
+            "Help & Support",
+          ].map((item, i, arr) => (
             <div key={item} style={{
               padding: "11px 0",
               borderBottom: i < arr.length - 1 ? "1px solid #1A4A2E" : "none",
@@ -73,6 +86,7 @@ export default function ProfileScreen({ state, profile, signOut }) {
           ))}
         </Card>
 
+        {/* ── Achievements ───────────────────────────────────────────────── */}
         <Card style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.white,
             fontFamily: "Georgia,serif", marginBottom: 12 }}>🏆 Achievements</div>
@@ -92,11 +106,10 @@ export default function ProfileScreen({ state, profile, signOut }) {
           </div>
         </Card>
 
+        {/* ── Sign out ───────────────────────────────────────────────────── */}
         <div style={{ padding: "12px 0", textAlign: "center" }}>
-          <div
-            onClick={handleSignOut}
-            style={{ fontSize: 12, color: T.red, cursor: "pointer", fontWeight: 600 }}
-          >
+          <div onClick={handleSignOut}
+            style={{ fontSize: 12, color: T.red, cursor: "pointer", fontWeight: 600 }}>
             Log Out
           </div>
         </div>
