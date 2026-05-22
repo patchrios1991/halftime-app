@@ -20,7 +20,8 @@ export function usePayments(podId) {
   const [clientSecret, setClientSecret] = useState(null);
   const [loading, setLoading]       = useState(true);
   const [paying, setPaying]         = useState(false);
-  const [error, setError]           = useState(null);
+  const [error, setError]           = useState(null);   // payment errors only (shown to user)
+  const [loadError, setLoadError]   = useState(null);   // load errors (logged, not shown)
 
   const load = useCallback(async () => {
     if (!podId || !isSupabaseConfigured) { setLoading(false); return; }
@@ -34,7 +35,8 @@ export function usePayments(podId) {
       setPayments(all || []);
       setMyPayment(mine);
     } catch (e) {
-      setError(e.message);
+      console.warn("[usePayments] load error:", e.message);
+      setLoadError(e.message);
     } finally {
       setLoading(false);
     }

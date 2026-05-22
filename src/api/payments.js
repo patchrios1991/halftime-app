@@ -41,7 +41,7 @@ export async function recordEscrowPayment({ podId, amount, stripePaymentIntentId
 export async function getEscrowPayments(podId) {
   const { data, error } = await supabase
     .from("escrow_payments")
-    .select("*, profiles(display_name, avatar_initials)")
+    .select("*")
     .eq("pod_id", podId)
     .order("created_at", { ascending: false });
 
@@ -51,7 +51,11 @@ export async function getEscrowPayments(podId) {
 
 /** Get the current user's escrow payment for a specific pod */
 export async function getMyEscrowPayment(podId) {
-  const user = (await supabase.auth.getUser()).data.user;
+  // Use getSession (local storage) instead of getUser (network call) for reliability
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) return null;
+
   const { data, error } = await supabase
     .from("escrow_payments")
     .select("*")
