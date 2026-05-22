@@ -43,6 +43,8 @@ enable_confirmations = false   # set true in production
 [auth.sms]
 enable_signup = false
 
-[functions]
-# Edge Functions are in supabase/functions/
+[functions.stripe-webhook]
+verify_jwt = false   # Stripe sends its own signature, not a Supabase JWT
+
+[functions.create-payment-intent]
 verify_jwt = true

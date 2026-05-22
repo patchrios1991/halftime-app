@@ -3,18 +3,36 @@ import { supabase } from "../lib/supabase";
 
 /** Fetch all pods the current user is a member of */
 export async function getMyPods() {
-  const { data, error } = await supabase
+  // Use getSession (local storage) instead of getUser (network call) for reliability
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) return [];
+
+  // Step 1: get this user's pod memberships
+  const { data: memberships, error: memberErr } = await supabase
+    .from("pod_members")
+    .select("pod_id, share_pct, cost, escrow_funded, bid_credits, games_allocated, games_attended")
+    .eq("user_id", user.id);
+
+  if (memberErr) throw memberErr;
+  if (!memberships?.length) return [];
+
+  const podIds = memberships.map(m => m.pod_id);
+
+  // Step 2: fetch those pods
+  const { data: pods, error: podErr } = await supabase
     .from("pods")
-    .select(`
-      *,
-      pod_members!inner(user_id, share_pct, cost, escrow_funded, bid_credits, games_allocated, games_attended),
-      games(count)
-    `)
-    .eq("pod_members.user_id", (await supabase.auth.getUser()).data.user?.id)
+    .select("*")
+    .in("id", podIds)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return data;
+  if (podErr) throw podErr;
+
+  // Attach member rows to each pod so PodScreen can read them
+  return (pods ?? []).map(pod => ({
+    ...pod,
+    pod_members: memberships.filter(m => m.pod_id === pod.id),
+  }));
 }
 
 /** Fetch all pods open for recruiting (browse/explore) */

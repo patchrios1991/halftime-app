@@ -1,11 +1,50 @@
+import { useState } from "react";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
 import Badge from "../../components/Badge";
 import Bar from "../../components/Bar";
 import Card from "../../components/Card";
 import Wordmark from "../../components/Wordmark";
+import { useNotifications } from "../../hooks/useNotifications";
+import { isSupabaseConfigured } from "../../lib/supabase";
+
+// Icon per notification type
+function notifIcon(type) {
+  switch (type) {
+    case "escrow_funded":  return "✅";
+    case "escrow_failed":  return "❌";
+    case "pod_active":     return "🎉";
+    case "game_allocated": return "🎟️";
+    case "resale":         return "💰";
+    default:               return "🔔";
+  }
+}
+
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso)) / 1000;
+  if (diff < 60)   return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
 export default function Dashboard({ state, dispatch, profile }) {
+  const [showNotifs, setShowNotifs] = useState(false);
+
+  // Use real notifications when Supabase is connected, fall back to mock
+  const { notifications: realNotifs, unreadCount: realUnread, markAllRead, refresh: refreshNotifs } = useNotifications();
+  const notifications = isSupabaseConfigured ? realNotifs : state.notifications;
+  const unread        = isSupabaseConfigured ? realUnread  : state.notifications.filter(n => !n.read).length;
+
+  function handleBellClick() {
+    setShowNotifs(v => !v);
+    if (!showNotifs) {
+      // Re-fetch so we catch any notifications inserted since mount
+      if (isSupabaseConfigured) { refreshNotifs(); markAllRead(); }
+      else dispatch({ type: "MARK_NOTIFS_READ" });
+    }
+  }
+
   // Use real profile name when available, fall back to demo "Jordan"
   const firstName = profile?.display_name?.split(" ")[0] || "Jordan";
   const avatarInitials = profile?.avatar_initials || "YO";
@@ -16,7 +55,6 @@ export default function Dashboard({ state, dispatch, profile }) {
     .map(([gid]) => state.games.find(g => g.id === Number(gid)))
     .filter(Boolean);
   const nextGame = myGames[0];
-  const unread = state.notifications.filter(n => !n.read).length;
   const escrowPct = Math.round((state.escrowBalance / state.escrowRequired) * 100);
 
   return (
@@ -29,10 +67,11 @@ export default function Dashboard({ state, dispatch, profile }) {
           <Wordmark size={22} />
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <div
-              onClick={() => dispatch({ type: "MARK_NOTIFS_READ" })}
+              onClick={handleBellClick}
               style={{ position: "relative", width: 36, height: 36, borderRadius: "50%",
-                background: "#1A4A2E", display: "flex", alignItems: "center",
-                justifyContent: "center", fontSize: 16, cursor: "pointer" }}>
+                background: showNotifs ? T.green : "#1A4A2E", display: "flex", alignItems: "center",
+                justifyContent: "center", fontSize: 16, cursor: "pointer",
+                transition: "background 0.15s" }}>
               🔔
               {unread > 0 && (
                 <div style={{ position: "absolute", top: 0, right: 0, width: 14, height: 14,
@@ -64,6 +103,47 @@ export default function Dashboard({ state, dispatch, profile }) {
           ))}
         </div>
       </div>
+
+      {/* ── Notifications panel ─────────────────────────────────────────────── */}
+      {showNotifs && (
+        <div style={{
+          background: T.forest, borderBottom: `1px solid ${T.green}`,
+          padding: "12px 14px", maxHeight: 320, overflowY: "auto",
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.mist,
+            letterSpacing: 1.5, marginBottom: 10 }}>NOTIFICATIONS</div>
+
+          {notifications.length === 0 ? (
+            <div style={{ color: T.mist, fontSize: 13, textAlign: "center", padding: "20px 0" }}>
+              No notifications yet
+            </div>
+          ) : (
+            notifications.map((n, i) => (
+              <div key={n.id ?? i} style={{
+                display: "flex", gap: 10, alignItems: "flex-start",
+                padding: "10px 0", borderBottom: `1px solid #1A4A2E`,
+                opacity: n.read ? 0.55 : 1,
+              }}>
+                <div style={{ fontSize: 18, flexShrink: 0 }}>
+                  {notifIcon(n.type)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: n.read ? 400 : 700, color: T.white,
+                    marginBottom: 2 }}>
+                    {n.title ?? n.text}
+                  </div>
+                  {n.body && (
+                    <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.5 }}>{n.body}</div>
+                  )}
+                </div>
+                <div style={{ fontSize: 10, color: T.mist, flexShrink: 0, marginTop: 2 }}>
+                  {n.created_at ? timeAgo(n.created_at) : n.time}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       <div style={{ padding: "14px 14px 0" }}>
         {/* Next game */}

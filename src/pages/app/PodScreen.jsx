@@ -4,11 +4,36 @@ import Avatar from "../../components/Avatar";
 import Badge from "../../components/Badge";
 import Bar from "../../components/Bar";
 import Card from "../../components/Card";
+import EscrowPaymentScreen from "./EscrowPaymentScreen";
+import { useMyPods } from "../../hooks/usePod";
+import { isSupabaseConfigured } from "../../lib/supabase";
 
 export default function PodScreen({ state, dispatch }) {
   const [tab, setTab] = useState("members");
+  const [showPayment, setShowPayment] = useState(false);
+
+  // Real pod data — pod_members is filtered to current user only by getMyPods()
+  const { pods, loading: podsLoading } = useMyPods();
+  const realPod        = pods?.[0] ?? null;
+  const activePodId    = realPod?.id ?? null;
+  const podDisplayName = realPod?.name ?? "Section 114 Squad";
+  const realMyMember   = realPod?.pod_members?.[0] ?? null;
+
+  // Escrow funded status — real DB when connected, mock state otherwise
+  const myEscrowFunded = isSupabaseConfigured
+    ? Boolean(realMyMember?.escrow_funded)
+    : Boolean(state.members.find(m => m.id === "m1")?.escrowFunded);
+
+  // Amount — real cost from DB or fallback to mock share%
+  const myAmount = parseFloat(realMyMember?.cost) || (((realMyMember?.share_pct ?? 25) / 100) * 1850);
+
+  function handlePaymentSuccess() {
+    setShowPayment(false);
+    dispatch({ type: "FUND_ESCROW" });
+  }
 
   return (
+    <>
     <div style={{ paddingBottom: 80 }}>
       {/* Header */}
       <div style={{ background: `linear-gradient(160deg,${T.dark},${T.forest})`,
@@ -54,6 +79,30 @@ export default function PodScreen({ state, dispatch }) {
         {/* Members tab */}
         {tab === "members" && (
           <div>
+            {/* Real-data escrow status for the current user */}
+            {isSupabaseConfigured && (
+              <Card style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>Your escrow</div>
+                    <div style={{ fontSize: 11, color: T.mist, marginTop: 2 }}>
+                      ${myAmount.toFixed(2)} · {realMyMember?.share_pct ?? 25}% share
+                    </div>
+                  </div>
+                  {myEscrowFunded
+                    ? <Badge color={T.lime}>💳 Funded</Badge>
+                    : (
+                      <div
+                        onClick={() => setShowPayment(true)}
+                        style={{ background: `${T.lime}22`, color: T.lime,
+                          border: `1px solid ${T.lime}44`, borderRadius: 20,
+                          padding: "4px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                        Fund →
+                      </div>
+                    )}
+                </div>
+              </Card>
+            )}
             {state.members.map(m => {
               const count = Object.values(state.assignments).filter(id => id === m.id).length;
               return (
@@ -86,12 +135,10 @@ export default function PodScreen({ state, dispatch }) {
                       {m.escrowFunded
                         ? <Badge color={T.lime}>💳 Funded</Badge>
                         : (
-                          <div
-                            onClick={() => dispatch({ type: "FUND_ESCROW" })}
-                            style={{ background: `${T.red}22`, color: T.red,
-                              border: `1px solid ${T.red}44`, borderRadius: 20,
-                              padding: "2px 9px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
-                            Pending →
+                          <div style={{ background: `${T.amber}22`, color: T.amber,
+                            border: `1px solid ${T.amber}44`, borderRadius: 20,
+                            padding: "2px 9px", fontSize: 10, fontWeight: 700 }}>
+                            Pending
                           </div>
                         )}
                     </div>
@@ -148,6 +195,18 @@ export default function PodScreen({ state, dispatch }) {
                 {Math.round((state.escrowBalance / state.escrowRequired) * 100)}% funded
                 · Protected by Stripe Treasury (FDIC-insured)
               </div>
+              {!myEscrowFunded && (
+                <button
+                  onClick={() => setShowPayment(true)}
+                  style={{
+                    marginTop: 14, width: "100%", padding: "13px 0",
+                    background: T.lime, color: T.dark, border: "none",
+                    borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer",
+                  }}
+                >
+                  Fund my escrow share — ${myAmount?.toFixed(2)}
+                </button>
+              )}
             </Card>
             <Card>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
@@ -201,5 +260,17 @@ export default function PodScreen({ state, dispatch }) {
         )}
       </div>
     </div>
+
+    {/* Escrow payment modal */}
+    {showPayment && (
+      <EscrowPaymentScreen
+        podId={activePodId}
+        podName={podDisplayName}
+        amount={myAmount}
+        onSuccess={handlePaymentSuccess}
+        onClose={() => setShowPayment(false)}
+      />
+    )}
+    </>
   );
 }
