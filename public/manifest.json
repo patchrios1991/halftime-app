@@ -1,0 +1,37 @@
+{
+  "name": "HalfTime",
+  "short_name": "HalfTime",
+  "description": "Season ticket pod sharing — split the cost, share the season.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060F08",
+  "theme_color": "#060F08",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "finance", "lifestyle"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "My Schedule",
+      "short_name": "Schedule",
+      "description": "View your game schedule",
+      "url": "/?screen=schedule",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Resale",
+      "short_name": "Resale",
+      "description": "Pod ticket marketplace",
+      "url": "/?screen=resale",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

@@ -21,6 +21,84 @@ const METHOD_INFO = {
 
 const TIERS = ["standard", "premium", "marquee"];
 
+// ── Schedule import parser ─────────────────────────────────────────────────────
+const MONTH_MAP = {
+  jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12,
+  january:1,february:2,march:3,april:4,june:6,july:7,august:8,
+  september:9,october:10,november:11,december:12,
+};
+
+function parseImportDate(s) {
+  s = s.trim();
+  // ISO 2026-01-15
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // M/D or M/D/YY or M/D/YYYY
+  const slash = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if (slash) {
+    let y = slash[3] ? parseInt(slash[3]) : new Date().getFullYear();
+    if (y < 100) y += 2000;
+    return `${y}-${slash[1].padStart(2,"0")}-${slash[2].padStart(2,"0")}`;
+  }
+  // "Jan 15" or "January 15, 2026"
+  const named = s.match(/^([a-z]+)\.?\s+(\d{1,2})(?:[,\s]+(\d{4}))?$/i);
+  if (named) {
+    const mo = MONTH_MAP[named[1].toLowerCase()];
+    if (mo) {
+      const y = named[3] ? parseInt(named[3]) : new Date().getFullYear();
+      return `${y}-${String(mo).padStart(2,"0")}-${named[2].padStart(2,"0")}`;
+    }
+  }
+  return null;
+}
+
+function parseImportTime(s) {
+  s = s.trim();
+  const ampm = s.match(/^(\d{1,2}):?(\d{0,2})\s*(am|pm)$/i);
+  if (ampm) {
+    let h = parseInt(ampm[1]);
+    const min = ampm[2] || "00";
+    if (ampm[3].toUpperCase() === "PM" && h < 12) h += 12;
+    if (ampm[3].toUpperCase() === "AM" && h === 12) h = 0;
+    return `${String(h).padStart(2,"0")}:${min.padStart(2,"0")}`;
+  }
+  const mil = s.match(/^(\d{2}):(\d{2})$/);
+  if (mil && parseInt(mil[1]) < 24) return `${mil[1]}:${mil[2]}`;
+  return null;
+}
+
+function parseImportLine(line) {
+  const parts = line.split(/[,;\t]/).map(p => p.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  const opponent = parts[0].replace(/^(vs\.?\s*|@\s*)/i, "").trim();
+  if (!opponent) return null;
+
+  let game_date = null, game_time = "19:30", face_value = "", tier = "standard";
+
+  for (const p of parts.slice(1)) {
+    if (!game_date)      { const d = parseImportDate(p); if (d) game_date = d; }
+    if (game_time === "19:30") { const t = parseImportTime(p); if (t) game_time = t; }
+    if (!face_value) {
+      const m = p.match(/\$?(\d+(?:\.\d{1,2})?)/);
+      if (m && parseFloat(m[1]) >= 1) face_value = m[1];
+    }
+    const pl = p.toLowerCase();
+    if (pl.includes("marquee")) tier = "marquee";
+    else if (pl.includes("premium")) tier = "premium";
+  }
+
+  if (!game_date) return null;
+  return { opponent, game_date, game_time, face_value, tier };
+}
+
+function parseScheduleText(text) {
+  return text
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith("#") && !l.startsWith("//"))
+    .map(parseImportLine)
+    .filter(Boolean);
+}
+
 const inputStyle = {
   width: "100%", padding: "9px 12px", background: "#0D1F12",
   border: `1px solid ${T.green}`, borderRadius: 8, color: T.white,
@@ -30,6 +108,10 @@ const inputStyle = {
 export default function AllocationScreen({ state, dispatch }) {
   const [method, setMethod]     = useState(state.allocationMethod || "snake");
   const [showAddGame, setShowAddGame] = useState(false);
+  const [showImport, setShowImport]   = useState(false);
+  const [importText, setImportText]   = useState("");
+  const [importing, setImporting]     = useState(false);
+  const [importErr, setImportErr]     = useState(null);
   const [gameForm, setGameForm] = useState({
     opponent: "", game_date: "", game_time: "19:30", face_value: "", tier: "standard",
   });
@@ -46,7 +128,7 @@ export default function AllocationScreen({ state, dispatch }) {
   const activePod          = pods?.[0] ?? null;
   const activePodId        = activePod?.id ?? null;
   const { pod: fullPod, members: rawMembers, refresh: refreshPod } = usePod(activePodId);
-  const { games, runAllocation, allocating, refresh: refreshGames } = useGames(activePodId);
+  const { games, addGames, runAllocation, allocating, refresh: refreshGames } = useGames(activePodId);
 
   const isCaptain = fullPod?.captain_id === currentUserId;
 
@@ -116,6 +198,22 @@ export default function AllocationScreen({ state, dispatch }) {
     }
   }
 
+  async function handleImport() {
+    setImportErr(null);
+    const parsed = parseScheduleText(importText);
+    if (parsed.length === 0) { setImportErr("No valid games found. Check the format below."); return; }
+    setImporting(true);
+    try {
+      await addGames(parsed);
+      setImportText("");
+      setShowImport(false);
+    } catch (e) {
+      setImportErr(e.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleRunAllocation() {
     try {
       await runAllocation(fullPod, rawMembers, method);
@@ -166,9 +264,15 @@ export default function AllocationScreen({ state, dispatch }) {
                 🎟️ Season Games ({games.length})
               </div>
               {!allocationDone && (
-                <div onClick={() => setShowAddGame(v => !v)}
-                  style={{ fontSize: 11, color: T.lime, fontWeight: 700, cursor: "pointer" }}>
-                  {showAddGame ? "✕ Cancel" : "+ Add Game"}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <div onClick={() => { setShowImport(v => !v); setShowAddGame(false); }}
+                    style={{ fontSize: 11, color: T.teal, fontWeight: 700, cursor: "pointer" }}>
+                    {showImport ? "✕" : "📋 Import"}
+                  </div>
+                  <div onClick={() => { setShowAddGame(v => !v); setShowImport(false); }}
+                    style={{ fontSize: 11, color: T.lime, fontWeight: 700, cursor: "pointer" }}>
+                    {showAddGame ? "✕ Cancel" : "+ Add"}
+                  </div>
                 </div>
               )}
             </div>
@@ -198,6 +302,70 @@ export default function AllocationScreen({ state, dispatch }) {
                   style={{ width: "100%", padding: "9px", background: T.lime, color: T.dark,
                     border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {addingGame ? "Adding…" : "Add Game"}
+                </button>
+              </div>
+            )}
+
+            {/* ── Bulk import panel ── */}
+            {showImport && (
+              <div style={{ background: "#0D1F12", borderRadius: 10, padding: 12, marginBottom: 12,
+                border: `1px solid ${T.teal}44` }}>
+                <div style={{ fontSize: 11, color: T.teal, fontWeight: 700, marginBottom: 6 }}>
+                  📋 Paste your schedule — one game per line
+                </div>
+                <div style={{ fontSize: 10, color: T.mist, marginBottom: 8, lineHeight: 1.6 }}>
+                  Format: <span style={{ color: T.chalk }}>Opponent, Date, Time, Price, Tier</span><br />
+                  e.g. <span style={{ color: T.chalk }}>Lakers, Jan 15, 7:30 PM, $180, marquee</span><br />
+                  e.g. <span style={{ color: T.chalk }}>Celtics, 2/20, 8pm, 120</span><br />
+                  Tier (optional): standard / premium / marquee
+                </div>
+                <textarea
+                  value={importText}
+                  onChange={e => setImportText(e.target.value)}
+                  placeholder={"Lakers, Jan 15, 7:30 PM, $180, marquee\nCeltics, Jan 22, 8 PM, $150, premium\nNets, Feb 3, 7 PM, $95"}
+                  rows={6}
+                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, fontSize: 12,
+                    fontFamily: "monospace" }}
+                />
+                {/* Live parse preview */}
+                {importText.trim() && (() => {
+                  const parsed = parseScheduleText(importText);
+                  return (
+                    <div style={{ marginTop: 8, marginBottom: 8 }}>
+                      {parsed.length > 0 ? (
+                        <div style={{ fontSize: 10, color: T.teal, marginBottom: 6 }}>
+                          ✓ {parsed.length} game{parsed.length !== 1 ? "s" : ""} ready to import
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 10, color: T.amber, marginBottom: 6 }}>
+                          ⚠ No valid games parsed yet — check your format
+                        </div>
+                      )}
+                      {parsed.slice(0, 3).map((g, i) => (
+                        <div key={i} style={{ fontSize: 10, color: T.mist, padding: "3px 0",
+                          borderBottom: "1px solid #1A4A2E" }}>
+                          {fullPod?.sport_emoji || "🏀"} vs. <span style={{ color: T.chalk }}>{g.opponent}</span>
+                          {" · "}{g.game_date}{" · "}${g.face_value || "?"}{" · "}{g.tier}
+                        </div>
+                      ))}
+                      {parsed.length > 3 && (
+                        <div style={{ fontSize: 10, color: T.mist, marginTop: 4 }}>
+                          …and {parsed.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                {importErr && (
+                  <div style={{ color: T.red, fontSize: 11, marginBottom: 6 }}>{importErr}</div>
+                )}
+                <button
+                  onClick={handleImport}
+                  disabled={importing || !importText.trim()}
+                  style={{ width: "100%", padding: "9px", background: T.teal, color: T.dark,
+                    border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                    opacity: !importText.trim() ? 0.5 : 1 }}>
+                  {importing ? "Importing…" : `Import ${parseScheduleText(importText).length || 0} Games`}
                 </button>
               </div>
             )}

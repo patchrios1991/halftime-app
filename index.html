@@ -2,12 +2,56 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>halftime-app</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- ── Primary meta ───────────────────────────────────────────────────── -->
+    <title>HalfTime — Season Ticket Pods</title>
+    <meta name="description" content="Split season tickets with your crew. Fair allocation, shared escrow, resale marketplace." />
+    <meta name="theme-color" content="#060F08" />
+
+    <!-- ── PWA manifest ───────────────────────────────────────────────────── -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- ── iOS PWA meta ───────────────────────────────────────────────────── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="HalfTime" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+
+    <!-- ── Favicon ────────────────────────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- ── Open Graph / share preview ────────────────────────────────────── -->
+    <meta property="og:title"       content="HalfTime" />
+    <meta property="og:description" content="Season ticket pod sharing — split the cost, share the season." />
+    <meta property="og:type"        content="website" />
+    <meta property="og:image"       content="/icon.svg" />
+    <meta name="twitter:card"       content="summary" />
+
+    <!-- ── Preconnect to Supabase for faster auth ─────────────────────────── -->
+    <link rel="preconnect" href="https://supabase.co" />
+
+    <!-- ── Prevent iOS tap callouts ──────────────────────────────────────── -->
+    <style>
+      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+      body { margin: 0; background: #060F08; }
+      /* Safe area insets for notched iPhones */
+      #root { padding-top: env(safe-area-inset-top); }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- ── Register service worker ────────────────────────────────────────── -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {
+            // SW registration failures are non-fatal
+          });
+        });
+      }
+    </script>
   </body>
 </html>

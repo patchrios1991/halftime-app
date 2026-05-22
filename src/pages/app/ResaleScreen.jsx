@@ -5,14 +5,16 @@ import Badge from "../../components/Badge";
 import { useMyPods, usePod } from "../../hooks/usePod";
 import { useGames } from "../../hooks/useGames";
 import { useResale } from "../../hooks/useResale";
+import ResalePaymentModal from "./ResalePaymentModal";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
 export default function ResaleScreen({ state, dispatch }) {
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [tab, setTab]         = useState("mine"); // "mine" | "market"
-  const [prices, setPrices]   = useState({});     // gameId → ask price
-  const [busy, setBusy]       = useState(false);
+  const [tab, setTab]           = useState("mine"); // "mine" | "market"
+  const [prices, setPrices]     = useState({});     // gameId → ask price
+  const [busy, setBusy]         = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [buyingListing, setBuyingListing] = useState(null); // listing to buy
 
   if (!currentUserId && isSupabaseConfigured) {
     supabase.auth.getSession().then(({ data: { session } }) =>
@@ -290,16 +292,13 @@ export default function ResaleScreen({ state, dispatch }) {
               </div>
             ) : (
               <>
-                <div style={{ fontSize: 11, color: T.mist, marginBottom: 12 }}>
-                  📣 Interested in a ticket? Message your pod group chat to arrange the transfer.
-                </div>
                 {marketListings.map(listing => (
                   <div key={listing.id} style={{
                     background: T.forest, borderRadius: 12, padding: "12px 14px",
                     marginBottom: 10, border: "1px solid #1A4A2E",
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between",
-                      alignItems: "flex-start", marginBottom: 8 }}>
+                      alignItems: "flex-start", marginBottom: 10 }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
                           fontFamily: "Georgia,serif" }}>
@@ -310,7 +309,7 @@ export default function ResaleScreen({ state, dispatch }) {
                           {fmtDate(listing.games?.game_date)} · Face ${listing.games?.face_value}
                         </div>
                         <div style={{ fontSize: 10, color: T.mist, marginTop: 1 }}>
-                          Seller: {listing.profiles?.display_name || "Pod member"}
+                          From: {listing.profiles?.display_name || "Pod member"}
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
@@ -319,6 +318,13 @@ export default function ResaleScreen({ state, dispatch }) {
                         <Badge color={T.teal}>Available</Badge>
                       </div>
                     </div>
+                    <button
+                      onClick={() => setBuyingListing(listing)}
+                      style={{ width: "100%", padding: "10px", background: T.lime,
+                        color: T.dark, border: "none", borderRadius: 8,
+                        fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                      Buy for ${listing.ask_price} →
+                    </button>
                   </div>
                 ))}
               </>
@@ -326,6 +332,19 @@ export default function ResaleScreen({ state, dispatch }) {
           </>
         )}
       </div>
+
+      {/* ── Buy modal ── */}
+      {buyingListing && (
+        <ResalePaymentModal
+          listing={buyingListing}
+          podName={fullPod?.name || "Pod"}
+          onSuccess={() => {
+            setBuyingListing(null);
+            // Listings will refresh via realtime subscription
+          }}
+          onClose={() => setBuyingListing(null)}
+        />
+      )}
     </div>
   );
 }

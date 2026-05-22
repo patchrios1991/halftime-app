@@ -73,7 +73,74 @@ serve(async (req: Request) => {
       // ── Payment succeeded ──────────────────────────────────────────────────
       case "payment_intent.succeeded": {
         const pi = event.data.object;
-        const { pod_id, user_id } = pi.metadata ?? {};
+        const meta = pi.metadata ?? {};
+
+        // ── Resale purchase ──────────────────────────────────────────────────
+        if (meta.type === "resale" && meta.listing_id) {
+          const { listing_id, pod_id, seller_id, buyer_id } = meta;
+          const soldPrice = pi.amount / 100;
+
+          // Mark listing as sold
+          const { data: listing } = await supabase
+            .from("resale_listings")
+            .update({ status: "sold", sold_price: soldPrice, sold_at: new Date().toISOString() })
+            .eq("id", listing_id)
+            .select()
+            .single();
+
+          if (listing) {
+            // Distribute proceeds: net (after 8% fee) split by share_pct
+            const netProceeds = soldPrice * 0.92;
+            const { data: podMembers } = await supabase
+              .from("pod_members")
+              .select("user_id, share_pct")
+              .eq("pod_id", pod_id);
+
+            if (podMembers && podMembers.length > 0) {
+              const payoutRows = podMembers.map((m: { user_id: string; share_pct: number }) => ({
+                listing_id,
+                user_id:   m.user_id,
+                share_pct: m.share_pct,
+                amount:    Math.round((netProceeds * m.share_pct / 100) * 100) / 100,
+              }));
+              await supabase.from("resale_payouts").insert(payoutRows);
+            }
+
+            // Re-assign the game to the buyer
+            await supabase
+              .from("assignments")
+              .update({ user_id: buyer_id, method: "resale" })
+              .eq("game_id", listing.game_id);
+
+            // Notify seller
+            if (seller_id) {
+              await supabase.from("notifications").insert({
+                user_id: seller_id,
+                type:    "resale_sold",
+                title:   "Ticket sold! 💰",
+                body:    `Your ticket sold for $${soldPrice.toFixed(2)}. Your share of the proceeds has been added to the pod.`,
+                pod_id,
+              });
+            }
+
+            // Notify buyer
+            if (buyer_id) {
+              await supabase.from("notifications").insert({
+                user_id: buyer_id,
+                type:    "game_allocated",
+                title:   "Ticket confirmed 🎟️",
+                body:    `You bought a ticket for $${soldPrice.toFixed(2)}. It's now in your schedule.`,
+                pod_id,
+              });
+            }
+          }
+
+          console.log(`✅ Resale ${listing_id} sold for $${soldPrice} (buyer: ${buyer_id})`);
+          break;
+        }
+
+        // ── Escrow deposit ───────────────────────────────────────────────────
+        const { pod_id, user_id } = meta;
         if (!pod_id || !user_id) break;
 
         await supabase
