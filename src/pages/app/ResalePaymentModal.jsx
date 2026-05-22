@@ -154,22 +154,13 @@ export default function ResalePaymentModal({ listing, podName, onSuccess, onClos
     setError(null);
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-intent`,
-        {
-          method:  "POST",
-          headers: {
-            "Content-Type":  "application/json",
-            "Authorization": `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ type: "resale", listingId: listing.id }),
-        }
-      );
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      setSecret(json.clientSecret);
-      setAmount(json.amount ?? amount);
+      const { data, error: fnErr } = await supabase.functions.invoke("create-payment-intent", {
+        body: { type: "resale", listingId: listing.id },
+      });
+      if (fnErr) throw fnErr;
+      if (data?.error) throw new Error(data.error);
+      setSecret(data.clientSecret);
+      setAmount(data.amount ?? amount);
       setPhase("checkout");
     } catch (e) {
       setError(e.message);
