@@ -334,27 +334,25 @@ export default function AllocationScreen({ state, dispatch }) {
               <div style={{ fontSize: 13, fontWeight: 700, color: T.white, fontFamily: "Georgia,serif" }}>
                 🎟️ Season Games ({games.length})
               </div>
-              {!allocationDone && (
-                <div style={{ display: "flex", gap: 12 }}>
-                  <div onClick={() => {
-                    setShowFetch(v => !v);
-                    setShowImport(false); setShowAddGame(false);
-                    if (!fetchQuery && fullPod?.team_name) {
-                      handleSearchTeams(fullPod.team_name);
-                    }
-                  }} style={{ fontSize: 11, color: "#60A5FA", fontWeight: 700, cursor: "pointer" }}>
-                    {showFetch ? "✕" : "🔍 ESPN"}
-                  </div>
-                  <div onClick={() => { setShowImport(v => !v); setShowAddGame(false); setShowFetch(false); }}
-                    style={{ fontSize: 11, color: T.teal, fontWeight: 700, cursor: "pointer" }}>
-                    {showImport ? "✕" : "📋 Import"}
-                  </div>
-                  <div onClick={() => { setShowAddGame(v => !v); setShowImport(false); setShowFetch(false); }}
-                    style={{ fontSize: 11, color: T.lime, fontWeight: 700, cursor: "pointer" }}>
-                    {showAddGame ? "✕ Cancel" : "+ Add"}
-                  </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div onClick={() => {
+                  setShowFetch(v => !v);
+                  setShowImport(false); setShowAddGame(false);
+                  if (!fetchQuery && fullPod?.team_name) {
+                    handleSearchTeams(fullPod.team_name);
+                  }
+                }} style={{ fontSize: 11, color: "#60A5FA", fontWeight: 700, cursor: "pointer" }}>
+                  {showFetch ? "✕" : "🔍 ESPN"}
                 </div>
-              )}
+                <div onClick={() => { setShowImport(v => !v); setShowAddGame(false); setShowFetch(false); }}
+                  style={{ fontSize: 11, color: T.teal, fontWeight: 700, cursor: "pointer" }}>
+                  {showImport ? "✕" : "📋 Import"}
+                </div>
+                <div onClick={() => { setShowAddGame(v => !v); setShowImport(false); setShowFetch(false); }}
+                  style={{ fontSize: 11, color: T.lime, fontWeight: 700, cursor: "pointer" }}>
+                  {showAddGame ? "✕ Cancel" : "+ Add"}
+                </div>
+              </div>
             </div>
 
             {/* Add game form */}
