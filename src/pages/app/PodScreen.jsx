@@ -97,8 +97,10 @@ export default function PodScreen({ state, dispatch }) {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      // Open Stripe's hosted onboarding in the same tab
-      window.location.href = data.url;
+      if (!data?.url) throw new Error("No onboarding URL returned");
+      // Open Stripe's hosted onboarding — use _blank so iOS PWA opens Safari
+      window.open(data.url, "_blank", "noopener");
+      setConnectLoading(false);
     } catch (e) {
       setConnectError(e.message);
       setConnectLoading(false);
