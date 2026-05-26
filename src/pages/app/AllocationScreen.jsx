@@ -10,6 +10,7 @@ import { useMyPods, usePod } from "../../hooks/usePod";
 import { useGames } from "../../hooks/useGames";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 import { deleteGame } from "../../api/games";
+import { searchESPNTeams, fetchESPNSchedule } from "../../api/schedule";
 
 const MEMBER_COLORS = ["#C8F135", "#34D399", "#A78BFA", "#FBBF24", "#F87171", "#60A5FA"];
 
@@ -112,6 +113,17 @@ export default function AllocationScreen({ state, dispatch }) {
   const [importText, setImportText]   = useState("");
   const [importing, setImporting]     = useState(false);
   const [importErr, setImportErr]     = useState(null);
+
+  // ESPN fetch state
+  const [showFetch,    setShowFetch]    = useState(false);
+  const [fetchQuery,   setFetchQuery]   = useState("");
+  const [teamResults,  setTeamResults]  = useState([]);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [fetchedGames, setFetchedGames] = useState([]);
+  const [defaultPrice, setDefaultPrice] = useState("");
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetchErr,     setFetchErr]     = useState(null);
+  const [importing2,   setImporting2]   = useState(false);
   const [gameForm, setGameForm] = useState({
     opponent: "", game_date: "", game_time: "19:30", face_value: "", tier: "standard",
   });
@@ -214,6 +226,65 @@ export default function AllocationScreen({ state, dispatch }) {
     }
   }
 
+  // ── ESPN fetch handlers ──────────────────────────────────────────────────────
+  async function handleSearchTeams(q) {
+    setFetchQuery(q);
+    setSelectedTeam(null);
+    setFetchedGames([]);
+    setFetchErr(null);
+    if (!q.trim()) { setTeamResults([]); return; }
+    setFetchLoading(true);
+    try {
+      const sport = fullPod?.sport || "basketball";
+      const results = await searchESPNTeams(sport, q);
+      setTeamResults(results.slice(0, 6));
+    } catch (e) {
+      setFetchErr(e.message);
+    } finally {
+      setFetchLoading(false);
+    }
+  }
+
+  async function handleSelectTeam(team) {
+    setSelectedTeam(team);
+    setTeamResults([]);
+    setFetchedGames([]);
+    setFetchErr(null);
+    setFetchLoading(true);
+    try {
+      const sport = fullPod?.sport || "basketball";
+      const games = await fetchESPNSchedule(sport, team.id, defaultPrice);
+      setFetchedGames(games);
+    } catch (e) {
+      setFetchErr(e.message);
+    } finally {
+      setFetchLoading(false);
+    }
+  }
+
+  async function handleImportFetched() {
+    if (!fetchedGames.length) return;
+    setImporting2(true);
+    setFetchErr(null);
+    try {
+      const gamesWithPrice = fetchedGames.map(g => ({
+        ...g,
+        face_value: defaultPrice || "0",
+        sport_emoji: fullPod?.sport_emoji || "🏀",
+      }));
+      await addGames(gamesWithPrice);
+      setShowFetch(false);
+      setSelectedTeam(null);
+      setFetchedGames([]);
+      setDefaultPrice("");
+      await refreshGames();
+    } catch (e) {
+      setFetchErr(e.message);
+    } finally {
+      setImporting2(false);
+    }
+  }
+
   async function handleRunAllocation() {
     try {
       await runAllocation(fullPod, rawMembers, method);
@@ -264,12 +335,21 @@ export default function AllocationScreen({ state, dispatch }) {
                 🎟️ Season Games ({games.length})
               </div>
               {!allocationDone && (
-                <div style={{ display: "flex", gap: 10 }}>
-                  <div onClick={() => { setShowImport(v => !v); setShowAddGame(false); }}
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div onClick={() => {
+                    setShowFetch(v => !v);
+                    setShowImport(false); setShowAddGame(false);
+                    if (!fetchQuery && fullPod?.team_name) {
+                      handleSearchTeams(fullPod.team_name);
+                    }
+                  }} style={{ fontSize: 11, color: "#60A5FA", fontWeight: 700, cursor: "pointer" }}>
+                    {showFetch ? "✕" : "🔍 ESPN"}
+                  </div>
+                  <div onClick={() => { setShowImport(v => !v); setShowAddGame(false); setShowFetch(false); }}
                     style={{ fontSize: 11, color: T.teal, fontWeight: 700, cursor: "pointer" }}>
                     {showImport ? "✕" : "📋 Import"}
                   </div>
-                  <div onClick={() => { setShowAddGame(v => !v); setShowImport(false); }}
+                  <div onClick={() => { setShowAddGame(v => !v); setShowImport(false); setShowFetch(false); }}
                     style={{ fontSize: 11, color: T.lime, fontWeight: 700, cursor: "pointer" }}>
                     {showAddGame ? "✕ Cancel" : "+ Add"}
                   </div>
@@ -303,6 +383,131 @@ export default function AllocationScreen({ state, dispatch }) {
                     border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {addingGame ? "Adding…" : "Add Game"}
                 </button>
+              </div>
+            )}
+
+            {/* ── ESPN fetch panel ── */}
+            {showFetch && (
+              <div style={{ background: "#0D1520", borderRadius: 10, padding: 12, marginBottom: 12,
+                border: "1px solid #60A5FA44" }}>
+                <div style={{ fontSize: 11, color: "#60A5FA", fontWeight: 700, marginBottom: 8 }}>
+                  🔍 Fetch schedule from ESPN
+                </div>
+
+                {/* Team search */}
+                {!selectedTeam && (
+                  <>
+                    <input
+                      style={{ ...inputStyle, marginBottom: 8 }}
+                      placeholder="Search team (e.g. Chicago Bulls)"
+                      value={fetchQuery}
+                      onChange={e => handleSearchTeams(e.target.value)}
+                    />
+                    {fetchLoading && (
+                      <div style={{ fontSize: 11, color: T.mist, textAlign: "center", padding: "8px 0" }}>
+                        Searching ESPN…
+                      </div>
+                    )}
+                    {teamResults.map(team => (
+                      <div key={team.id} onClick={() => handleSelectTeam(team)}
+                        style={{ display: "flex", alignItems: "center", gap: 10,
+                          padding: "8px 10px", borderRadius: 8, cursor: "pointer",
+                          background: "#ffffff08", marginBottom: 6,
+                          border: "1px solid #60A5FA22" }}>
+                        {team.logos?.[0]?.href && (
+                          <img src={team.logos[0].href} alt="" style={{ width: 28, height: 28, objectFit: "contain" }} />
+                        )}
+                        <div>
+                          <div style={{ fontSize: 13, color: T.white, fontWeight: 700 }}>{team.displayName}</div>
+                          <div style={{ fontSize: 10, color: T.mist }}>{team.abbreviation}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* Schedule preview */}
+                {selectedTeam && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      {selectedTeam.logos?.[0]?.href && (
+                        <img src={selectedTeam.logos[0].href} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
+                      )}
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.white }}>{selectedTeam.displayName}</span>
+                      <span onClick={() => { setSelectedTeam(null); setFetchedGames([]); }}
+                        style={{ fontSize: 10, color: T.mist, cursor: "pointer", textDecoration: "underline", marginLeft: "auto" }}>
+                        Change team
+                      </span>
+                    </div>
+
+                    {fetchLoading && (
+                      <div style={{ fontSize: 11, color: T.mist, textAlign: "center", padding: "8px 0" }}>
+                        Loading schedule…
+                      </div>
+                    )}
+
+                    {fetchedGames.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 10, color: "#60A5FA", marginBottom: 8 }}>
+                          ✓ {fetchedGames.length} home games found · {fetchedGames.filter(g => g.tier === "marquee").length} marquee · {fetchedGames.filter(g => g.tier === "premium").length} premium
+                        </div>
+
+                        {/* Default price input */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 11, color: T.mist, whiteSpace: "nowrap" }}>Face value per ticket</span>
+                          <input
+                            type="number"
+                            placeholder="e.g. 150"
+                            value={defaultPrice}
+                            onChange={e => setDefaultPrice(e.target.value)}
+                            style={{ ...inputStyle, flex: 1 }}
+                          />
+                        </div>
+
+                        {/* Preview — first 5 games */}
+                        <div style={{ maxHeight: 160, overflowY: "auto", marginBottom: 10 }}>
+                          {fetchedGames.slice(0, 5).map((g, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between",
+                              fontSize: 11, color: T.mist, padding: "4px 0",
+                              borderBottom: "1px solid #1A4A2E" }}>
+                              <span>
+                                {g.tier === "marquee" ? "⭐ " : g.tier === "premium" ? "🔥 " : ""}
+                                vs. <span style={{ color: T.chalk }}>{g.opponent}</span>
+                              </span>
+                              <span>{g.game_date}</span>
+                            </div>
+                          ))}
+                          {fetchedGames.length > 5 && (
+                            <div style={{ fontSize: 10, color: T.mist, paddingTop: 4 }}>
+                              …and {fetchedGames.length - 5} more home games
+                            </div>
+                          )}
+                        </div>
+
+                        <button onClick={handleImportFetched} disabled={importing2}
+                          style={{ width: "100%", padding: "10px", background: "#60A5FA",
+                            color: "#fff", border: "none", borderRadius: 8,
+                            fontSize: 13, fontWeight: 700, cursor: "pointer",
+                            opacity: importing2 ? 0.6 : 1 }}>
+                          {importing2 ? "Importing…" : `Import ${fetchedGames.length} Games from ESPN →`}
+                        </button>
+                        <div style={{ fontSize: 10, color: T.mist, textAlign: "center", marginTop: 6 }}>
+                          Times shown in your local timezone · You can edit games after import
+                        </div>
+                      </>
+                    )}
+
+                    {!fetchLoading && fetchedGames.length === 0 && (
+                      <div style={{ fontSize: 11, color: T.amber, textAlign: "center", padding: "8px 0" }}>
+                        No upcoming home games found for this team.
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {fetchErr && (
+                  <div style={{ fontSize: 11, color: T.red, marginTop: 8 }}>{fetchErr}</div>
+                )}
               </div>
             )}
 
