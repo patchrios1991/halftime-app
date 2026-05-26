@@ -65,13 +65,12 @@ export default function PodScreen({ state, dispatch }) {
   const maxMembers = fullPod?.max_members ?? 6;
   const totalCost  = parseFloat(fullPod?.season_cost ?? myPodRow?.season_cost ?? 0);
 
-  // Escrow totals
-  const escrowRequired = myAmount > 0
-    ? (myAmount / (mySharePct / 100))          // back-calculate total from my share
-    : totalCost;
+  // Escrow totals — use totalCost as ground truth; cap display at 100%
+  const escrowRequired = totalCost > 0 ? totalCost
+    : (myAmount > 0 ? myAmount / (mySharePct / 100) : 0);
   const escrowFundedCount = members.filter(m => m.escrowFunded).length;
   const escrowPct = escrowRequired > 0
-    ? Math.round((realEscrowBalance / escrowRequired) * 100)
+    ? Math.min(100, Math.round((realEscrowBalance / escrowRequired) * 100))
     : 0;
 
   function handlePaymentSuccess() {
