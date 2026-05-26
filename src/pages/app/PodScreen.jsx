@@ -16,6 +16,7 @@ function slotColor(idx) { return MEMBER_COLORS[idx % MEMBER_COLORS.length]; }
 export default function PodScreen({ state, dispatch }) {
   const [tab, setTab]               = useState("members");
   const [showPayment, setShowPayment] = useState(false);
+  const [showInvite,  setShowInvite]  = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectError, setConnectError]     = useState(null);
 
@@ -269,7 +270,8 @@ export default function PodScreen({ state, dispatch }) {
                 <div style={{ fontSize: 11, color: T.mist, marginBottom: 8 }}>
                   {maxMembers - members.length} spot{maxMembers - members.length !== 1 ? "s" : ""} remaining in this pod
                 </div>
-                <button style={{ padding: "9px 20px", background: "transparent", color: T.lime,
+                <button onClick={() => setShowInvite(true)}
+                  style={{ padding: "9px 20px", background: "transparent", color: T.lime,
                   border: `1px solid ${T.lime}44`, borderRadius: 8, fontSize: 12,
                   fontWeight: 700, cursor: "pointer" }}>
                   + Invite a Member
@@ -472,6 +474,128 @@ export default function PodScreen({ state, dispatch }) {
         onClose={() => setShowPayment(false)}
       />
     )}
+
+    {/* Invite modal */}
+    {showInvite && fullPod?.invite_code && (
+      <InviteModal
+        podName={podName}
+        inviteCode={fullPod.invite_code}
+        onClose={() => setShowInvite(false)}
+      />
+    )}
     </>
+  );
+}
+
+// ── Invite Modal ───────────────────────────────────────────────────────────────
+function InviteModal({ podName, inviteCode, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const appUrl = window.location.origin;
+  const url    = `${appUrl}/join/${inviteCode}`;
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback for browsers without clipboard API
+      const el = document.createElement("textarea");
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  }
+
+  async function handleShare() {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join ${podName} on HalfTime`,
+          text:  `I'm inviting you to join my season ticket pod. Use code ${inviteCode} or tap the link:`,
+          url,
+        });
+      } catch { /* user cancelled */ }
+    } else {
+      handleCopy();
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.88)",
+      zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ width: "100%", maxWidth: 430, background: T.dark,
+        borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
+        borderBottom: "none", padding: "20px 20px 36px" }}>
+
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, borderRadius: 2,
+          background: T.green, margin: "0 auto 18px" }} />
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center",
+          justifyContent: "space-between", marginBottom: 20 }}>
+          <h3 style={{ color: T.white, fontSize: 17, fontWeight: 700,
+            fontFamily: "Georgia,serif", margin: 0 }}>Invite a Member</h3>
+          <button onClick={onClose}
+            style={{ background: T.forest, border: "none", color: T.mist,
+              width: 28, height: 28, borderRadius: "50%", cursor: "pointer",
+              fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            ×
+          </button>
+        </div>
+
+        {/* Invite code */}
+        <div style={{ background: T.forest, border: `1px solid ${T.green}`,
+          borderRadius: 14, padding: "16px 20px",
+          textAlign: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: T.mist, textTransform: "uppercase",
+            letterSpacing: "0.1em", marginBottom: 8 }}>Pod invite code</div>
+          <div style={{ fontSize: 40, fontWeight: 900, color: T.lime,
+            fontFamily: "Georgia,serif", letterSpacing: "0.15em" }}>{inviteCode}</div>
+          <div style={{ fontSize: 11, color: T.mist, marginTop: 6 }}>
+            Share the code or the link below
+          </div>
+        </div>
+
+        {/* Link preview */}
+        <div style={{ background: "#ffffff08", borderRadius: 10,
+          padding: "10px 14px", marginBottom: 16,
+          fontSize: 12, color: T.mist, wordBreak: "break-all",
+          fontFamily: "monospace" }}>
+          {url}
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={handleCopy}
+            style={{ flex: 1, padding: "13px 0", borderRadius: 10,
+              border: `1.5px solid ${copied ? T.teal : T.lime}`,
+              background: "transparent",
+              color: copied ? T.teal : T.lime,
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              transition: "all 0.2s" }}>
+            {copied ? "✓ Copied!" : "Copy link"}
+          </button>
+          <button onClick={handleShare}
+            style={{ flex: 1, padding: "13px 0", borderRadius: 10,
+              border: "none", background: T.lime, color: T.dark,
+              fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            Share →
+          </button>
+        </div>
+
+        <p style={{ color: T.mist, fontSize: 11, textAlign: "center",
+          margin: "14px 0 0", lineHeight: 1.5 }}>
+          Anyone with this link can request to join your pod.
+          They'll need to fund their escrow share to be fully active.
+        </p>
+      </div>
+    </div>
   );
 }

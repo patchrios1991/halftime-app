@@ -52,7 +52,10 @@ export default function AuthCallback() {
         if (session) {
           clearTimeout(timeout);
           subscription.unsubscribe();
-          navigate("/app", { replace: true });
+          // Honour pending redirect (e.g. /join/:code saved before sign-in)
+          const returnTo = sessionStorage.getItem("auth_return") || "/app";
+          sessionStorage.removeItem("auth_return");
+          navigate(returnTo, { replace: true });
         }
       }
     );

@@ -149,6 +149,18 @@ export async function joinPod(podId) {
   if (joinErr) throw joinErr;
 }
 
+/** Fetch a pod by its invite code (public — no auth required) */
+export async function getPodByInviteCode(code) {
+  const { data, error } = await supabase
+    .from("pods")
+    .select("*, pod_members(count)")
+    .eq("invite_code", code.toUpperCase().trim())
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 /** Get the escrow balance for a pod (sum of succeeded payments) */
 export async function getPodEscrowBalance(podId) {
   const { data, error } = await supabase

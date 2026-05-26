@@ -4,6 +4,7 @@ import HalfTimeApp   from "./HalfTimeApp";
 import BetaDashboard from "./pages/admin/BetaDashboard";
 import SignIn        from "./pages/auth/SignIn";
 import AuthCallback  from "./pages/auth/AuthCallback";
+import JoinPodScreen from "./pages/app/JoinPodScreen";
 import { T } from "./tokens";
 
 function Landing() {
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="/admin"           element={<BetaDashboard />} />
         <Route path="/auth/signin"     element={<SignIn />} />
         <Route path="/auth/callback"   element={<AuthCallback />} />
+        <Route path="/join/:code"      element={<JoinPodScreen />} />
         <Route path="*"                element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
