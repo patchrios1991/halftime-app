@@ -3,6 +3,7 @@ import { useState } from "react";
 import { T } from "../../tokens";
 import Badge from "../../components/Badge";
 import { useMyPods, usePod } from "../../hooks/usePod";
+import { useActivePod } from "../../context/ActivePodContext";
 import { useGames } from "../../hooks/useGames";
 import { useResale } from "../../hooks/useResale";
 import ResalePaymentModal from "./ResalePaymentModal";
@@ -21,8 +22,9 @@ export default function ResaleScreen({ state, dispatch }) {
       session?.user?.id && setCurrentUserId(session.user.id));
   }
 
-  const { pods }     = useMyPods();
-  const activePodId  = pods?.[0]?.id ?? null;
+  const { pods }    = useMyPods();
+  const { activePodId: selectedPodId } = useActivePod();
+  const activePodId = pods.find(p => p.id === selectedPodId)?.id ?? pods?.[0]?.id ?? null;
   const { pod: fullPod } = usePod(activePodId);
   const { games }    = useGames(activePodId);
   const { listings, payouts, loading, listGame, cancel } = useResale(activePodId);

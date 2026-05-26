@@ -1,5 +1,5 @@
 // ─── HalfTime Mobile App Shell ────────────────────────────────────────────────
-import { useReducer, useEffect, useCallback } from "react";
+import { useReducer, useEffect, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { T } from "./tokens";
 import { reducer } from "./store/reducer";
@@ -7,6 +7,7 @@ import { initialState } from "./store/initialState";
 import { useAuth } from "./hooks/useAuth";
 import { useMyPods } from "./hooks/usePod";
 import { isSupabaseConfigured } from "./lib/supabase";
+import { ActivePodProvider, useActivePod } from "./context/ActivePodContext";
 
 // Pages
 import Onboarding        from "./pages/app/Onboarding";
@@ -41,11 +42,8 @@ function NavBar({ screen, dispatch }) {
       borderTop: "1px solid #1A4A2E", display: "flex", zIndex: 100,
     }}>
       {TABS.map(({ key, icon, label }) => (
-        <div
-          key={key}
-          onClick={() => dispatch({ type: "SET_SCREEN", screen: key })}
-          style={{ flex: 1, padding: "9px 0 7px", textAlign: "center", cursor: "pointer" }}
-        >
+        <div key={key} onClick={() => dispatch({ type: "SET_SCREEN", screen: key })}
+          style={{ flex: 1, padding: "9px 0 7px", textAlign: "center", cursor: "pointer" }}>
           <div style={{ fontSize: 19, marginBottom: 1 }}>{icon}</div>
           <div style={{
             fontSize: 8, fontWeight: 700, letterSpacing: 0.5, fontFamily: "Calibri,sans-serif",
@@ -60,6 +58,74 @@ function NavBar({ screen, dispatch }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ─── Pod switcher — only shown when user is in 2+ pods ───────────────────────
+function PodSwitcher() {
+  const { pods, activePodId, setActivePodId } = useActivePod();
+  const [open, setOpen] = useState(false);
+
+  if (pods.length <= 1) return null;
+
+  const activePod = pods.find(p => p.id === activePodId) ?? pods[0];
+
+  return (
+    <>
+      <div onClick={() => setOpen(true)} style={{
+        display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
+        background: "#ffffff10", borderRadius: 20, padding: "3px 10px",
+        border: "1px solid #1A4A2E", maxWidth: 130,
+      }}>
+        <span style={{ fontSize: 13 }}>{activePod?.sport_emoji || "🏟️"}</span>
+        <span style={{ fontSize: 10, color: T.white, fontWeight: 700,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>
+          {activePod?.name || "Pod"}
+        </span>
+        <span style={{ fontSize: 8, color: T.mist }}>▼</span>
+      </div>
+
+      {open && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.88)",
+          zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setOpen(false)}>
+          <div style={{ width: "100%", maxWidth: 430, background: T.dark,
+            borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
+            borderBottom: "none", padding: "20px 20px 40px" }}
+            onClick={e => e.stopPropagation()}>
+
+            <div style={{ width: 40, height: 4, borderRadius: 2,
+              background: T.green, margin: "0 auto 16px" }} />
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 14 }}>Switch Pod</div>
+
+            {pods.map(pod => (
+              <div key={pod.id} onClick={() => { setActivePodId(pod.id); setOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
+                  padding: "12px 14px", borderRadius: 12, marginBottom: 8,
+                  background: pod.id === activePodId ? `${T.lime}15` : T.forest,
+                  border: `1px solid ${pod.id === activePodId ? T.lime + "44" : "#1A4A2E"}`,
+                }}>
+                <span style={{ fontSize: 28 }}>{pod.sport_emoji || "🏟️"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700,
+                    color: pod.id === activePodId ? T.lime : T.white }}>
+                    {pod.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.mist }}>
+                    {pod.team_name} · Season {pod.season || "—"}
+                  </div>
+                </div>
+                {pod.id === activePodId && (
+                  <span style={{ color: T.lime, fontSize: 18 }}>✓</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -82,46 +148,19 @@ function LoadingScreen() {
   );
 }
 
-// ─── App Root ─────────────────────────────────────────────────────────────────
-export default function HalfTimeApp() {
-  const navigate = useNavigate();
-  const { user, profile, loading: authLoading, isAuthenticated, signOut } = useAuth();
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const { pods, loading: podsLoading } = useMyPods();
+// ─── Inner app shell (needs context) ─────────────────────────────────────────
+function AppShell({ state, dispatch, profile, signOut }) {
   const noNav = ["onboarding", "create_pod", "browse_pods"];
+  const clearToast = useCallback(() => dispatch({ type: "CLEAR_TOAST" }), [dispatch]);
+  const isVerified    = profile?.verified ?? true;
+  const avatarInitials = profile?.avatar_initials || "YO";
 
-  const clearToast = useCallback(() => dispatch({ type: "CLEAR_TOAST" }), []);
-
-  // ── Auth gate ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated && isSupabaseConfigured) {
-      navigate("/auth/signin", { replace: true });
-    }
-  }, [authLoading, isAuthenticated, navigate]);
-
-  // ── Auto-skip onboarding for users who already have a pod ────────────────────
-  useEffect(() => {
-    if (!podsLoading && isAuthenticated && isSupabaseConfigured) {
-      if (pods.length > 0 && state.screen === "onboarding") {
-        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
-      }
-    }
-  }, [podsLoading, pods.length, isAuthenticated, state.screen]);
-
-  // ── Auto-clear toast ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (state.toast) {
       const t = setTimeout(clearToast, 3500);
       return () => clearTimeout(t);
     }
   }, [state.toast, clearToast]);
-
-  // Show spinner while auth is resolving (only when Supabase is configured)
-  if (authLoading && isSupabaseConfigured) return <LoadingScreen />;
-
-  // Derive avatar initials: prefer real profile, fall back to demo "YO"
-  const avatarInitials = profile?.avatar_initials || "YO";
-  const isVerified     = profile?.verified ?? true;
 
   return (
     <div style={{
@@ -139,8 +178,11 @@ export default function HalfTimeApp() {
           position: "sticky", top: 0, zIndex: 50,
         }}>
           <Wordmark size={20} />
+
+          {/* Pod switcher — only visible when user has 2+ pods */}
+          <PodSwitcher />
+
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {/* Show LIVE badge when connected to real Supabase */}
             <div style={{
               fontSize: 10, color: isSupabaseConfigured ? T.teal : T.mist,
               letterSpacing: 1.5,
@@ -150,8 +192,7 @@ export default function HalfTimeApp() {
             }}>
               {isSupabaseConfigured ? "● LIVE" : "MVP DEMO"}
             </div>
-            <div
-              onClick={() => dispatch({ type: "SET_SCREEN", screen: "profile" })}
+            <div onClick={() => dispatch({ type: "SET_SCREEN", screen: "profile" })}
               style={{ cursor: "pointer" }}>
               <Avatar initials={avatarInitials} size={28} verified={isVerified} />
             </div>
@@ -164,33 +205,15 @@ export default function HalfTimeApp() {
         minHeight: noNav.includes(state.screen) ? "100vh" : "calc(100vh - 112px)",
         overflowY: "auto",
       }}>
-        {state.screen === "onboarding" && (
-          <Onboarding dispatch={dispatch} />
-        )}
-        {state.screen === "create_pod" && (
-          <CreatePodScreen dispatch={dispatch} />
-        )}
-        {state.screen === "browse_pods" && (
-          <BrowsePodsScreen dispatch={dispatch} />
-        )}
-        {state.screen === "dashboard" && (
-          <Dashboard state={state} dispatch={dispatch} profile={profile} />
-        )}
-        {state.screen === "allocate" && (
-          <AllocationScreen state={state} dispatch={dispatch} />
-        )}
-        {state.screen === "schedule" && (
-          <ScheduleScreen state={state} dispatch={dispatch} />
-        )}
-        {state.screen === "pod" && (
-          <PodScreen state={state} dispatch={dispatch} />
-        )}
-        {state.screen === "resale" && (
-          <ResaleScreen state={state} dispatch={dispatch} />
-        )}
-        {state.screen === "profile" && (
-          <ProfileScreen state={state} dispatch={dispatch} profile={profile} signOut={signOut} />
-        )}
+        {state.screen === "onboarding"   && <Onboarding dispatch={dispatch} />}
+        {state.screen === "create_pod"   && <CreatePodScreen dispatch={dispatch} />}
+        {state.screen === "browse_pods"  && <BrowsePodsScreen dispatch={dispatch} />}
+        {state.screen === "dashboard"    && <Dashboard state={state} dispatch={dispatch} profile={profile} />}
+        {state.screen === "allocate"     && <AllocationScreen state={state} dispatch={dispatch} />}
+        {state.screen === "schedule"     && <ScheduleScreen state={state} dispatch={dispatch} />}
+        {state.screen === "pod"          && <PodScreen state={state} dispatch={dispatch} />}
+        {state.screen === "resale"       && <ResaleScreen state={state} dispatch={dispatch} />}
+        {state.screen === "profile"      && <ProfileScreen state={state} dispatch={dispatch} profile={profile} signOut={signOut} />}
       </div>
 
       {/* Bottom nav */}
@@ -212,5 +235,37 @@ export default function HalfTimeApp() {
         ::-webkit-scrollbar { width: 0px; }
       `}</style>
     </div>
+  );
+}
+
+// ─── App Root ─────────────────────────────────────────────────────────────────
+export default function HalfTimeApp() {
+  const navigate = useNavigate();
+  const { profile, loading: authLoading, isAuthenticated, signOut } = useAuth();
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const { pods, loading: podsLoading } = useMyPods();
+
+  // Auth gate
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated && isSupabaseConfigured) {
+      navigate("/auth/signin", { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  // Auto-skip onboarding for users who already have a pod
+  useEffect(() => {
+    if (!podsLoading && isAuthenticated && isSupabaseConfigured) {
+      if (pods.length > 0 && state.screen === "onboarding") {
+        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
+      }
+    }
+  }, [podsLoading, pods.length, isAuthenticated, state.screen]);
+
+  if (authLoading && isSupabaseConfigured) return <LoadingScreen />;
+
+  return (
+    <ActivePodProvider>
+      <AppShell state={state} dispatch={dispatch} profile={profile} signOut={signOut} />
+    </ActivePodProvider>
   );
 }

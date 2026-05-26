@@ -4,6 +4,7 @@ import { T } from "../../tokens";
 import Badge from "../../components/Badge";
 import Pill from "../../components/Pill";
 import { useMyPods, usePod } from "../../hooks/usePod";
+import { useActivePod } from "../../context/ActivePodContext";
 import { useGames } from "../../hooks/useGames";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
@@ -17,7 +18,8 @@ export default function ScheduleScreen({ state, dispatch }) {
   }
 
   const { pods }    = useMyPods();
-  const activePodId = pods?.[0]?.id ?? null;
+  const { activePodId: selectedPodId } = useActivePod();
+  const activePodId = pods.find(p => p.id === selectedPodId)?.id ?? pods?.[0]?.id ?? null;
   const { pod: fullPod, members: rawMembers } = usePod(activePodId);
   const { games, loading } = useGames(activePodId);
 

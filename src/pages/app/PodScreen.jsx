@@ -7,6 +7,7 @@ import Bar from "../../components/Bar";
 import Card from "../../components/Card";
 import EscrowPaymentScreen from "./EscrowPaymentScreen";
 import { useMyPods, usePod } from "../../hooks/usePod";
+import { useActivePod } from "../../context/ActivePodContext";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
 // Deterministic color per member slot
@@ -28,9 +29,10 @@ export default function PodScreen({ state, dispatch }) {
     });
   }
 
-  // My pods → find the first one
+  // My pods → find the active one
   const { pods } = useMyPods();
-  const myPodRow      = pods?.[0] ?? null;
+  const { activePodId: selectedPodId } = useActivePod();
+  const myPodRow      = pods.find(p => p.id === selectedPodId) ?? pods?.[0] ?? null;
   const activePodId   = myPodRow?.id ?? null;
   const myMemberRow   = myPodRow?.pod_members?.[0] ?? null;
 

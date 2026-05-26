@@ -7,6 +7,7 @@ import Card from "../../components/Card";
 import Badge from "../../components/Badge";
 import Pill from "../../components/Pill";
 import { useMyPods, usePod } from "../../hooks/usePod";
+import { useActivePod } from "../../context/ActivePodContext";
 import { useGames } from "../../hooks/useGames";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 import { deleteGame } from "../../api/games";
@@ -137,7 +138,8 @@ export default function AllocationScreen({ state, dispatch }) {
   }
 
   const { pods }           = useMyPods();
-  const activePod          = pods?.[0] ?? null;
+  const { activePodId: selectedPodId } = useActivePod();
+  const activePod          = pods.find(p => p.id === selectedPodId) ?? pods?.[0] ?? null;
   const activePodId        = activePod?.id ?? null;
   const { pod: fullPod, members: rawMembers, refresh: refreshPod } = usePod(activePodId);
   const { games, addGames, runAllocation, allocating, refresh: refreshGames } = useGames(activePodId);

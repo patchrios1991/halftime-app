@@ -8,6 +8,7 @@ import Card from "../../components/Card";
 import Wordmark from "../../components/Wordmark";
 import { useNotifications } from "../../hooks/useNotifications";
 import { useMyPods, usePod } from "../../hooks/usePod";
+import { useActivePod } from "../../context/ActivePodContext";
 import { useGames } from "../../hooks/useGames";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
@@ -46,7 +47,8 @@ export default function Dashboard({ state, dispatch, profile }) {
 
   // ── Real pod / games data ───────────────────────────────────────────────────
   const { pods }    = useMyPods();
-  const activePodId = pods?.[0]?.id ?? null;
+  const { activePodId: selectedPodId } = useActivePod();
+  const activePodId = pods.find(p => p.id === selectedPodId)?.id ?? pods?.[0]?.id ?? null;
   const { pod: fullPod, members, escrowBalance } = usePod(activePodId);
   const { games } = useGames(activePodId);
 
