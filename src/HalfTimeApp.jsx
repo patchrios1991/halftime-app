@@ -61,12 +61,10 @@ function NavBar({ screen, dispatch }) {
   );
 }
 
-// ─── Pod switcher — only shown when user is in 2+ pods ───────────────────────
-function PodSwitcher() {
+// ─── Pod switcher — always visible, lets users switch pods or create new ones ─
+function PodSwitcher({ dispatch }) {
   const { pods, activePodId, setActivePodId } = useActivePod();
   const [open, setOpen] = useState(false);
-
-  if (pods.length <= 1) return null;
 
   const activePod = pods.find(p => p.id === activePodId) ?? pods[0];
 
@@ -75,12 +73,12 @@ function PodSwitcher() {
       <div onClick={() => setOpen(true)} style={{
         display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
         background: "#ffffff10", borderRadius: 20, padding: "3px 10px",
-        border: "1px solid #1A4A2E", maxWidth: 130,
+        border: "1px solid #1A4A2E", maxWidth: 140,
       }}>
         <span style={{ fontSize: 13 }}>{activePod?.sport_emoji || "🏟️"}</span>
         <span style={{ fontSize: 10, color: T.white, fontWeight: 700,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>
-          {activePod?.name || "Pod"}
+          {activePod?.name || "My Pod"}
         </span>
         <span style={{ fontSize: 8, color: T.mist }}>▼</span>
       </div>
@@ -97,7 +95,7 @@ function PodSwitcher() {
             <div style={{ width: 40, height: 4, borderRadius: 2,
               background: T.green, margin: "0 auto 16px" }} />
             <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
-              fontFamily: "Georgia,serif", marginBottom: 14 }}>Switch Pod</div>
+              fontFamily: "Georgia,serif", marginBottom: 14 }}>My Pods</div>
 
             {pods.map(pod => (
               <div key={pod.id} onClick={() => { setActivePodId(pod.id); setOpen(false); }}
@@ -122,6 +120,15 @@ function PodSwitcher() {
                 )}
               </div>
             ))}
+
+            {/* Always-visible create button */}
+            <button onClick={() => { setOpen(false); dispatch({ type: "SET_SCREEN", screen: "create_pod" }); }}
+              style={{ width: "100%", marginTop: 8, padding: "13px",
+                background: "transparent", border: `1.5px solid ${T.lime}44`,
+                borderRadius: 12, color: T.lime, fontSize: 13,
+                fontWeight: 700, cursor: "pointer" }}>
+              + Create New Pod
+            </button>
           </div>
         </div>
       )}
@@ -179,8 +186,8 @@ function AppShell({ state, dispatch, profile, signOut }) {
         }}>
           <Wordmark size={20} />
 
-          {/* Pod switcher — only visible when user has 2+ pods */}
-          <PodSwitcher />
+          {/* Pod switcher — tap to switch pods or create a new one */}
+          <PodSwitcher dispatch={dispatch} />
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <div style={{
