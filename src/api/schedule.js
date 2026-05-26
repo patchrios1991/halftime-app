@@ -1,110 +1,61 @@
-// ─── ESPN Schedule API ────────────────────────────────────────────────────────
-// Uses ESPN's free public API (no key required).
-// Fetches team schedules and filters to HOME games only
-// (season ticket holders attend home games).
+// ─── Schedule API ─────────────────────────────────────────────────────────────
+// Calls the fetch-schedule Edge Function which proxies ESPN server-side
+// (avoids CORS issues when calling ESPN directly from the browser/PWA).
+import { supabase } from "../lib/supabase";
 
-const ESPN = "https://site.api.espn.com/apis/site/v2/sports";
+async function invoke(payload) {
+  const { data, error } = await supabase.functions.invoke("fetch-schedule", {
+    body: payload,
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
 
-// Map HalfTime sport names → ESPN sport paths
-export const SPORT_PATHS = {
-  basketball: "basketball/nba",
-  football:   "football/nfl",
-  baseball:   "baseball/mlb",
-  hockey:     "hockey/nhl",
-  soccer:     "soccer/usa.1",
-};
+/** Search ESPN for teams matching a sport + query string */
+export async function searchESPNTeams(sport, query) {
+  return invoke({ action: "search", sport, query });
+}
 
-// Opponents that auto-get "marquee" tier (bigger games = higher demand)
-const MARQUEE_OPPONENTS = {
+// Marquee opponents for tier auto-classification (mirrors Edge Function)
+const MARQUEE = {
   basketball: ["Lakers","Celtics","Warriors","Heat","Bucks","76ers","Knicks","Suns","Nuggets","Clippers"],
   football:   ["Cowboys","Patriots","Chiefs","Eagles","49ers","Packers","Rams","Ravens","Bills"],
   baseball:   ["Yankees","Red Sox","Dodgers","Cubs","Giants","Mets","Astros","Braves"],
   hockey:     ["Blackhawks","Maple Leafs","Rangers","Canadiens","Bruins","Penguins","Capitals"],
-  soccer:     ["Galaxy","LAFC","Atlanta","Seattle","Portland","NYC"],
+  soccer:     ["Galaxy","LAFC","Atlanta","Seattle"],
 };
-
-// Opponents that auto-get "premium" tier
-const PREMIUM_OPPONENTS = {
-  basketball: ["Cavaliers","Rockets","Thunder","Spurs","Pistons","Nets","Magic","Pelicans"],
+const PREMIUM = {
+  basketball: ["Cavaliers","Rockets","Thunder","Spurs","Nets","Magic","Pelicans","Kings"],
   football:   ["Giants","Steelers","Seahawks","Broncos","Chargers","Raiders","Bears"],
   baseball:   ["Cardinals","Phillies","Blue Jays","Twins","Tigers","Mariners"],
-  hockey:     ["Flyers","Sabres","Senators","Coyotes","Sharks","Kings"],
+  hockey:     ["Flyers","Sabres","Senators","Sharks","Kings","Jets"],
   soccer:     [],
 };
 
-/** Search ESPN for teams matching a query string */
-export async function searchESPNTeams(sport, query) {
-  const path = SPORT_PATHS[sport?.toLowerCase()] ?? "basketball/nba";
-  const res  = await fetch(`${ESPN}/${path}/teams?limit=200`);
-  if (!res.ok) throw new Error("Could not reach ESPN — check your connection");
-  const json = await res.json();
-
-  const all = (json.sports?.[0]?.leagues?.[0]?.teams ?? []).map(t => t.team);
-  if (!query?.trim()) return all;
-
-  const q = query.toLowerCase().replace(/^(the\s+)?/i, "");
-  return all.filter(t =>
-    t.displayName?.toLowerCase().includes(q) ||
-    t.location?.toLowerCase().includes(q)    ||
-    t.name?.toLowerCase().includes(q)        ||
-    t.abbreviation?.toLowerCase() === q
-  );
-}
-
 /**
- * Fetch home-game schedule for a team from ESPN.
+ * Fetch home-game schedule for a team via the Edge Function.
  * Returns game objects shaped for HalfTime's `games` table.
- *
- * @param {string} sport       - "basketball" | "football" | "baseball" | "hockey" | "soccer"
- * @param {string|number} teamId - ESPN team ID
- * @param {string} defaultPrice  - default face_value (captain can override)
  */
 export async function fetchESPNSchedule(sport, teamId, defaultPrice = "") {
-  const path = SPORT_PATHS[sport?.toLowerCase()] ?? "basketball/nba";
-  const res  = await fetch(`${ESPN}/${path}/teams/${teamId}/schedule`);
-  if (!res.ok) throw new Error("Could not fetch schedule from ESPN");
-  const json = await res.json();
+  const result = await invoke({ action: "schedule", sport, teamId });
+  const games  = result.games ?? [];
 
-  const marqueeList = MARQUEE_OPPONENTS[sport?.toLowerCase()] ?? [];
-  const premiumList = PREMIUM_OPPONENTS[sport?.toLowerCase()] ?? [];
-  const now         = new Date();
-  const teamIdStr   = String(teamId);
+  return games.map(g => {
+    // Convert UTC ISO → local browser timezone
+    const dt        = new Date(g.utc_date);
+    const game_date = dt.toLocaleDateString("en-CA");        // YYYY-MM-DD
+    const game_time = dt.toLocaleTimeString("en-US", {
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    });                                                       // HH:MM
 
-  return (json.events ?? [])
-    // ── Home games only ────────────────────────────────────────────────────
-    .filter(e => {
-      const comp     = e.competitions?.[0];
-      const homeTeam = comp?.competitors?.find(c => c.homeAway === "home");
-      return homeTeam?.team?.id === teamIdStr;
-    })
-    // ── Future games only ─────────────────────────────────────────────────
-    .filter(e => new Date(e.date) >= now)
-    // ── Shape to HalfTime format ──────────────────────────────────────────
-    .map(e => {
-      const comp     = e.competitions?.[0];
-      const awayTeam = comp?.competitors?.find(c => c.homeAway === "away");
-      const opponent = awayTeam?.team?.displayName ?? "TBD";
-
-      // Convert UTC → local browser timezone (correct for fans in home-market)
-      const dt        = new Date(e.date);
-      const game_date = dt.toLocaleDateString("en-CA");               // YYYY-MM-DD
-      const game_time = dt.toLocaleTimeString("en-US", {
-        hour: "2-digit", minute: "2-digit", hour12: false,
-      });                                                              // HH:MM
-
-      // Auto-classify tier by opponent fame
-      const tier = marqueeList.some(m => opponent.includes(m)) ? "marquee"
-        : premiumList.some(m => opponent.includes(m)) ? "premium"
-        : "standard";
-
-      return {
-        opponent,
-        game_date,
-        game_time,
-        face_value: defaultPrice || "",
-        tier,
-        _espn_id:  e.id,
-        _venue:    comp?.venue?.fullName ?? "",
-      };
-    });
+    return {
+      opponent:   g.opponent,
+      game_date,
+      game_time,
+      face_value: defaultPrice || "",
+      tier:       g.tier,
+      _venue:     g.venue,
+    };
+  });
 }
