@@ -102,7 +102,9 @@ export default function PodScreen({ state, dispatch }) {
       window.open(data.url, "_blank", "noopener");
       setConnectLoading(false);
     } catch (e) {
-      setConnectError(e.message);
+      // Try to extract the real error message from the function response body
+      const msg = e?.context?.message || e?.context?.error || e?.message || "Unknown error";
+      setConnectError(msg);
       setConnectLoading(false);
     }
   }
