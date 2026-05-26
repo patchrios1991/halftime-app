@@ -70,7 +70,7 @@ serve(async (req: Request) => {
       const account = await stripePost("/accounts", {
         type:          "express",
         email:         user.email ?? "",
-        capabilities:  { transfers: { requested: "true" } },
+        capabilities:  { transfers: { requested: "true" }, card_payments: { requested: "true" } },
         business_type: "individual",
         metadata:      { supabase_user_id: user.id },
       });
