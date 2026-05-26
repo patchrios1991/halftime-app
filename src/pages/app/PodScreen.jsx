@@ -91,6 +91,8 @@ export default function PodScreen({ state, dispatch }) {
   async function handleSetupPayouts() {
     setConnectLoading(true);
     setConnectError(null);
+    // Open window BEFORE any await — Safari blocks window.open inside async chains
+    const stripeWindow = window.open("", "_blank");
     try {
       const { data, error } = await supabase.functions.invoke("create-connect-account", {
         method: "POST",
@@ -98,11 +100,14 @@ export default function PodScreen({ state, dispatch }) {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (!data?.url) throw new Error("No onboarding URL returned");
-      // Open Stripe's hosted onboarding — use _blank so iOS PWA opens Safari
-      window.open(data.url, "_blank", "noopener");
+      if (stripeWindow) {
+        stripeWindow.location.href = data.url;
+      } else {
+        window.location.href = data.url;
+      }
       setConnectLoading(false);
     } catch (e) {
-      // Try to extract the real error message from the function response body
+      if (stripeWindow) stripeWindow.close();
       const msg = e?.context?.message || e?.context?.error || e?.message || "Unknown error";
       setConnectError(msg);
       setConnectLoading(false);
