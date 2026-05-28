@@ -285,7 +285,7 @@ export default function SignIn() {
                   label="Invite Code"
                   value={inviteCode}
                   onChange={v => { setInviteCode(v.toUpperCase()); setFieldErrors(f => ({ ...f, inviteCode: null })); }}
-                  placeholder="e.g. HALFTIME1"
+                  placeholder="Enter your invite code"
                   autoComplete="off"
                   error={fieldErrors.inviteCode}
                 />
