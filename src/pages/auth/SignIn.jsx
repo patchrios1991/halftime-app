@@ -366,20 +366,12 @@ export default function SignIn() {
           {/* Mode switchers */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {mode === "signin" && (
-              <>
-                <button
-                  onClick={() => { setMode("magic"); setFeedback(null); clearFieldErrors(); }}
-                  style={linkStyle}
-                >
-                  Sign in without a password →
-                </button>
-                <button
-                  onClick={() => { setMode("signup"); setFeedback(null); clearFieldErrors(); }}
-                  style={linkStyle}
-                >
-                  Don't have an account? Sign up
-                </button>
-              </>
+              <button
+                onClick={() => { setMode("signup"); setFeedback(null); clearFieldErrors(); }}
+                style={linkStyle}
+              >
+                Don't have an account? Sign up
+              </button>
             )}
             {mode === "signup" && (
               <button
@@ -387,14 +379,6 @@ export default function SignIn() {
                 style={linkStyle}
               >
                 Already have an account? Sign in
-              </button>
-            )}
-            {mode === "magic" && (
-              <button
-                onClick={() => { setMode("signin"); setFeedback(null); clearFieldErrors(); }}
-                style={linkStyle}
-              >
-                ← Back to sign in
               </button>
             )}
           </div>
