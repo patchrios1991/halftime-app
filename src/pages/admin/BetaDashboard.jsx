@@ -114,6 +114,21 @@ export default function BetaDashboard() {
   const [weeklyData,   setWeeklyData]   = useState([]);
   const [totalProfiles, setTotalProfiles] = useState(0);
 
+  // ── Signups state ────────────────────────────────────────────────────────────
+  const [signups,        setSignups]        = useState([]);
+  const [signupsLoading, setSignupsLoading] = useState(false);
+
+  const loadSignups = useCallback(async () => {
+    setSignupsLoading(true);
+    const { data } = await supabase.rpc("get_admin_signups");
+    setSignups(data || []);
+    setSignupsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (tab === "signups") loadSignups();
+  }, [tab, loadSignups]);
+
   // ── Invite codes state ───────────────────────────────────────────────────────
   const [codes,       setCodes]       = useState([]);
   const [codesLoading, setCodesLoading] = useState(false);
@@ -642,8 +657,8 @@ export default function BetaDashboard() {
         background: T.dark, padding: "0 24px", overflowX: "auto" }}>
         {[
           ["overview","📊 Overview"], ["pods","🏟️ Pods"], ["members","👥 Members"],
-          ["funnel","🔽 Funnel"],     ["revenue","💰 Revenue"], ["receipts","🧾 Receipts"],
-          ["codes","🔑 Codes"],       ["alerts","🚨 Alerts"],
+          ["signups","🙋 Signups"],   ["funnel","🔽 Funnel"], ["revenue","💰 Revenue"],
+          ["receipts","🧾 Receipts"], ["codes","🔑 Codes"],   ["alerts","🚨 Alerts"],
         ].map(([k, lbl]) => (
           <div key={k} onClick={() => setTab(k)}
             style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700,
@@ -986,6 +1001,84 @@ export default function BetaDashboard() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SIGNUPS ──────────────────────────────────────────────────────────── */}
+        {tab === "signups" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>
+                All Signups — {signups.length} user{signups.length !== 1 ? "s" : ""}
+              </div>
+              <button onClick={loadSignups} disabled={signupsLoading}
+                style={{ background: "transparent", border: `1px solid ${T.green}`,
+                  borderRadius: 8, color: T.mist, fontSize: 11, padding: "4px 12px",
+                  cursor: "pointer" }}>
+                {signupsLoading ? "Loading…" : "↻ Refresh"}
+              </button>
+            </div>
+
+            {signupsLoading ? (
+              <div style={{ textAlign: "center", padding: 40, color: T.mist }}>Loading…</div>
+            ) : signups.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: T.mist }}>No signups yet</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #1A4A2E" }}>
+                      {["Name", "Email", "Signed Up", "Pod Status"].map(h => (
+                        <th key={h} style={{ padding: "8px 12px", textAlign: "left",
+                          color: T.mist, fontWeight: 700, fontSize: 10,
+                          letterSpacing: 0.8, whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {signups.map((u, i) => (
+                      <tr key={u.id} style={{
+                        borderBottom: "1px solid #1A4A2E",
+                        background: i % 2 === 0 ? "transparent" : "#0D1F1208",
+                      }}>
+                        {/* Name */}
+                        <td style={{ padding: "10px 12px", color: T.white, fontWeight: 600 }}>
+                          {u.display_name || <span style={{ color: T.mist, fontStyle: "italic" }}>No name</span>}
+                        </td>
+                        {/* Email */}
+                        <td style={{ padding: "10px 12px", color: T.chalk }}>
+                          {u.email}
+                        </td>
+                        {/* Signed up date */}
+                        <td style={{ padding: "10px 12px", color: T.mist, whiteSpace: "nowrap" }}>
+                          {u.created_at
+                            ? new Date(u.created_at).toLocaleDateString("en-US",
+                                { month: "short", day: "numeric", year: "numeric" })
+                            : "—"}
+                          <div style={{ fontSize: 10, opacity: 0.6 }}>
+                            {daysAgo(u.created_at) === 0 ? "today" : `${daysAgo(u.created_at)}d ago`}
+                          </div>
+                        </td>
+                        {/* Pod status */}
+                        <td style={{ padding: "10px 12px" }}>
+                          {u.in_pod ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Badge color={T.lime}>✓ In pod</Badge>
+                              {u.pod_name && (
+                                <span style={{ fontSize: 10, color: T.mist }}>{u.pod_name}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <Badge color={T.amber}>No pod</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
