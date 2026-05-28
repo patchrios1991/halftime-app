@@ -192,11 +192,6 @@ export default function SignIn() {
     }
   }
 
-  // Demo mode bypass
-  function handleDemo() {
-    navigate("/app");
-  }
-
   // ── UI ──────────────────────────────────────────────────────────────────────
   const titles = {
     signin: { head: "Welcome back", sub: "Sign in to your HalfTime account" },
@@ -403,15 +398,6 @@ export default function SignIn() {
               </button>
             )}
           </div>
-        </div>
-
-        {/* Demo bypass */}
-        <div style={{ textAlign: "center" }}>
-          <button onClick={handleDemo} style={{ ...linkStyle, fontSize: 12 }}>
-            {isSupabaseConfigured
-              ? "Skip sign-in (demo mode)"
-              : "⚡ Demo mode — Supabase not configured"}
-          </button>
         </div>
 
       </div>
