@@ -1,5 +1,5 @@
 // ─── ResaleScreen ─────────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { T } from "../../tokens";
 import Badge from "../../components/Badge";
 import { useMyPods, usePod } from "../../hooks/usePod";
@@ -7,20 +7,18 @@ import { useActivePod } from "../../context/ActivePodContext";
 import { useGames } from "../../hooks/useGames";
 import { useResale } from "../../hooks/useResale";
 import ResalePaymentModal from "./ResalePaymentModal";
-import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { useCurrentUserId } from "../../hooks/useCurrentUserId";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import { fmtDate } from "../../lib/dateUtils";
+import { notify } from "../../lib/notify";
 
 export default function ResaleScreen({ state, dispatch }) {
-  const [currentUserId, setCurrentUserId] = useState(null);
+  const currentUserId = useCurrentUserId();
   const [tab, setTab]           = useState("mine"); // "mine" | "market"
   const [prices, setPrices]     = useState({});     // gameId → ask price
   const [busy, setBusy]         = useState(false);
   const [actionError, setActionError] = useState(null);
   const [buyingListing, setBuyingListing] = useState(null); // listing to buy
-
-  if (!currentUserId && isSupabaseConfigured) {
-    supabase.auth.getSession().then(({ data: { session } }) =>
-      session?.user?.id && setCurrentUserId(session.user.id));
-  }
 
   const { pods }    = useMyPods();
   const { activePodId: selectedPodId } = useActivePod();
@@ -29,8 +27,14 @@ export default function ResaleScreen({ state, dispatch }) {
   const { games }    = useGames(activePodId);
   const { listings, payouts, loading, listGame, cancel } = useResale(activePodId);
 
-  // My assigned games
-  const myGames = games.filter(g => g.assignments?.[0]?.user_id === currentUserId);
+  // My assigned UPCOMING games (can't resell a game that already happened)
+  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const myGames = useMemo(() => games.filter(g => {
+    if (g.assignments?.[0]?.user_id !== currentUserId) return false;
+    if (!g.game_date) return true;
+    const [y, m, d] = g.game_date.split("-").map(Number);
+    return new Date(y, m - 1, d) >= today;
+  }), [games, currentUserId, today]);
 
   // Find active listing for a game
   const listingForGame = (gameId) =>
@@ -43,14 +47,6 @@ export default function ResaleScreen({ state, dispatch }) {
 
   // Total resale payouts earned
   const totalPayouts = payouts.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-  function fmtDate(dateStr) {
-    if (!dateStr) return "";
-    const [y, m, d] = dateStr.split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-      month: "short", day: "numeric",
-    });
-  }
 
   async function handleList(gameId, faceVal) {
     const askPrice = prices[gameId] ?? Math.round(faceVal);
@@ -341,6 +337,16 @@ export default function ResaleScreen({ state, dispatch }) {
           listing={buyingListing}
           podName={fullPod?.name || "Pod"}
           onSuccess={() => {
+            // Notify the seller their ticket sold
+            if (buyingListing.seller_id) {
+              notify({
+                userId: buyingListing.seller_id,
+                type:   "resale_sold",
+                title:  "💸 Your ticket sold!",
+                body:   `Your vs. ${buyingListing.games?.opponent ?? "game"} seat was purchased for $${buyingListing.ask_price}. Check your resale earnings.`,
+                url:    "/app",
+              });
+            }
             setBuyingListing(null);
             // Listings will refresh via realtime subscription
           }}

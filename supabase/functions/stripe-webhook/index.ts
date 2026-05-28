@@ -242,6 +242,48 @@ serve(async (req: Request) => {
         break;
       }
 
+      // ── Identity verification completed ───────────────────────────────────
+      case "identity.verification_session.verified": {
+        const session = event.data.object;
+        const userId  = session.metadata?.user_id;
+        if (!userId) break;
+
+        await supabase
+          .from("profiles")
+          .update({ verified: true, trust_score: 80 })
+          .eq("id", userId);
+
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          type:    "verification_complete",
+          title:   "✅ Identity verified!",
+          body:    "Your identity has been confirmed. Your trust score is now 80.",
+          data:    { screen: "profile" },
+        });
+
+        console.log(`✅ Identity verified for user ${userId}`);
+        break;
+      }
+
+      // ── Identity verification failed / cancelled ───────────────────────────
+      case "identity.verification_session.requires_input": {
+        const session = event.data.object;
+        const userId  = session.metadata?.user_id;
+        if (!userId) break;
+
+        const reason = session.last_error?.reason ?? "incomplete";
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          type:    "verification_failed",
+          title:   "⚠️ Verification needs attention",
+          body:    `Your identity verification couldn't complete (${reason}). Tap to try again.`,
+          data:    { screen: "profile" },
+        });
+
+        console.warn(`⚠️ Identity verification failed for user ${userId}: ${reason}`);
+        break;
+      }
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }

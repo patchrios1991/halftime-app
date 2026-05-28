@@ -5,7 +5,7 @@ import { serve }        from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient }  from "https://esm.sh/@supabase/supabase-js@2";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-const APP_URL           = Deno.env.get("APP_URL") ?? "https://halftime-app-hyxh.vercel.app";
+const APP_URL           = Deno.env.get("APP_URL") ?? "https://www.halftime-app.com";
 const STRIPE_API        = "https://api.stripe.com/v1";
 
 function encodeForm(obj: Record<string, unknown>, prefix = ""): string {

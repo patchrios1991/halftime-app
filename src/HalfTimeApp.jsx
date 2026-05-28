@@ -6,6 +6,7 @@ import { reducer } from "./store/reducer";
 import { initialState } from "./store/initialState";
 import { useAuth } from "./hooks/useAuth";
 import { useMyPods } from "./hooks/usePod";
+import { useNotifications } from "./hooks/useNotifications";
 import { isSupabaseConfigured } from "./lib/supabase";
 import { ActivePodProvider, useActivePod } from "./context/ActivePodContext";
 
@@ -17,8 +18,9 @@ import ScheduleScreen    from "./pages/app/ScheduleScreen";
 import PodScreen         from "./pages/app/PodScreen";
 import ResaleScreen      from "./pages/app/ResaleScreen";
 import ProfileScreen     from "./pages/app/ProfileScreen";
-import CreatePodScreen   from "./pages/app/CreatePodScreen";
+import CreatePodScreen    from "./pages/app/CreatePodScreen";
 import BrowsePodsScreen  from "./pages/app/BrowsePodsScreen";
+import PlayoffBidScreen  from "./pages/app/PlayoffBidScreen";
 
 // Components
 import Wordmark from "./components/Wordmark";
@@ -43,7 +45,8 @@ function NavBar({ screen, dispatch }) {
     }}>
       {TABS.map(({ key, icon, label }) => (
         <div key={key} onClick={() => dispatch({ type: "SET_SCREEN", screen: key })}
-          style={{ flex: 1, padding: "9px 0 7px", textAlign: "center", cursor: "pointer" }}>
+          style={{ flex: 1, padding: "10px 0 8px", textAlign: "center", cursor: "pointer",
+            minHeight: 56 /* ensures ≥44px tap target + safe area */ }}>
           <div style={{ fontSize: 19, marginBottom: 1 }}>{icon}</div>
           <div style={{
             fontSize: 8, fontWeight: 700, letterSpacing: 0.5, fontFamily: "Calibri,sans-serif",
@@ -61,7 +64,7 @@ function NavBar({ screen, dispatch }) {
   );
 }
 
-// ─── Pod switcher — always visible, lets users switch pods or create new ones ─
+// ─── Pod switcher ─────────────────────────────────────────────────────────────
 function PodSwitcher({ dispatch }) {
   const { pods, activePodId, setActivePodId } = useActivePod();
   const [open, setOpen] = useState(false);
@@ -121,7 +124,16 @@ function PodSwitcher({ dispatch }) {
               </div>
             ))}
 
-            {/* Always-visible create button */}
+            {/* Browse open pods */}
+            <button onClick={() => { setOpen(false); dispatch({ type: "SET_SCREEN", screen: "browse_pods" }); }}
+              style={{ width: "100%", marginTop: 8, padding: "13px",
+                background: "transparent", border: `1.5px solid ${T.teal}44`,
+                borderRadius: 12, color: T.teal, fontSize: 13,
+                fontWeight: 700, cursor: "pointer" }}>
+              🔍 Browse Open Pods
+            </button>
+
+            {/* Create new pod */}
             <button onClick={() => { setOpen(false); dispatch({ type: "SET_SCREEN", screen: "create_pod" }); }}
               style={{ width: "100%", marginTop: 8, padding: "13px",
                 background: "transparent", border: `1.5px solid ${T.lime}44`,
@@ -134,6 +146,36 @@ function PodSwitcher({ dispatch }) {
       )}
     </>
   );
+}
+
+// ─── Notification helpers ─────────────────────────────────────────────────────
+function notifIcon(type) {
+  switch (type) {
+    case "escrow_funded":   return "✅";
+    case "escrow_failed":   return "❌";
+    case "pod_active":      return "🎉";
+    case "game_allocated":  return "🎟️";
+    case "game_released":   return "📤";
+    case "resale":          return "♻️";
+    case "resale_sold":     return "💸";
+    case "bid_won":              return "🏆";
+    case "bid_resolved":         return "⚡";
+    case "bid_credits_awarded":  return "🎯";
+    case "member_joined":        return "👥";
+    case "attendance":           return "📅";
+    case "trade_offer":          return "🔄";
+    case "trade_accepted":       return "✅";
+    case "trade_rejected":       return "❌";
+    default:                     return "🔔";
+  }
+}
+
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso)) / 1000;
+  if (diff < 60)    return "just now";
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // ─── Full-screen loading spinner ──────────────────────────────────────────────
@@ -157,10 +199,39 @@ function LoadingScreen() {
 
 // ─── Inner app shell (needs context) ─────────────────────────────────────────
 function AppShell({ state, dispatch, profile, signOut }) {
-  const noNav = ["onboarding", "create_pod", "browse_pods"];
+  const noNav = ["onboarding", "create_pod", "browse_pods", "bids"];
   const clearToast = useCallback(() => dispatch({ type: "CLEAR_TOAST" }), [dispatch]);
-  const isVerified    = profile?.verified ?? true;
+  const isVerified     = profile?.verified ?? true;
   const avatarInitials = profile?.avatar_initials || "YO";
+
+  // ── Keyboard avoidance via visualViewport ─────────────────────────────────
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function onResize() {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--kb-height", `${kb}px`);
+    }
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onResize);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onResize);
+    };
+  }, []);
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const { notifications, unreadCount, markAllRead, refresh: refreshNotifs } = useNotifications();
+
+  function handleBellClick() {
+    const opening = !showNotifPanel;
+    setShowNotifPanel(opening);
+    if (opening && isSupabaseConfigured) {
+      refreshNotifs();
+      markAllRead();
+    }
+  }
 
   useEffect(() => {
     if (state.toast) {
@@ -168,6 +239,11 @@ function AppShell({ state, dispatch, profile, signOut }) {
       return () => clearTimeout(t);
     }
   }, [state.toast, clearToast]);
+
+  // Close notif panel on screen change
+  useEffect(() => {
+    setShowNotifPanel(false);
+  }, [state.screen]);
 
   return (
     <div style={{
@@ -186,25 +262,109 @@ function AppShell({ state, dispatch, profile, signOut }) {
         }}>
           <Wordmark size={20} />
 
-          {/* Pod switcher — tap to switch pods or create a new one */}
+          {/* Pod switcher */}
           <PodSwitcher dispatch={dispatch} />
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <div style={{
-              fontSize: 10, color: isSupabaseConfigured ? T.teal : T.mist,
-              letterSpacing: 1.5,
+              fontSize: 9, color: isSupabaseConfigured ? T.teal : T.mist,
+              letterSpacing: 1,
               background: isSupabaseConfigured ? "rgba(52,211,153,0.12)" : "#1A4A2E",
-              padding: "2px 8px", borderRadius: 6,
+              padding: "2px 6px", borderRadius: 6,
               border: isSupabaseConfigured ? `1px solid ${T.teal}44` : "none",
             }}>
-              {isSupabaseConfigured ? "● LIVE" : "MVP DEMO"}
+              {isSupabaseConfigured ? "● LIVE" : "DEMO"}
             </div>
+
+            {/* Bell */}
+            <div onClick={handleBellClick} style={{
+              position: "relative", width: 30, height: 30, borderRadius: "50%",
+              background: showNotifPanel ? T.green : "#1A4A2E",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 14, cursor: "pointer", transition: "background 0.15s",
+              flexShrink: 0,
+            }}>
+              🔔
+              {unreadCount > 0 && (
+                <div style={{
+                  position: "absolute", top: 0, right: 0,
+                  width: 14, height: 14, borderRadius: "50%",
+                  background: T.red, fontSize: 8, color: T.white,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 700,
+                }}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </div>
+              )}
+            </div>
+
+            {/* Avatar → Profile */}
             <div onClick={() => dispatch({ type: "SET_SCREEN", screen: "profile" })}
               style={{ cursor: "pointer" }}>
               <Avatar initials={avatarInitials} size={28} verified={isVerified} />
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Notification panel (fixed overlay below top bar) ─────────────── */}
+      {showNotifPanel && !noNav.includes(state.screen) && (
+        <>
+          {/* Backdrop */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 48 }}
+            onClick={() => setShowNotifPanel(false)}
+          />
+          {/* Panel */}
+          <div style={{
+            position: "fixed", top: 52, left: "50%", transform: "translateX(-50%)",
+            width: "100%", maxWidth: 430, zIndex: 49,
+            background: T.forest,
+            borderBottom: `2px solid ${T.green}44`,
+            maxHeight: 340, overflowY: "auto",
+            padding: "12px 14px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.mist, letterSpacing: 1.5 }}>
+                NOTIFICATIONS
+              </div>
+              {unreadCount > 0 && (
+                <div style={{ fontSize: 9, color: T.lime, cursor: "pointer" }}
+                  onClick={markAllRead}>Mark all read</div>
+              )}
+            </div>
+
+            {notifications.length === 0 ? (
+              <div style={{ color: T.mist, fontSize: 12, textAlign: "center", padding: "20px 0" }}>
+                No notifications yet
+              </div>
+            ) : (
+              notifications.slice(0, 20).map((n, i) => (
+                <div key={n.id ?? i} style={{
+                  display: "flex", gap: 10, alignItems: "flex-start",
+                  padding: "9px 0", borderBottom: "1px solid #1A4A2E",
+                  opacity: n.read ? 0.5 : 1,
+                }}>
+                  <div style={{ fontSize: 16, flexShrink: 0 }}>{notifIcon(n.type)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: n.read ? 400 : 700,
+                      color: T.white, marginBottom: 1 }}>
+                      {n.title ?? n.text}
+                    </div>
+                    {n.body && (
+                      <div style={{ fontSize: 10, color: T.mist, lineHeight: 1.4 }}>{n.body}</div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 9, color: T.mist, flexShrink: 0, marginTop: 2 }}>
+                    {n.created_at ? timeAgo(n.created_at) : n.time}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
       )}
 
       {/* Screen content */}
@@ -221,6 +381,7 @@ function AppShell({ state, dispatch, profile, signOut }) {
         {state.screen === "pod"          && <PodScreen state={state} dispatch={dispatch} />}
         {state.screen === "resale"       && <ResaleScreen state={state} dispatch={dispatch} />}
         {state.screen === "profile"      && <ProfileScreen state={state} dispatch={dispatch} profile={profile} signOut={signOut} />}
+        {state.screen === "bids"         && <PlayoffBidScreen dispatch={dispatch} profile={profile} />}
       </div>
 
       {/* Bottom nav */}
@@ -240,6 +401,8 @@ function AppShell({ state, dispatch, profile, signOut }) {
         input[type=range] { height: 4px; }
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         ::-webkit-scrollbar { width: 0px; }
+        /* Keyboard avoidance: forms use padding-bottom: var(--kb-height,0px) */
+        :root { --kb-height: 0px; }
       `}</style>
     </div>
   );
@@ -249,7 +412,10 @@ function AppShell({ state, dispatch, profile, signOut }) {
 export default function HalfTimeApp() {
   const navigate = useNavigate();
   const { profile, loading: authLoading, isAuthenticated, signOut } = useAuth();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, {
+    ...initialState,
+    screen: localStorage.getItem("ht_onboarded") ? "dashboard" : "onboarding",
+  });
   const { pods, loading: podsLoading } = useMyPods();
 
   // Auth gate
@@ -263,6 +429,7 @@ export default function HalfTimeApp() {
   useEffect(() => {
     if (!podsLoading && isAuthenticated && isSupabaseConfigured) {
       if (pods.length > 0 && state.screen === "onboarding") {
+        localStorage.setItem("ht_onboarded", "1");
         dispatch({ type: "SET_SCREEN", screen: "dashboard" });
       }
     }

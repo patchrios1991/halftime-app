@@ -1,5 +1,5 @@
 // ─── AllocationScreen ─────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
 import Bar from "../../components/Bar";
@@ -9,8 +9,11 @@ import Pill from "../../components/Pill";
 import { useMyPods, usePod } from "../../hooks/usePod";
 import { useActivePod } from "../../context/ActivePodContext";
 import { useGames } from "../../hooks/useGames";
-import { supabase, isSupabaseConfigured } from "../../lib/supabase";
-import { deleteGame } from "../../api/games";
+import { useCurrentUserId } from "../../hooks/useCurrentUserId";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import { fmtDate, fmtTime } from "../../lib/dateUtils";
+import { TIERS, TIER_COLOR, tierLabel } from "../../lib/tierUtils";
+import { deleteGame, updateGameTier } from "../../api/games";
 import { searchESPNTeams, fetchESPNSchedule } from "../../api/schedule";
 
 const MEMBER_COLORS = ["#C8F135", "#34D399", "#A78BFA", "#FBBF24", "#F87171", "#60A5FA"];
@@ -20,8 +23,6 @@ const METHOD_INFO = {
   lottery: { icon: "🎲", name: "Random Lottery", desc: "Weighted by ownership %. Pure chance — great for casual pods." },
   ai:      { icon: "🤖", name: "AI Fairness",    desc: "Balances quality, recency & share % for maximum fairness." },
 };
-
-const TIERS = ["standard", "premium", "marquee"];
 
 // ── Schedule import parser ─────────────────────────────────────────────────────
 const MONTH_MAP = {
@@ -128,14 +129,11 @@ export default function AllocationScreen({ state, dispatch }) {
   const [gameForm, setGameForm] = useState({
     opponent: "", game_date: "", game_time: "19:30", face_value: "", tier: "standard",
   });
-  const [addingGame, setAddingGame]   = useState(false);
-  const [addGameErr, setAddGameErr]   = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
-
-  if (!currentUserId && isSupabaseConfigured) {
-    supabase.auth.getSession().then(({ data: { session } }) =>
-      session?.user?.id && setCurrentUserId(session.user.id));
-  }
+  const [addingGame,    setAddingGame]    = useState(false);
+  const [addGameErr,    setAddGameErr]    = useState(null);
+  const [editTierFor,   setEditTierFor]   = useState(null);  // gameId being tier-edited
+  const [savingTier,    setSavingTier]    = useState(false);
+  const currentUserId = useCurrentUserId();
 
   const { pods }           = useMyPods();
   const { activePodId: selectedPodId } = useActivePod();
@@ -160,26 +158,23 @@ export default function AllocationScreen({ state, dispatch }) {
   const allocationDone = fullPod?.allocation_done || false;
   const allocationMethod = fullPod?.allocation_method || method;
 
-  // Per-member game counts from DB
-  function gamesForMember(userId) {
-    return games.filter(g => g.assignments?.[0]?.user_id === userId);
-  }
+  // Precomputed map: userId → assigned games array (avoids O(n²) per member)
+  const gamesByMember = useMemo(() => {
+    const map = new Map();
+    for (const g of games) {
+      const uid = g.assignments?.[0]?.user_id;
+      if (uid) {
+        if (!map.has(uid)) map.set(uid, []);
+        map.get(uid).push(g);
+      }
+    }
+    return map;
+  }, [games]);
+
+  const gamesForMember = (userId) => gamesByMember.get(userId) ?? [];
 
   // My allocated games
   const myGames = gamesForMember(currentUserId);
-
-  // Format date for display
-  function fmtDate(dateStr) {
-    if (!dateStr) return "";
-    const [y, m, d] = dateStr.split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  }
-  function fmtTime(timeStr) {
-    if (!timeStr) return "";
-    const [h, min] = timeStr.split(":");
-    const hour = parseInt(h);
-    return `${hour > 12 ? hour - 12 : hour}:${min} ${hour >= 12 ? "PM" : "AM"}`;
-  }
 
   async function handleAddGame() {
     setAddGameErr(null);
@@ -209,6 +204,19 @@ export default function AllocationScreen({ state, dispatch }) {
       await refreshGames();
     } catch (e) {
       console.error("Delete game:", e.message);
+    }
+  }
+
+  async function handleSaveTier(gameId, newTier) {
+    setSavingTier(true);
+    try {
+      await updateGameTier(gameId, newTier);
+      await refreshGames();
+      setEditTierFor(null);
+    } catch (e) {
+      console.error("Tier update:", e.message);
+    } finally {
+      setSavingTier(false);
     }
   }
 
@@ -374,7 +382,7 @@ export default function AllocationScreen({ state, dispatch }) {
                     value={gameForm.face_value} onChange={e => setGameForm(f => ({ ...f, face_value: e.target.value }))} />
                   <select style={{ ...inputStyle, cursor: "pointer" }} value={gameForm.tier}
                     onChange={e => setGameForm(f => ({ ...f, tier: e.target.value }))}>
-                    {TIERS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                    {TIERS.map(t => <option key={t} value={t}>{tierLabel(t)}</option>)}
                   </select>
                 </div>
                 {addGameErr && <div style={{ color: T.red, fontSize: 11, marginBottom: 6 }}>{addGameErr}</div>}
@@ -532,46 +540,50 @@ export default function AllocationScreen({ state, dispatch }) {
                   style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, fontSize: 12,
                     fontFamily: "monospace" }}
                 />
-                {/* Live parse preview */}
-                {importText.trim() && (() => {
-                  const parsed = parseScheduleText(importText);
+                {/* Live parse preview — parse once, reuse for preview + button */}
+                {(() => {
+                  const parsed = importText.trim() ? parseScheduleText(importText) : [];
                   return (
-                    <div style={{ marginTop: 8, marginBottom: 8 }}>
-                      {parsed.length > 0 ? (
-                        <div style={{ fontSize: 10, color: T.teal, marginBottom: 6 }}>
-                          ✓ {parsed.length} game{parsed.length !== 1 ? "s" : ""} ready to import
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 10, color: T.amber, marginBottom: 6 }}>
-                          ⚠ No valid games parsed yet — check your format
+                    <>
+                      {importText.trim() && (
+                        <div style={{ marginTop: 8, marginBottom: 8 }}>
+                          {parsed.length > 0 ? (
+                            <div style={{ fontSize: 10, color: T.teal, marginBottom: 6 }}>
+                              ✓ {parsed.length} game{parsed.length !== 1 ? "s" : ""} ready to import
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 10, color: T.amber, marginBottom: 6 }}>
+                              ⚠ No valid games parsed yet — check your format
+                            </div>
+                          )}
+                          {parsed.slice(0, 3).map((g, i) => (
+                            <div key={i} style={{ fontSize: 10, color: T.mist, padding: "3px 0",
+                              borderBottom: "1px solid #1A4A2E" }}>
+                              {fullPod?.sport_emoji || "🏀"} vs. <span style={{ color: T.chalk }}>{g.opponent}</span>
+                              {" · "}{g.game_date}{" · "}${g.face_value || "?"}{" · "}{g.tier}
+                            </div>
+                          ))}
+                          {parsed.length > 3 && (
+                            <div style={{ fontSize: 10, color: T.mist, marginTop: 4 }}>
+                              …and {parsed.length - 3} more
+                            </div>
+                          )}
                         </div>
                       )}
-                      {parsed.slice(0, 3).map((g, i) => (
-                        <div key={i} style={{ fontSize: 10, color: T.mist, padding: "3px 0",
-                          borderBottom: "1px solid #1A4A2E" }}>
-                          {fullPod?.sport_emoji || "🏀"} vs. <span style={{ color: T.chalk }}>{g.opponent}</span>
-                          {" · "}{g.game_date}{" · "}${g.face_value || "?"}{" · "}{g.tier}
-                        </div>
-                      ))}
-                      {parsed.length > 3 && (
-                        <div style={{ fontSize: 10, color: T.mist, marginTop: 4 }}>
-                          …and {parsed.length - 3} more
-                        </div>
+                      {importErr && (
+                        <div style={{ color: T.red, fontSize: 11, marginBottom: 6 }}>{importErr}</div>
                       )}
-                    </div>
+                      <button
+                        onClick={handleImport}
+                        disabled={importing || !importText.trim()}
+                        style={{ width: "100%", padding: "9px", background: T.teal, color: T.dark,
+                          border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                          opacity: !importText.trim() ? 0.5 : 1 }}>
+                        {importing ? "Importing…" : `Import ${parsed.length || 0} Games`}
+                      </button>
+                    </>
                   );
                 })()}
-                {importErr && (
-                  <div style={{ color: T.red, fontSize: 11, marginBottom: 6 }}>{importErr}</div>
-                )}
-                <button
-                  onClick={handleImport}
-                  disabled={importing || !importText.trim()}
-                  style={{ width: "100%", padding: "9px", background: T.teal, color: T.dark,
-                    border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                    opacity: !importText.trim() ? 0.5 : 1 }}>
-                  {importing ? "Importing…" : `Import ${parseScheduleText(importText).length || 0} Games`}
-                </button>
               </div>
             )}
 
@@ -596,8 +608,33 @@ export default function AllocationScreen({ state, dispatch }) {
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <Pill label={g.tier}
-                        color={g.tier === "marquee" ? T.lime : g.tier === "premium" ? T.teal : T.mist} />
+                      {/* Tier pill — captain can tap to edit tier */}
+                      {isCaptain && editTierFor === g.id ? (
+                        <select
+                          autoFocus
+                          value={g.tier}
+                          disabled={savingTier}
+                          onChange={e => handleSaveTier(g.id, e.target.value)}
+                          onBlur={() => setEditTierFor(null)}
+                          style={{
+                            background: "#0D1F12", border: `1px solid ${T.green}`,
+                            borderRadius: 6, color: T.white, fontSize: 10,
+                            padding: "2px 6px", cursor: "pointer", outline: "none",
+                          }}
+                        >
+                          {TIERS.map(t => (
+                            <option key={t} value={t}>{tierLabel(t)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div
+                          onClick={isCaptain ? () => setEditTierFor(g.id) : undefined}
+                          title={isCaptain ? "Tap to change tier" : undefined}
+                          style={{ cursor: isCaptain ? "pointer" : "default" }}
+                        >
+                          <Pill label={g.tier} color={TIER_COLOR[g.tier] ?? T.mist} />
+                        </div>
+                      )}
                       {assignee
                         ? <Badge color={assignee.id === currentUserId ? T.lime : T.mist}>
                             {assignee.name}
@@ -729,8 +766,7 @@ export default function AllocationScreen({ state, dispatch }) {
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: T.lime,
                         fontFamily: "Georgia,serif" }}>${g.face_value}</div>
-                      <Pill label={g.tier}
-                        color={g.tier === "marquee" ? T.lime : g.tier === "premium" ? T.teal : T.mist} />
+                      <Pill label={g.tier} color={TIER_COLOR[g.tier] ?? T.mist} />
                     </div>
                   </div>
                 ))}

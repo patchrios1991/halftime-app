@@ -3,26 +3,41 @@ import { useState } from "react";
 import { T } from "../../tokens";
 import Card from "../../components/Card";
 import Badge from "../../components/Badge";
-import { useRecruitingPods } from "../../hooks/usePod";
+import { SkeletonCard } from "../../components/Skeleton";
+import { useRecruitingPods, useMyPods } from "../../hooks/usePod";
 import { joinPod } from "../../api/pods";
+import { friendlyError } from "../../lib/friendlyError";
+import { notify } from "../../lib/notify";
 
 export default function BrowsePodsScreen({ dispatch }) {
   const { pods, loading, refresh } = useRecruitingPods();
+  const { pods: myPods } = useMyPods();
+  const returnScreen = myPods.length > 0 ? "pod" : "onboarding";
   const [joining, setJoining]     = useState(null); // podId being joined
   const [error, setError]         = useState(null);
   const [joined, setJoined]       = useState(null); // podId just joined
 
-  async function handleJoin(podId) {
+  async function handleJoin(pod) {
     setError(null);
-    setJoining(podId);
+    setJoining(pod.id);
     try {
-      await joinPod(podId);
-      setJoined(podId);
+      await joinPod(pod.id);
+      setJoined(pod.id);
       await refresh();
+      // Notify the captain a new member joined
+      if (pod.captain_id) {
+        notify({
+          userId: pod.captain_id,
+          type:   "member_joined",
+          title:  "🎉 New member joined!",
+          body:   `Someone just joined ${pod.name} from Browse Pods. Open the Pod tab to review.`,
+          url:    "/app",
+        });
+      }
       // Short delay so user sees the success state, then go to pod screen
       setTimeout(() => dispatch({ type: "SET_SCREEN", screen: "pod" }), 1200);
     } catch (e) {
-      setError(e.message);
+      setError(friendlyError(e));
     } finally {
       setJoining(null);
     }
@@ -34,8 +49,10 @@ export default function BrowsePodsScreen({ dispatch }) {
       <div style={{ background: `linear-gradient(160deg,${T.dark},${T.forest})`,
         padding: "20px 16px", borderBottom: "1px solid #1A4A2E" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <div onClick={() => dispatch({ type: "SET_SCREEN", screen: "onboarding" })}
-            style={{ color: T.mist, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>‹</div>
+          <div onClick={() => dispatch({ type: "SET_SCREEN", screen: returnScreen })}
+            style={{ color: T.mist, fontSize: 22, cursor: "pointer", lineHeight: 1,
+              padding: "4px 8px 4px 0", minWidth: 44, minHeight: 44,
+              display: "flex", alignItems: "center" }}>‹</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: T.white, fontFamily: "Georgia,serif" }}>
             Find a Pod
           </div>
@@ -54,10 +71,11 @@ export default function BrowsePodsScreen({ dispatch }) {
         )}
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: T.mist }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>🔍</div>
-            <div style={{ fontSize: 13 }}>Loading pods…</div>
-          </div>
+          <>
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={2} />
+          </>
         ) : pods.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏟️</div>
@@ -136,7 +154,7 @@ export default function BrowsePodsScreen({ dispatch }) {
                   </div>
                 ) : (
                   <button
-                    onClick={() => handleJoin(pod.id)}
+                    onClick={() => handleJoin(pod)}
                     disabled={isJoining || spotsLeft === 0}
                     style={{
                       width: "100%", padding: "12px 0",

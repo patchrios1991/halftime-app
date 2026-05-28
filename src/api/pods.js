@@ -66,6 +66,15 @@ export async function getPodById(podId) {
   return data;
 }
 
+/** Generate a unique 8-char pod invite code */
+function generateInviteCode() {
+  // Unambiguous chars (no 0/O, 1/I/L)
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const arr   = new Uint8Array(8);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => chars[b % chars.length]).join("");
+}
+
 /** Create a new pod (caller becomes captain) */
 export async function createPod(podData) {
   const user = (await supabase.auth.getUser()).data.user;
@@ -73,7 +82,7 @@ export async function createPod(podData) {
 
   const { data: pod, error: podError } = await supabase
     .from("pods")
-    .insert({ ...podData, captain_id: user.id })
+    .insert({ ...podData, captain_id: user.id, invite_code: generateInviteCode() })
     .select()
     .single();
 

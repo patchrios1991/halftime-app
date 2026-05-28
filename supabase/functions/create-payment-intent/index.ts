@@ -108,7 +108,7 @@ serve(async (req: Request) => {
         .from("resale_listings")
         .select("*, games(opponent)")
         .eq("id", listingId)
-        .eq("status", "active")
+        .eq("status", "listed")
         .single();
 
       if (listingErr || !listing) throw new Error("Listing not found or no longer available");

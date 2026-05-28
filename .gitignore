@@ -27,3 +27,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*
+
+# Supabase CLI binaries and temp files
+supabase.exe
+supabase-go.exe
+supabase/.temp/

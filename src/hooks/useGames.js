@@ -8,6 +8,8 @@ import {
   addGames as apiAddGames,
   runAndSaveAllocation as apiRunAndSaveAllocation,
   confirmAttendance as apiConfirmAttendance,
+  releaseGame as apiReleaseGame,
+  assignGame as apiAssignGame,
 } from "../api/games";
 
 /**
@@ -105,6 +107,16 @@ export function useGames(podId) {
     await load();
   }, [load]);
 
+  const releaseGame = useCallback(async (gameId) => {
+    await apiReleaseGame(gameId);
+    await load();
+  }, [load]);
+
+  const assignGame = useCallback(async (gameId, userId) => {
+    await apiAssignGame(gameId, podId, userId);
+    await load();
+  }, [podId, load]);
+
   return {
     games,
     loading,
@@ -115,6 +127,8 @@ export function useGames(podId) {
     addGames,
     runAllocation,
     confirmAttendance,
+    releaseGame,
+    assignGame,
   };
 }
 

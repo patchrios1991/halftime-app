@@ -1,17 +1,20 @@
 // ─── SignIn / SignUp ───────────────────────────────────────────────────────────
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { T } from "../../tokens";
 import Wordmark from "../../components/Wordmark";
 import { useAuth } from "../../hooks/useAuth";
-import { isSupabaseConfigured } from "../../lib/supabase";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { friendlyError } from "../../lib/friendlyError";
 
 // ── Tiny field wrapper ─────────────────────────────────────────────────────────
-function Field({ label, type = "text", value, onChange, placeholder, autoComplete }) {
+function Field({ label, type = "text", value, onChange, placeholder, autoComplete, error, hint }) {
+  const [focused, setFocused] = useState(false);
+  const borderColor = error ? T.red : focused ? T.lime : T.green;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
       <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em",
-                      color: T.mist, textTransform: "uppercase" }}>
+                      color: error ? T.red : T.mist, textTransform: "uppercase" }}>
         {label}
       </label>
       <input
@@ -22,7 +25,7 @@ function Field({ label, type = "text", value, onChange, placeholder, autoComplet
         autoComplete={autoComplete}
         style={{
           background:    T.forest,
-          border:        `1.5px solid ${T.green}`,
+          border:        `1.5px solid ${borderColor}`,
           borderRadius:  10,
           padding:       "12px 14px",
           color:         T.white,
@@ -32,9 +35,15 @@ function Field({ label, type = "text", value, onChange, placeholder, autoComplet
           boxSizing:     "border-box",
           transition:    "border-color 0.15s",
         }}
-        onFocus={e  => (e.target.style.borderColor = T.lime)}
-        onBlur={e   => (e.target.style.borderColor = T.green)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
       />
+      {error && (
+        <div style={{ fontSize: 11, color: T.red, marginTop: 1 }}>{error}</div>
+      )}
+      {!error && hint && (
+        <div style={{ fontSize: 11, color: T.mist, marginTop: 1 }}>{hint}</div>
+      )}
     </div>
   );
 }
@@ -92,29 +101,80 @@ export default function SignIn() {
   const [email, setEmail]         = useState("");
   const [password, setPassword]   = useState("");
   const [displayName, setDisplay] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [agreedToTos, setAgreedToTos] = useState(false);
   const [busy, setBusy]           = useState(false);
   const [feedback, setFeedback]   = useState(null); // { type: "error"|"success", msg }
+  const [fieldErrors, setFieldErrors] = useState({}); // { email, password, displayName, inviteCode }
 
   const fb = (type, msg) => setFeedback({ type, msg });
+
+  function clearFieldErrors() { setFieldErrors({}); }
+
+  /** Returns false if any validation fails; sets fieldErrors state */
+  function validateForm() {
+    const errs = {};
+    const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email.trim()) {
+      errs.email = "Email is required.";
+    } else if (!emailRx.test(email)) {
+      errs.email = "Enter a valid email address.";
+    }
+
+    if (mode !== "magic") {
+      if (!password) {
+        errs.password = "Password is required.";
+      } else if (mode === "signup" && password.length < 8) {
+        errs.password = "Password must be at least 8 characters.";
+      }
+    }
+
+    if (mode === "signup") {
+      if (!inviteCode.trim()) errs.inviteCode = "Invite code is required.";
+      if (!displayName.trim()) errs.displayName = "Display name is required.";
+      if (!agreedToTos) errs.tos = "You must agree to the Terms of Service.";
+    }
+
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   // ── Submit handler ──────────────────────────────────────────────────────────
   async function handleSubmit(e) {
     e.preventDefault();
     setFeedback(null);
+    if (!validateForm()) return; // show inline field errors instead
+
     setBusy(true);
     try {
       if (mode === "magic") {
         await signInWithMagicLink(email);
         fb("success", `Magic link sent to ${email} — check your inbox!`);
       } else if (mode === "signup") {
+        // Validate invite code before creating account
+        if (isSupabaseConfigured) {
+          const { data: valid } = await supabase.rpc("check_invite_code", {
+            p_code: inviteCode.trim(),
+          });
+          if (!valid) {
+            setFieldErrors(f => ({ ...f, inviteCode: "Invalid or expired invite code." }));
+            fb("error", "That invite code isn't valid. Need one? Join the waitlist at halftime-app.com");
+            return;
+          }
+        }
         await signUp({ email, password, displayName });
-        fb("success", "Account created! Check your email to confirm.");
+        // Atomically consume the code after successful signup
+        if (isSupabaseConfigured && inviteCode.trim()) {
+          await supabase.rpc("redeem_invite_code", { p_code: inviteCode.trim() });
+        }
+        fb("success", "Account created! Check your email to confirm your address.");
       } else {
         await signIn({ email, password });
         navigate("/app");
       }
     } catch (err) {
-      fb("error", err.message);
+      fb("error", friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -206,8 +266,8 @@ export default function SignIn() {
             </div>
           )}
 
-          {/* Google OAuth */}
-          {mode !== "magic" && isSupabaseConfigured && (
+          {/* Google OAuth — sign-in only; signup requires invite code via email flow */}
+          {mode === "signin" && isSupabaseConfigured && (
             <>
               <Btn variant="google" onClick={handleGoogle} disabled={busy}>
                 <svg width="18" height="18" viewBox="0 0 48 48">
@@ -225,22 +285,34 @@ export default function SignIn() {
           {/* Form */}
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {mode === "signup" && (
-              <Field
-                label="Display name"
-                value={displayName}
-                onChange={setDisplay}
-                placeholder="Jordan K."
-                autoComplete="name"
-              />
+              <>
+                <Field
+                  label="Invite Code"
+                  value={inviteCode}
+                  onChange={v => { setInviteCode(v.toUpperCase()); setFieldErrors(f => ({ ...f, inviteCode: null })); }}
+                  placeholder="e.g. HALFTIME1"
+                  autoComplete="off"
+                  error={fieldErrors.inviteCode}
+                />
+                <Field
+                  label="Display name"
+                  value={displayName}
+                  onChange={v => { setDisplay(v); setFieldErrors(f => ({ ...f, displayName: null })); }}
+                  placeholder="Jordan K."
+                  autoComplete="name"
+                  error={fieldErrors.displayName}
+                />
+              </>
             )}
 
             <Field
               label="Email"
               type="email"
               value={email}
-              onChange={setEmail}
+              onChange={v => { setEmail(v); setFieldErrors(f => ({ ...f, email: null })); }}
               placeholder="you@example.com"
               autoComplete="email"
+              error={fieldErrors.email}
             />
 
             {mode !== "magic" && (
@@ -248,16 +320,51 @@ export default function SignIn() {
                 label="Password"
                 type="password"
                 value={password}
-                onChange={setPassword}
-                placeholder={mode === "signup" ? "Create a password" : "Enter your password"}
+                onChange={v => { setPassword(v); setFieldErrors(f => ({ ...f, password: null })); }}
+                placeholder={mode === "signup" ? "Create a password (min 8 chars)" : "Enter your password"}
                 autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                error={fieldErrors.password}
+                hint={mode === "signup" && !fieldErrors.password && password.length > 0 && password.length < 8
+                  ? `${8 - password.length} more character${8 - password.length !== 1 ? "s" : ""} needed`
+                  : null}
               />
             )}
 
-            <Btn disabled={busy || !email}>
+            {/* ToS agreement — signup only */}
+            {mode === "signup" && (
+              <div>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 10,
+                  cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={agreedToTos}
+                    onChange={e => { setAgreedToTos(e.target.checked); setFieldErrors(f => ({ ...f, tos: null })); }}
+                    style={{ marginTop: 2, accentColor: T.lime, width: 16, height: 16,
+                      flexShrink: 0, cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: 12, color: T.mist, lineHeight: 1.5 }}>
+                    I agree to the{" "}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer"
+                      style={{ color: T.lime, textDecoration: "none" }}>
+                      Terms of Service
+                    </a>
+                    {" "}and{" "}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                      style={{ color: T.lime, textDecoration: "none" }}>
+                      Privacy Policy
+                    </a>
+                  </span>
+                </label>
+                {fieldErrors.tos && (
+                  <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>{fieldErrors.tos}</div>
+                )}
+              </div>
+            )}
+
+            <Btn disabled={busy}>
               {busy ? "Please wait…" :
-               mode === "magic"  ? "Send magic link" :
-               mode === "signup" ? "Create account" : "Sign in"}
+               mode === "magic"  ? "Send magic link →" :
+               mode === "signup" ? "Create account →" : "Sign in →"}
             </Btn>
           </form>
 
@@ -266,13 +373,13 @@ export default function SignIn() {
             {mode === "signin" && (
               <>
                 <button
-                  onClick={() => { setMode("magic"); setFeedback(null); }}
+                  onClick={() => { setMode("magic"); setFeedback(null); clearFieldErrors(); }}
                   style={linkStyle}
                 >
                   Sign in without a password →
                 </button>
                 <button
-                  onClick={() => { setMode("signup"); setFeedback(null); }}
+                  onClick={() => { setMode("signup"); setFeedback(null); clearFieldErrors(); }}
                   style={linkStyle}
                 >
                   Don't have an account? Sign up
@@ -281,7 +388,7 @@ export default function SignIn() {
             )}
             {mode === "signup" && (
               <button
-                onClick={() => { setMode("signin"); setFeedback(null); }}
+                onClick={() => { setMode("signin"); setFeedback(null); clearFieldErrors(); }}
                 style={linkStyle}
               >
                 Already have an account? Sign in
@@ -289,7 +396,7 @@ export default function SignIn() {
             )}
             {mode === "magic" && (
               <button
-                onClick={() => { setMode("signin"); setFeedback(null); }}
+                onClick={() => { setMode("signin"); setFeedback(null); clearFieldErrors(); }}
                 style={linkStyle}
               >
                 ← Back to sign in

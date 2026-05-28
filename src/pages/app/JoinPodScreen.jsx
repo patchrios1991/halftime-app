@@ -7,6 +7,7 @@ import { T } from "../../tokens";
 import Wordmark from "../../components/Wordmark";
 import { supabase } from "../../lib/supabase";
 import { getPodByInviteCode, joinPod } from "../../api/pods";
+import { notify } from "../../lib/notify";
 
 const SPORT_EMOJI = { basketball: "🏀", football: "🏈", baseball: "⚾", hockey: "🏒", soccer: "⚽" };
 
@@ -14,13 +15,18 @@ export default function JoinPodScreen() {
   const { code }   = useParams();
   const navigate   = useNavigate();
 
-  const [pod,       setPod]       = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [fetchErr,  setFetchErr]  = useState(null);
-  const [user,      setUser]      = useState(undefined); // undefined = not yet checked
-  const [joining,   setJoining]   = useState(false);
-  const [joined,    setJoined]    = useState(false);
-  const [joinErr,   setJoinErr]   = useState(null);
+  const [pod,               setPod]               = useState(null);
+  const [loading,           setLoading]           = useState(true);
+  const [fetchErr,          setFetchErr]          = useState(null);
+  const [user,              setUser]              = useState(undefined); // undefined = not yet checked
+  const [joining,           setJoining]           = useState(false);
+  const [joined,            setJoined]            = useState(false);
+  const [joinErr,           setJoinErr]           = useState(null);
+
+  // Waitlist state (when pod is full)
+  const [waitlistEmail,     setWaitlistEmail]     = useState("");
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [waitlistBusy,      setWaitlistBusy]      = useState(false);
 
   useEffect(() => {
     // Resolve auth + pod in parallel
@@ -47,6 +53,16 @@ export default function JoinPodScreen() {
     try {
       await joinPod(pod.id);
       setJoined(true);
+      // Notify the captain a new member joined (skip if user IS the captain)
+      if (pod.captain_id && pod.captain_id !== user?.id) {
+        notify({
+          userId: pod.captain_id,
+          type:   "member_joined",
+          title:  "🎉 New member joined!",
+          body:   `Someone just joined ${pod.name} via your invite link. Open the Pod tab to review.`,
+          url:    "/app",
+        });
+      }
       setTimeout(() => navigate("/app"), 2500);
     } catch (e) {
       setJoinErr(e.message);
@@ -172,6 +188,48 @@ export default function JoinPodScreen() {
               : `Join this ${pod.sport || "sports"} pod to share the cost of a full season ticket package. Members split game attendance based on their ownership share.`}
           </div>
         </div>
+
+        {/* ── Receipt verification banner ────────────────────────────────────── */}
+        {pod.receipt_verified ? (
+          <div style={{ margin: "0 16px 16px", background: "rgba(52,211,153,0.08)",
+            border: "1px solid rgba(52,211,153,0.25)", borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#6EE7B7", marginBottom: 2 }}>
+              ✓ Receipt Verified
+            </div>
+            <div style={{ fontSize: 11, color: "#6EE7B7", opacity: 0.8, lineHeight: 1.5 }}>
+              HalfTime has reviewed the captain's season ticket purchase receipt and confirmed the price is accurate.
+            </div>
+          </div>
+        ) : pod.receipt_rejected ? (
+          <div style={{ margin: "0 16px 16px", background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.3)", borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", marginBottom: 2 }}>
+              ⚠️ Receipt Flagged
+            </div>
+            <div style={{ fontSize: 11, color: "#F8A0A0", lineHeight: 1.5 }}>
+              {pod.receipt_note
+                ? pod.receipt_note
+                : "HalfTime could not verify this pod's ticket receipt. Ask the captain for more details before joining."}
+            </div>
+          </div>
+        ) : pod.receipt_url ? (
+          <div style={{ margin: "0 16px 16px", background: "rgba(251,191,36,0.08)",
+            border: "1px solid rgba(251,191,36,0.25)", borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#FCD34D", marginBottom: 2 }}>
+              🔍 Receipt Under Review
+            </div>
+            <div style={{ fontSize: 11, color: "#FCD34D", opacity: 0.8, lineHeight: 1.5 }}>
+              The captain submitted a ticket receipt and HalfTime is reviewing it. Check back soon.
+            </div>
+          </div>
+        ) : (
+          <div style={{ margin: "0 16px 16px", background: "rgba(148,163,184,0.06)",
+            border: "1px solid rgba(148,163,184,0.15)", borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>
+              📄 No receipt uploaded yet — ask the captain to share proof of their ticket purchase before you commit.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Invite code badge */}
@@ -203,13 +261,61 @@ export default function JoinPodScreen() {
           </div>
         </div>
       ) : isFull ? (
-        <div style={{ width: "100%", maxWidth: 360, background: `${T.amber}12`,
-          border: `1px solid ${T.amber}33`, borderRadius: 12,
-          padding: "14px 16px", textAlign: "center" }}>
-          <div style={{ color: T.amber, fontWeight: 700, fontSize: 14 }}>Pod is full</div>
-          <div style={{ color: T.mist, fontSize: 12, marginTop: 4 }}>
-            All spots have been claimed.
-          </div>
+        // ── Waitlist form when pod is full ──────────────────────────────────
+        <div style={{ width: "100%", maxWidth: 360 }}>
+          {waitlistSubmitted ? (
+            <div style={{ background: `${T.teal}12`, border: `1px solid ${T.teal}33`,
+              borderRadius: 12, padding: "20px 16px", textAlign: "center" }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
+              <div style={{ color: T.teal, fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                You're on the waitlist!
+              </div>
+              <div style={{ color: T.mist, fontSize: 12, lineHeight: 1.6 }}>
+                We'll email <strong style={{ color: T.chalk }}>{waitlistEmail}</strong> if a spot opens up in{" "}
+                <strong style={{ color: T.chalk }}>{pod.name}</strong>.
+              </div>
+            </div>
+          ) : (
+            <div style={{ background: `${T.amber}10`, border: `1px solid ${T.amber}33`,
+              borderRadius: 12, padding: "18px 16px" }}>
+              <div style={{ color: T.amber, fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                Pod is full
+              </div>
+              <div style={{ color: T.mist, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
+                All spots have been claimed — but pods sometimes open up. Leave your email and we'll let you know if a seat becomes available.
+              </div>
+              <input
+                type="email"
+                value={waitlistEmail}
+                onChange={e => setWaitlistEmail(e.target.value)}
+                placeholder="your@email.com"
+                style={{ width: "100%", padding: "11px 12px", background: T.forest,
+                  border: `1px solid #1A4A2E`, borderRadius: 8, color: T.white,
+                  fontSize: 13, outline: "none", fontFamily: "Calibri,sans-serif",
+                  boxSizing: "border-box", marginBottom: 10 }}
+              />
+              <button
+                onClick={async () => {
+                  if (!waitlistEmail.includes("@")) return;
+                  setWaitlistBusy(true);
+                  try {
+                    await supabase.from("pod_waitlist").insert({
+                      pod_id: pod.id,
+                      email:  waitlistEmail.trim().toLowerCase(),
+                    });
+                    setWaitlistSubmitted(true);
+                  } catch { /* ignore duplicate / RLS errors silently */ }
+                  finally { setWaitlistBusy(false); }
+                }}
+                disabled={waitlistBusy || !waitlistEmail.includes("@")}
+                style={{ width: "100%", padding: "12px", background: T.amber,
+                  border: "none", borderRadius: 8, color: T.dark,
+                  fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  opacity: !waitlistEmail.includes("@") ? 0.5 : 1 }}>
+                {waitlistBusy ? "Joining waitlist…" : "Join Waitlist →"}
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ width: "100%", maxWidth: 360 }}>

@@ -1,50 +1,35 @@
-import { useState, useMemo } from "react";
+// ─── BetaDashboard ────────────────────────────────────────────────────────────
+// Real-data admin dashboard for the HalfTime beta cohort.
+// Requires: supabase/migrations/012_admin_access.sql to be run, then
+//   UPDATE public.profiles SET is_admin = true WHERE id = auth.uid();
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../../tokens";
+import { supabase } from "../../lib/supabase";
 
-// ─── Data ───────────────────────────────────────────────────────────────────────
-function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function weekLabel(dateStr) {
+  if (!dateStr) return "?";
+  const d = new Date(dateStr);
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  const month = mon.toLocaleDateString("en-US", { month: "short" });
+  return `${month} W${Math.ceil(mon.getDate() / 7)}`;
+}
+function weekSortKey(dateStr) {
+  if (!dateStr) return "0000-00-00";
+  const d = new Date(dateStr);
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return mon.toISOString().slice(0, 10);
+}
+function daysAgo(dateStr) {
+  if (!dateStr) return 0;
+  return Math.round((Date.now() - new Date(dateStr).getTime()) / 86400000);
 }
 
-const PODS_DATA = [
-  { id:"P001", name:"Section 114 Squad",   team:"Bulls",      sport:"🏀", members:4, maxMembers:6, escrowFunded:4, escrowPending:0, gmv:7400,  gamesTotal:12, gamesAttended:8,  gamesResold:3, resaleRevenue:680,  renewalIntent:"yes",     nps:9,    status:"active",     created:daysAgo(45) },
-  { id:"P002", name:"Wrigley Faithful",    team:"Cubs",       sport:"⚾", members:6, maxMembers:8, escrowFunded:5, escrowPending:1, gmv:9900,  gamesTotal:20, gamesAttended:14, gamesResold:5, resaleRevenue:1100, renewalIntent:"yes",     nps:8,    status:"active",     created:daysAgo(38) },
-  { id:"P003", name:"North End Bloc",      team:"Fire FC",    sport:"⚽", members:3, maxMembers:4, escrowFunded:3, escrowPending:0, gmv:2040,  gamesTotal:6,  gamesAttended:4,  gamesResold:1, resaleRevenue:180,  renewalIntent:"yes",     nps:10,   status:"active",     created:daysAgo(30) },
-  { id:"P004", name:"The Madhouse Crew",   team:"Blackhawks", sport:"🏒", members:4, maxMembers:4, escrowFunded:4, escrowPending:0, gmv:6800,  gamesTotal:10, gamesAttended:7,  gamesResold:2, resaleRevenue:420,  renewalIntent:"yes",     nps:8,    status:"active",     created:daysAgo(28) },
-  { id:"P005", name:"Soldier Field South", team:"Bears",      sport:"🏈", members:5, maxMembers:6, escrowFunded:4, escrowPending:1, gmv:8500,  gamesTotal:5,  gamesAttended:3,  gamesResold:1, resaleRevenue:390,  renewalIntent:"maybe",   nps:7,    status:"active",     created:daysAgo(22) },
-  { id:"P006", name:"Section 220 Crew",    team:"Bulls",      sport:"🏀", members:3, maxMembers:4, escrowFunded:2, escrowPending:1, gmv:1850,  gamesTotal:12, gamesAttended:2,  gamesResold:0, resaleRevenue:0,    renewalIntent:"unknown", nps:6,    status:"partial",    created:daysAgo(18) },
-  { id:"P007", name:"Crosstown Pod",       team:"White Sox",  sport:"⚾", members:2, maxMembers:4, escrowFunded:2, escrowPending:0, gmv:2600,  gamesTotal:8,  gamesAttended:3,  gamesResold:2, resaleRevenue:310,  renewalIntent:"yes",     nps:9,    status:"active",     created:daysAgo(15) },
-  { id:"P008", name:"Skyline Four",        team:"Bulls",      sport:"🏀", members:2, maxMembers:4, escrowFunded:1, escrowPending:1, gmv:1850,  gamesTotal:12, gamesAttended:1,  gamesResold:0, resaleRevenue:0,    renewalIntent:"unknown", nps:null, status:"partial",    created:daysAgo(10) },
-  { id:"P009", name:"Logan Square Bloc",   team:"Cubs",       sport:"⚾", members:4, maxMembers:4, escrowFunded:4, escrowPending:0, gmv:6600,  gamesTotal:15, gamesAttended:10, gamesResold:3, resaleRevenue:720,  renewalIntent:"yes",     nps:10,   status:"active",     created:daysAgo(8)  },
-  { id:"P010", name:"United Center Six",   team:"Blackhawks", sport:"🏒", members:2, maxMembers:6, escrowFunded:2, escrowPending:0, gmv:2260,  gamesTotal:4,  gamesAttended:2,  gamesResold:0, resaleRevenue:0,    renewalIntent:"yes",     nps:8,    status:"recruiting", created:daysAgo(5)  },
-];
-
-const MEMBERS_DATA = [
-  { id:"M001", name:"Jordan K.", pod:"P001", verified:true,  escrowFunded:true,  gamesAllocated:3, gamesAttended:3, nps:9,    referrals:2, tier:"pro",     churnRisk:"low"    },
-  { id:"M002", name:"Alex M.",   pod:"P001", verified:true,  escrowFunded:true,  gamesAllocated:3, gamesAttended:2, nps:8,    referrals:1, tier:"pro",     churnRisk:"low"    },
-  { id:"M003", name:"Sam R.",    pod:"P001", verified:true,  escrowFunded:true,  gamesAllocated:3, gamesAttended:2, nps:9,    referrals:0, tier:"starter", churnRisk:"low"    },
-  { id:"M004", name:"Morgan T.", pod:"P001", verified:true,  escrowFunded:true,  gamesAllocated:3, gamesAttended:1, nps:7,    referrals:0, tier:"starter", churnRisk:"medium" },
-  { id:"M005", name:"Casey B.",  pod:"P002", verified:true,  escrowFunded:true,  gamesAllocated:4, gamesAttended:3, nps:8,    referrals:2, tier:"captain", churnRisk:"low"    },
-  { id:"M006", name:"Riley S.",  pod:"P002", verified:true,  escrowFunded:false, gamesAllocated:3, gamesAttended:2, nps:null, referrals:0, tier:"starter", churnRisk:"high"   },
-  { id:"M007", name:"Drew W.",   pod:"P003", verified:true,  escrowFunded:true,  gamesAllocated:2, gamesAttended:2, nps:10,   referrals:1, tier:"pro",     churnRisk:"low"    },
-  { id:"M008", name:"Quinn A.",  pod:"P006", verified:true,  escrowFunded:true,  gamesAllocated:1, gamesAttended:0, nps:6,    referrals:0, tier:"starter", churnRisk:"high"   },
-  { id:"M009", name:"Sage L.",   pod:"P008", verified:false, escrowFunded:false, gamesAllocated:0, gamesAttended:0, nps:null, referrals:0, tier:"starter", churnRisk:"high"   },
-  { id:"M010", name:"Blake N.",  pod:"P009", verified:true,  escrowFunded:true,  gamesAllocated:4, gamesAttended:3, nps:10,   referrals:3, tier:"captain", churnRisk:"low"    },
-];
-
-const WEEKLY_DATA = [
-  { week:"Dec W1", newPods:1, newMembers:3, gmv:7400,  resaleRev:180  },
-  { week:"Dec W2", newPods:2, newMembers:7, gmv:12540, resaleRev:420  },
-  { week:"Dec W3", newPods:1, newMembers:4, gmv:6800,  resaleRev:310  },
-  { week:"Dec W4", newPods:2, newMembers:6, gmv:10540, resaleRev:580  },
-  { week:"Jan W1", newPods:1, newMembers:5, gmv:8500,  resaleRev:390  },
-  { week:"Jan W2", newPods:2, newMembers:4, gmv:4110,  resaleRev:310  },
-  { week:"Jan W3", newPods:1, newMembers:3, gmv:2260,  resaleRev:180  },
-];
-
-// ─── Primitives ────────────────────────────────────────────────────────────────
+// ─── Primitives ───────────────────────────────────────────────────────────────
 function Card({ children, style = {} }) {
   return (
     <div style={{ background: T.forest, border: "1px solid #1A4A2E",
@@ -80,52 +65,552 @@ function Bar({ value, max, color = T.lime, h = 6 }) {
   );
 }
 
+// ─── Setup / Auth screens ─────────────────────────────────────────────────────
+function SetupScreen({ title, steps }) {
+  return (
+    <div style={{ background: T.dark, minHeight: "100vh", display: "flex",
+      alignItems: "center", justifyContent: "center", fontFamily: "Calibri,sans-serif",
+      padding: 24 }}>
+      <div style={{ maxWidth: 520, width: "100%", textAlign: "center" }}>
+        <div style={{ fontFamily: "Georgia,serif", fontSize: 28, fontWeight: 900, marginBottom: 24 }}>
+          <span style={{ color: T.white }}>Half</span><span style={{ color: T.lime }}>Time</span>
+          <span style={{ fontSize: 12, color: T.mist, fontFamily: "Calibri,sans-serif",
+            fontWeight: 400, marginLeft: 10 }}>ADMIN</span>
+        </div>
+        <Card>
+          <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", marginBottom: 20 }}>🔧 {title}</div>
+          {steps.map((step, i) => (
+            <div key={i} style={{ display: "flex", gap: 12, marginBottom: 14, textAlign: "left" }}>
+              <div style={{ width: 24, height: 24, borderRadius: "50%", background: T.lime,
+                color: T.dark, display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+              <div style={{ fontSize: 12, color: T.chalk, lineHeight: 1.6 }}>{step}</div>
+            </div>
+          ))}
+          <button onClick={() => window.location.reload()}
+            style={{ marginTop: 8, padding: "11px 24px", background: T.lime, border: "none",
+              borderRadius: 10, color: T.dark, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            ↻ Reload after setup
+          </button>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function BetaDashboard() {
-  const [tab, setTab] = useState("overview");
-  const [podFilter, setPodFilter] = useState("all");
+  const [tab,        setTab]        = useState("overview");
+  const [podFilter,  setPodFilter]  = useState("all");
   const [memberSort, setMemberSort] = useState("churnRisk");
 
-  const metrics = useMemo(() => {
-    const totalMembers = MEMBERS_DATA.length;
-    const verifiedMembers = MEMBERS_DATA.filter(m => m.verified).length;
-    const fundedMembers = MEMBERS_DATA.filter(m => m.escrowFunded).length;
-    const totalGMV = PODS_DATA.reduce((s, p) => s + p.gmv, 0);
-    const totalResale = PODS_DATA.reduce((s, p) => s + p.resaleRevenue, 0);
-    const totalGamesAttended = PODS_DATA.reduce((s, p) => s + p.gamesAttended, 0);
-    const totalGamesTotal = PODS_DATA.reduce((s, p) => s + p.gamesTotal, 0);
-    const attendanceRate = totalGamesTotal ? Math.round((totalGamesAttended / totalGamesTotal) * 100) : 0;
-    const npsScores = MEMBERS_DATA.filter(m => m.nps).map(m => m.nps);
-    const avgNPS = npsScores.length
-      ? Math.round(npsScores.reduce((a, b) => a + b) / npsScores.length * 10) / 10 : 0;
-    const renewalYes = PODS_DATA.filter(p => p.renewalIntent === "yes").length;
-    const renewalRate = Math.round((renewalYes / PODS_DATA.length) * 100);
-    const platformFees = totalResale * 0.08 + totalMembers * 52 + totalGamesAttended * 4.99;
-    const activePods = PODS_DATA.filter(p => p.status === "active").length;
-    return {
-      activePods, totalPods: PODS_DATA.length, totalMembers, verifiedMembers, fundedMembers,
-      totalGMV, totalResale, attendanceRate, avgNPS, renewalRate,
-      highRisk: MEMBERS_DATA.filter(m => m.churnRisk === "high").length,
-      platformFees: Math.round(platformFees),
-    };
+  // ── Data state ───────────────────────────────────────────────────────────────
+  const [loading,      setLoading]      = useState(true);
+  const [dataError,    setDataError]    = useState(null);
+  const [setupState,   setSetupState]   = useState(null); // null | 'not_logged_in' | 'needs_migration' | 'needs_admin'
+  const [pods,         setPods]         = useState([]);
+  const [members,      setMembers]      = useState([]);
+  const [weeklyData,   setWeeklyData]   = useState([]);
+  const [totalProfiles, setTotalProfiles] = useState(0);
+
+  // ── Invite codes state ───────────────────────────────────────────────────────
+  const [codes,       setCodes]       = useState([]);
+  const [codesLoading, setCodesLoading] = useState(false);
+  const [newCodeVal,  setNewCodeVal]  = useState("");
+  const [newLabel,    setNewLabel]    = useState("");
+  const [newMaxUses,  setNewMaxUses]  = useState("1");
+  const [codesBusy,   setCodesBusy]   = useState(false);
+  const [codesMsg,    setCodesMsg]    = useState(null);
+
+  const loadCodes = useCallback(async () => {
+    setCodesLoading(true);
+    const { data } = await supabase
+      .from("invite_codes")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setCodes(data || []);
+    setCodesLoading(false);
   }, []);
 
+  useEffect(() => {
+    if (tab === "codes") loadCodes();
+  }, [tab, loadCodes]);
+
+  async function handleCreateCode(e) {
+    e.preventDefault();
+    if (!newCodeVal.trim()) return;
+    setCodesBusy(true);
+    setCodesMsg(null);
+    const { error } = await supabase.from("invite_codes").insert({
+      code:     newCodeVal.trim().toUpperCase(),
+      label:    newLabel.trim() || null,
+      max_uses: parseInt(newMaxUses, 10) || 1,
+    });
+    if (error) {
+      setCodesMsg({ type: "error", msg: error.message });
+    } else {
+      setCodesMsg({ type: "success", msg: `✅ Code ${newCodeVal.toUpperCase()} created!` });
+      setNewCodeVal(""); setNewLabel(""); setNewMaxUses("1");
+      loadCodes();
+    }
+    setCodesBusy(false);
+  }
+
+  async function handleDeleteCode(id, code) {
+    if (!window.confirm(`Delete code "${code}"? This cannot be undone.`)) return;
+    await supabase.from("invite_codes").delete().eq("id", id);
+    loadCodes();
+  }
+
+  function generateRandomCode() {
+    const words = ["KICK","SNAP","SLAM","RUSH","BLITZ","HOOP","SCORE","DRIVE","PITCH"];
+    const word = words[Math.floor(Math.random() * words.length)];
+    setNewCodeVal(`${word}${Math.floor(10 + Math.random() * 90)}`);
+  }
+
+  // ── Data loading ──────────────────────────────────────────────────────────────
+  const loadAllData = useCallback(async () => {
+    setLoading(true);
+    setDataError(null);
+
+    try {
+      // 1. Auth check
+      const sessionRes = await supabase.auth.getSession();
+      const session = sessionRes?.data?.session ?? null;
+      if (!session) {
+        setSetupState("not_logged_in");
+        return;
+      }
+
+      // 2. Admin flag check (gracefully handles column-not-exists if migration not run)
+      const { data: profileRow, error: profileErr } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", session.user.id)
+        .single();
+
+      if (profileErr) {
+        setSetupState("needs_migration");
+        return;
+      }
+
+      if (!profileRow?.is_admin) {
+        setSetupState("needs_admin");
+        return;
+      }
+
+      // 3. Load all platform data in parallel
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const [podsRes, gamesRes, listingsRes, profilesRes] = await Promise.all([
+        supabase
+          .from("pods")
+          .select(`
+            id, name, team_name, sport, sport_emoji, season_cost, max_members,
+            status, captain_id, allocation_done, created_at, nps,
+            receipt_url, receipt_verified, receipt_rejected, receipt_note,
+            pod_members(
+              id, user_id, escrow_funded, share_pct, bid_credits,
+              tier, churn_risk, referral_count, games_allocated, games_attended, joined_at,
+              profiles(display_name, verified)
+            )
+          `)
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("games")
+          .select("id, pod_id, game_date, face_value, assignments(user_id, confirmed)"),
+
+        supabase
+          .from("resale_listings")
+          .select("id, pod_id, sold_price, ask_price, listed_at, status"),
+
+        supabase
+          .from("profiles")
+          .select("id, verified, created_at"),
+      ]);
+
+      if (podsRes.error) throw podsRes.error;
+
+      const rawPods     = podsRes.data    || [];
+      const rawGames    = gamesRes.data   || [];
+      const rawListings = listingsRes.data || [];
+      const rawProfiles = profilesRes.data || [];
+
+      // ── Transform pods ──────────────────────────────────────────────────────
+      const transformedPods = rawPods.map(p => {
+        const mems     = p.pod_members || [];
+        const podGames = rawGames.filter(g => g.pod_id === p.id);
+        const gamesTotal    = podGames.length;
+        const gamesAttended = podGames.filter(g => {
+          if (!g.game_date) return false;
+          const [yr, mo, dy] = g.game_date.split("-").map(Number);
+          return new Date(yr, mo - 1, dy) < today && g.assignments?.[0]?.confirmed;
+        }).length;
+        const soldListings  = rawListings.filter(l => l.pod_id === p.id && l.status === "sold");
+        const resaleRevenue = soldListings.reduce((s, l) => s + parseFloat(l.sold_price || 0), 0);
+
+        return {
+          id:           p.id,
+          name:         p.name,
+          team:         p.team_name,
+          sportEmoji:   p.sport_emoji || "🏟️",
+          members:      mems.length,
+          maxMembers:   p.max_members,
+          escrowFunded: mems.filter(m => m.escrow_funded).length,
+          escrowPending: mems.filter(m => !m.escrow_funded).length,
+          gmv:          parseFloat(p.season_cost) || 0,
+          gamesTotal,
+          gamesAttended,
+          resaleRevenue,
+          nps:          p.nps != null ? parseFloat(p.nps) : null,
+          status:           p.status,
+          created:          p.created_at,
+          captainId:        p.captain_id,
+          allocationDone:   p.allocation_done,
+          receiptUrl:       p.receipt_url ?? null,
+          receiptVerified:  p.receipt_verified ?? false,
+          receiptRejected:  p.receipt_rejected ?? false,
+          receiptNote:      p.receipt_note ?? null,
+        };
+      });
+
+      // ── Transform members ───────────────────────────────────────────────────
+      const transformedMembers = rawPods.flatMap(p =>
+        (p.pod_members || []).map(m => ({
+          id:           m.id,
+          userId:       m.user_id,
+          name:         m.profiles?.display_name || "Unknown",
+          podId:        p.id,
+          podName:      p.name,
+          verified:     m.profiles?.verified ?? false,
+          escrowFunded: m.escrow_funded,
+          gamesAllocated: m.games_allocated,
+          gamesAttended:  m.games_attended,
+          referrals:    m.referral_count,
+          tier:         m.tier,
+          churnRisk:    m.churn_risk || "unknown",
+          joinedAt:     m.joined_at,
+        }))
+      );
+
+      // ── Build weekly trend ──────────────────────────────────────────────────
+      const weeklyMap = new Map();
+      const ensureWeek = (dateStr) => {
+        const key = weekSortKey(dateStr);
+        if (!weeklyMap.has(key)) {
+          weeklyMap.set(key, { week: weekLabel(dateStr), newPods: 0, newMembers: 0, gmv: 0, resaleRev: 0 });
+        }
+        return weeklyMap.get(key);
+      };
+      rawPods.forEach(p => {
+        const w = ensureWeek(p.created_at);
+        w.newPods++;
+        w.gmv += parseFloat(p.season_cost) || 0;
+      });
+      rawPods.forEach(p => {
+        (p.pod_members || []).forEach(m => { ensureWeek(m.joined_at).newMembers++; });
+      });
+      rawListings.filter(l => l.status === "sold").forEach(l => {
+        const key = weekSortKey(l.listed_at);
+        if (weeklyMap.has(key)) weeklyMap.get(key).resaleRev += parseFloat(l.sold_price || 0);
+      });
+      const sortedWeekly = [...weeklyMap.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, d]) => d)
+        .slice(-8);
+
+      setPods(transformedPods);
+      setMembers(transformedMembers);
+      setWeeklyData(sortedWeekly);
+      setTotalProfiles(rawProfiles.length);
+      setSetupState(null);
+    } catch (e) {
+      setDataError(e.message || "Unknown error — check the browser console.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAllData(); }, [loadAllData]);
+
+  // ── Receipt review actions ─────────────────────────────────────────────────
+  const [receiptBusy,   setReceiptBusy]   = useState(null); // podId being actioned
+  const [rejectNote,    setRejectNote]    = useState({});   // { [podId]: string }
+  const [showRejectBox, setShowRejectBox] = useState(null); // podId with open reject form
+
+  async function handleReceiptVerify(podId) {
+    setReceiptBusy(podId);
+    await supabase.from("pods").update({
+      receipt_verified: true,
+      receipt_rejected: false,
+      receipt_note:     null,
+    }).eq("id", podId);
+    setReceiptBusy(null);
+    loadAllData();
+  }
+
+  async function handleReceiptReject(podId) {
+    setReceiptBusy(podId);
+    await supabase.from("pods").update({
+      receipt_verified: false,
+      receipt_rejected: true,
+      receipt_note:     rejectNote[podId]?.trim() || "HalfTime could not verify this receipt. Please contact your captain.",
+    }).eq("id", podId);
+    setReceiptBusy(null);
+    setShowRejectBox(null);
+    setRejectNote(n => ({ ...n, [podId]: "" }));
+    loadAllData();
+  }
+
+  async function handleReceiptReset(podId) {
+    setReceiptBusy(podId);
+    await supabase.from("pods").update({
+      receipt_verified: false,
+      receipt_rejected: false,
+      receipt_note:     null,
+    }).eq("id", podId);
+    setReceiptBusy(null);
+    loadAllData();
+  }
+
+  // ── Computed metrics ──────────────────────────────────────────────────────────
+  const metrics = useMemo(() => {
+    const totalMembers    = members.length;
+    const verifiedMembers = members.filter(m => m.verified).length;
+    const fundedMembers   = members.filter(m => m.escrowFunded).length;
+    const allocatedMembers = members.filter(m => m.gamesAllocated > 0).length;
+    const attendedMembers  = members.filter(m => m.gamesAttended > 0).length;
+    const totalGMV        = pods.reduce((s, p) => s + p.gmv, 0);
+    const totalResale     = pods.reduce((s, p) => s + p.resaleRevenue, 0);
+    const totalGamesAttended = pods.reduce((s, p) => s + p.gamesAttended, 0);
+    const totalGamesTotal    = pods.reduce((s, p) => s + p.gamesTotal, 0);
+    const attendanceRate  = totalGamesTotal ? Math.round((totalGamesAttended / totalGamesTotal) * 100) : 0;
+    const npsScores       = pods.filter(p => p.nps != null).map(p => p.nps);
+    const avgNPS          = npsScores.length
+      ? Math.round(npsScores.reduce((a, b) => a + b, 0) / npsScores.length * 10) / 10
+      : null;
+    const activePods  = pods.filter(p => p.status === "active").length;
+    const escrowFees  = Math.round(totalGMV * 0.03);
+    const resaleFees  = Math.round(totalResale * 0.08);
+
+    return {
+      activePods, totalPods: pods.length, totalMembers, verifiedMembers, fundedMembers,
+      allocatedMembers, attendedMembers, totalGMV, totalResale, attendanceRate, avgNPS,
+      highRisk: members.filter(m => m.churnRisk === "high").length,
+      escrowFees, resaleFees, platformFees: escrowFees + resaleFees,
+      totalProfiles,
+    };
+  }, [pods, members, totalProfiles]);
+
+  // ── Dynamic alerts ────────────────────────────────────────────────────────────
+  const alerts = useMemo(() => {
+    const result = [];
+
+    // High: unfunded escrow ≥ 3 days
+    members.filter(m => !m.escrowFunded).forEach(m => {
+      const days = daysAgo(m.joinedAt);
+      if (days >= 3) {
+        const pod = pods.find(p => p.id === m.podId);
+        result.push({
+          sev: "high", icon: "🔴",
+          title: `${m.name} — Escrow unfunded (Day ${days})`,
+          body: `${pod?.name || "Pod"} is waiting on their payment. Consider sending a reminder or releasing their spot.`,
+          action: "Send payment reminder",
+        });
+      }
+    });
+
+    // High: unverified identity ≥ 5 days
+    members.filter(m => !m.verified).forEach(m => {
+      const days = daysAgo(m.joinedAt);
+      if (days >= 5) {
+        const pod = pods.find(p => p.id === m.podId);
+        result.push({
+          sev: "high", icon: "🔴",
+          title: `${m.name} — Identity unverified (Day ${days})`,
+          body: `KYC not completed. Pod: ${pod?.name || "unknown"}. Notify captain to follow up.`,
+          action: "Flag to captain",
+        });
+      }
+    });
+
+    // Medium: active pods with members still pending
+    pods.filter(p => p.escrowPending > 0 && (p.status === "active" || p.status === "recruiting")).forEach(p => {
+      result.push({
+        sev: "medium", icon: "🟡",
+        title: `${p.name} — ${p.escrowPending} member${p.escrowPending > 1 ? "s" : ""} pending`,
+        body: `${p.escrowFunded}/${p.members} funded. ${p.gamesTotal > 0 ? `${p.gamesTotal} games in season.` : ""}`,
+        action: "Send group reminder",
+      });
+    });
+
+    // Medium: fully funded, games loaded, allocation not done
+    pods.filter(p =>
+      !p.allocationDone && p.escrowPending === 0 &&
+      p.members > 0 && p.gamesTotal > 0
+    ).forEach(p => {
+      result.push({
+        sev: "medium", icon: "🟡",
+        title: `${p.name} — Ready for allocation`,
+        body: `${p.members} funded members, ${p.gamesTotal} games loaded. Run allocation to distribute seats.`,
+        action: "Notify captain",
+      });
+    });
+
+    // Low: high referrers
+    members.filter(m => m.referrals >= 2).forEach(m => {
+      result.push({
+        sev: "low", icon: "🟢",
+        title: `${m.name} — ${m.referrals} referrals`,
+        body: "Top referrer in cohort. Issue reward and request a testimonial for the pitch deck.",
+        action: "Issue reward",
+      });
+    });
+
+    // Low: high NPS pods
+    pods.filter(p => p.nps != null && p.nps >= 9).forEach(p => {
+      result.push({
+        sev: "low", icon: "🟢",
+        title: `${p.name} — NPS ${p.nps} ⭐`,
+        body: `${p.team} pod has ${p.members} members with strong satisfaction. Great testimonial candidate.`,
+        action: "Request testimonial",
+      });
+    });
+
+    if (result.length === 0) {
+      result.push({
+        sev: "low", icon: "🟢",
+        title: "All clear — no action items",
+        body: "No high or medium priority issues in the current cohort.",
+        action: null,
+      });
+    }
+
+    return result;
+  }, [pods, members]);
+
+  // ── Dynamic insights ──────────────────────────────────────────────────────────
+  const insights = useMemo(() => {
+    const result = [];
+
+    const fullFunded = pods.filter(p => p.escrowPending === 0 && p.members > 0);
+    if (fullFunded.length > 0) {
+      const best = [...fullFunded].sort((a, b) => b.members - a.members)[0];
+      result.push({ c: T.lime, t: `${fullFunded.length} pod${fullFunded.length !== 1 ? "s" : ""} fully funded. ${best.name} leads — ${best.members}/${best.maxMembers} members, $${Math.round(best.gmv).toLocaleString()} season cost.` });
+    }
+
+    const highRisk = members.filter(m => m.churnRisk === "high");
+    if (highRisk.length > 0) {
+      const unfunded = highRisk.filter(m => !m.escrowFunded);
+      result.push({ c: T.red, t: `${highRisk.length} member${highRisk.length !== 1 ? "s" : ""} at high churn risk.${unfunded.length > 0 ? ` ${unfunded.length} with unfunded escrow — trigger urgency email sequence immediately.` : " Check in proactively before season starts."}` });
+    }
+
+    if (members.length > 0) {
+      const verifiedPct = Math.round((members.filter(m => m.verified).length / members.length) * 100);
+      result.push({ c: verifiedPct >= 80 ? T.teal : T.amber, t: `${verifiedPct}% KYC verification rate across ${members.length} members. ${verifiedPct < 80 ? "Send identity verification prompts to unverified accounts." : "Strong verification health — keep monitoring new joiners."}` });
+    }
+
+    const topRef = [...members].sort((a, b) => b.referrals - a.referrals)[0];
+    if (topRef?.referrals > 0) {
+      result.push({ c: T.lime, t: `${topRef.name} leads with ${topRef.referrals} referral${topRef.referrals !== 1 ? "s" : ""} — activate referral reward and personalise the next outreach with their savings figure.` });
+    }
+
+    while (result.length < 2) {
+      result.push({ c: T.mist, t: "Invite more pods to the beta to surface actionable insights here." });
+    }
+
+    return result.slice(0, 4);
+  }, [pods, members]);
+
+  // ── Sorted / filtered ──────────────────────────────────────────────────────────
   const sortedMembers = useMemo(() => {
-    const riskOrder = { high: 0, medium: 1, low: 2 };
-    return [...MEMBERS_DATA].sort((a, b) => {
-      if (memberSort === "churnRisk") return riskOrder[a.churnRisk] - riskOrder[b.churnRisk];
-      if (memberSort === "nps") return (b.nps || 0) - (a.nps || 0);
+    const riskOrder = { high: 0, medium: 1, low: 2, unknown: 3 };
+    return [...members].sort((a, b) => {
+      if (memberSort === "churnRisk") return (riskOrder[a.churnRisk] ?? 3) - (riskOrder[b.churnRisk] ?? 3);
       if (memberSort === "referrals") return b.referrals - a.referrals;
+      if (memberSort === "games")     return b.gamesAttended - a.gamesAttended;
       return 0;
     });
-  }, [memberSort]);
+  }, [members, memberSort]);
 
-  const filteredPods = podFilter === "all" ? PODS_DATA : PODS_DATA.filter(p => p.status === podFilter);
-  const riskColor = { low: T.lime, medium: T.amber, high: T.red };
-  const statusColor = { active: T.lime, partial: T.amber, recruiting: T.teal };
+  const filteredPods = useMemo(
+    () => podFilter === "all" ? pods : pods.filter(p => p.status === podFilter),
+    [pods, podFilter]
+  );
 
+  const riskColor   = { low: T.lime, medium: T.amber, high: T.red, unknown: T.mist };
+  const statusColor = { active: T.lime, recruiting: T.teal, draft: T.mist, completed: T.mist, cancelled: T.red };
+
+  // ── Auth / setup gates ────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div style={{ background: T.dark, minHeight: "100vh", display: "flex",
+        alignItems: "center", justifyContent: "center", fontFamily: "Calibri,sans-serif" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "Georgia,serif", fontSize: 28, fontWeight: 900, marginBottom: 16 }}>
+            <span style={{ color: T.white }}>Half</span><span style={{ color: T.lime }}>Time</span>
+          </div>
+          <div style={{ color: T.mist, fontSize: 13 }}>Loading dashboard…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (setupState === "not_logged_in") {
+    return (
+      <SetupScreen title="Sign in first"
+        steps={[
+          "Go to /auth/signin and sign into your admin account.",
+          "Return to /admin after signing in.",
+        ]} />
+    );
+  }
+
+  if (setupState === "needs_migration") {
+    return (
+      <SetupScreen title="Run migration 012_admin_access.sql"
+        steps={[
+          "Open Supabase → SQL Editor → New query.",
+          "Paste and run: supabase/migrations/012_admin_access.sql",
+          "Then run: UPDATE public.profiles SET is_admin = true WHERE id = auth.uid();",
+          "Return to /admin and click Reload.",
+        ]} />
+    );
+  }
+
+  if (setupState === "needs_admin") {
+    return (
+      <SetupScreen title="Grant yourself admin access"
+        steps={[
+          "Open Supabase → SQL Editor → New query.",
+          "Run: UPDATE public.profiles SET is_admin = true WHERE id = auth.uid();",
+          "Return to /admin and click Reload.",
+        ]} />
+    );
+  }
+
+  if (dataError) {
+    return (
+      <div style={{ background: T.dark, minHeight: "100vh", display: "flex",
+        alignItems: "center", justifyContent: "center", fontFamily: "Calibri,sans-serif",
+        flexDirection: "column", gap: 16 }}>
+        <div style={{ color: T.red, fontSize: 14, fontWeight: 700 }}>⚠ Error loading data</div>
+        <div style={{ color: T.mist, fontSize: 12, maxWidth: 400, textAlign: "center" }}>{dataError}</div>
+        <button onClick={loadAllData} style={{ padding: "10px 20px", background: T.lime,
+          border: "none", borderRadius: 8, color: T.dark, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: T.dark, minHeight: "100vh", fontFamily: "Calibri,sans-serif", color: T.white }}>
+
       {/* Header */}
       <div style={{ background: T.forest, borderBottom: "1px solid #1A4A2E",
         padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -138,81 +623,138 @@ export default function BetaDashboard() {
             BETA COHORT DASHBOARD
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.lime,
             boxShadow: `0 0 6px ${T.lime}` }} />
           <span style={{ fontSize: 11, color: T.mist }}>
-            Live · {PODS_DATA.length} pods · {MEMBERS_DATA.length} members
+            Live · {pods.length} pod{pods.length !== 1 ? "s" : ""} · {members.length} member{members.length !== 1 ? "s" : ""}
           </span>
+          <button onClick={loadAllData} title="Refresh"
+            style={{ background: "#1A4A2E", border: "none", borderRadius: 6,
+              padding: "4px 10px", color: T.mist, fontSize: 11, cursor: "pointer" }}>
+            ↻
+          </button>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid #1A4A2E",
-        background: T.dark, padding: "0 24px" }}>
-        {[["overview","📊 Overview"],["pods","🏟️ Pods"],["members","👥 Members"],
-          ["funnel","🔽 Funnel"],["alerts","🚨 Alerts"]].map(([k, lbl]) => (
+        background: T.dark, padding: "0 24px", overflowX: "auto" }}>
+        {[
+          ["overview","📊 Overview"], ["pods","🏟️ Pods"], ["members","👥 Members"],
+          ["funnel","🔽 Funnel"],     ["revenue","💰 Revenue"], ["receipts","🧾 Receipts"],
+          ["codes","🔑 Codes"],       ["alerts","🚨 Alerts"],
+        ].map(([k, lbl]) => (
           <div key={k} onClick={() => setTab(k)}
             style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700,
               color: tab === k ? T.lime : T.mist,
               borderBottom: `2px solid ${tab === k ? T.lime : "transparent"}`,
-              cursor: "pointer", whiteSpace: "nowrap" }}>{lbl}</div>
+              cursor: "pointer", whiteSpace: "nowrap",
+              position: "relative" }}>
+            {lbl}
+            {k === "alerts" && alerts.filter(a => a.sev === "high").length > 0 && (
+              <span style={{ marginLeft: 5, background: T.red, color: T.white,
+                borderRadius: "50%", width: 16, height: 16, display: "inline-flex",
+                alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>
+                {alerts.filter(a => a.sev === "high").length}
+              </span>
+            )}
+            {k === "receipts" && pods.filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected).length > 0 && (
+              <span style={{ marginLeft: 5, background: T.amber, color: T.dark,
+                borderRadius: "50%", width: 16, height: 16, display: "inline-flex",
+                alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>
+                {pods.filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected).length}
+              </span>
+            )}
+          </div>
         ))}
       </div>
 
       <div style={{ padding: 20, maxWidth: 1200, margin: "0 auto" }}>
 
-        {/* ── OVERVIEW ── */}
+        {/* ── OVERVIEW ─────────────────────────────────────────────────────────── */}
         {tab === "overview" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
-              <Stat label="Total GMV" value={`$${(metrics.totalGMV / 1000).toFixed(1)}K`} sub="since beta launch" icon="💰" />
-              <Stat label="Active Pods" value={metrics.activePods} sub={`of ${metrics.totalPods} total`} color={T.teal} icon="🏟️" />
-              <Stat label="Members" value={metrics.totalMembers} sub={`${metrics.fundedMembers} escrow funded`} icon="👥" />
-              <Stat label="Renewal Intent" value={`${metrics.renewalRate}%`} sub="saying yes" icon="🔄" />
+              <Stat label="Total GMV" icon="💰"
+                value={metrics.totalGMV > 0 ? `$${(metrics.totalGMV / 1000).toFixed(1)}K` : "—"}
+                sub="season ticket value" />
+              <Stat label="Active Pods" icon="🏟️" color={T.teal}
+                value={metrics.activePods}
+                sub={`of ${metrics.totalPods} total`} />
+              <Stat label="Members" icon="👥"
+                value={metrics.totalMembers}
+                sub={`${metrics.fundedMembers} escrow funded`} />
+              <Stat label="Platform Fees" icon="📈"
+                value={metrics.platformFees > 0 ? `$${metrics.platformFees.toLocaleString()}` : "—"}
+                sub="3% escrow + 8% resale" />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
-              <Stat label="Avg NPS" value={metrics.avgNPS} sub="out of 10" color={T.teal} icon="⭐" />
-              <Stat label="Attendance Rate" value={`${metrics.attendanceRate}%`} sub="games attended/allocated" icon="🎟️" />
-              <Stat label="Resale Revenue" value={`$${metrics.totalResale.toLocaleString()}`} sub="distributed to members" color={T.amber} icon="♻️" />
-              <Stat label="Platform Fees" value={`$${metrics.platformFees.toLocaleString()}`} sub="est. from beta cohort" color={T.purple} icon="📈" />
+              <Stat label="Avg Pod NPS" icon="⭐" color={T.teal}
+                value={metrics.avgNPS != null ? metrics.avgNPS : "—"}
+                sub="out of 10" />
+              <Stat label="Attendance Rate" icon="🎟️"
+                value={metrics.attendanceRate > 0 ? `${metrics.attendanceRate}%` : "—"}
+                sub="confirmed / allocated" />
+              <Stat label="Resale Volume" icon="♻️" color={T.amber}
+                value={metrics.totalResale > 0 ? `$${metrics.totalResale.toLocaleString()}` : "—"}
+                sub="sold ticket value" />
+              <Stat label="High Churn Risk" icon="⚠️" color={T.red}
+                value={metrics.highRisk}
+                sub="members flagged" />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
               {/* Weekly GMV chart */}
               <Card>
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>Weekly GMV ($)</div>
-                <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 80 }}>
-                  {WEEKLY_DATA.map((w, i) => {
-                    const mx = Math.max(...WEEKLY_DATA.map(x => x.gmv));
-                    const h = Math.round((w.gmv / mx) * 70) + 4;
-                    return (
-                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column",
-                        alignItems: "center", gap: 3 }}>
-                        <div style={{ width: "100%", height: h,
-                          background: i === WEEKLY_DATA.length - 1 ? T.lime : `${T.lime}55`,
-                          borderRadius: "3px 3px 0 0" }} />
-                        <div style={{ fontSize: 8, color: T.mist }}>{w.week.split(" ")[1]}</div>
-                      </div>
-                    );
-                  })}
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>
+                  Weekly Pod GMV ($)
                 </div>
-                <div style={{ fontSize: 10, color: T.mist, marginTop: 8 }}>
-                  Trend: <span style={{ color: T.lime }}>↗ +12% WoW</span>
-                </div>
+                {weeklyData.length < 2 ? (
+                  <div style={{ color: T.mist, fontSize: 11, textAlign: "center", padding: "20px 0" }}>
+                    Not enough weeks to chart yet
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 80 }}>
+                      {weeklyData.map((w, i) => {
+                        const mx = Math.max(...weeklyData.map(x => x.gmv));
+                        const h  = mx > 0 ? Math.round((w.gmv / mx) * 70) + 4 : 4;
+                        return (
+                          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column",
+                            alignItems: "center", gap: 3 }}>
+                            <div style={{ width: "100%", height: h,
+                              background: i === weeklyData.length - 1 ? T.lime : `${T.lime}55`,
+                              borderRadius: "3px 3px 0 0" }} />
+                            <div style={{ fontSize: 8, color: T.mist }}>{w.week.split(" ")[1]}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: 10, color: T.mist, marginTop: 8 }}>
+                      Total GMV: <span style={{ color: T.lime, fontWeight: 700 }}>
+                        ${Math.round(metrics.totalGMV).toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                )}
               </Card>
 
               {/* Activation funnel */}
               <Card>
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>Activation Funnel</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>
+                  Activation Funnel
+                </div>
                 {[
-                  { stage: "Signed up",      n: metrics.totalMembers,    color: T.mist  },
-                  { stage: "Verified KYC",   n: metrics.verifiedMembers, color: T.teal  },
-                  { stage: "Joined pod",     n: metrics.fundedMembers+2, color: T.lime2 },
-                  { stage: "Funded escrow",  n: metrics.fundedMembers,   color: T.lime  },
-                  { stage: "Attended game",  n: MEMBERS_DATA.filter(m => m.gamesAttended > 0).length, color: T.lime },
+                  { stage: "Signed up",       n: metrics.totalProfiles,    color: T.mist  },
+                  { stage: "Joined a pod",    n: metrics.totalMembers,     color: T.teal  },
+                  { stage: "KYC verified",    n: metrics.verifiedMembers,  color: T.teal  },
+                  { stage: "Funded escrow",   n: metrics.fundedMembers,    color: T.lime  },
+                  { stage: "Got tickets",     n: metrics.allocatedMembers, color: T.lime  },
+                  { stage: "Attended a game", n: metrics.attendedMembers,  color: T.lime  },
                 ].map((row, i, arr) => {
-                  const drop = i > 0 ? Math.round(((arr[i-1].n - row.n) / arr[i-1].n) * 100) : 0;
+                  const drop = i > 0 && arr[i-1].n > 0
+                    ? Math.round(((arr[i-1].n - row.n) / arr[i-1].n) * 100) : 0;
                   return (
                     <div key={row.stage} style={{ marginBottom: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
@@ -222,7 +764,7 @@ export default function BetaDashboard() {
                           <span style={{ fontSize: 10, fontWeight: 700, color: row.color }}>{row.n}</span>
                         </div>
                       </div>
-                      <Bar value={row.n} max={arr[0].n} color={row.color} h={5} />
+                      <Bar value={row.n} max={arr[0].n || 1} color={row.color} h={5} />
                     </div>
                   );
                 })}
@@ -230,175 +772,245 @@ export default function BetaDashboard() {
 
               {/* Revenue mix */}
               <Card>
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>Revenue Mix</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>
+                  Revenue Mix
+                </div>
                 {[
-                  { label: "Resale commission", val: Math.round(metrics.totalResale * 0.08), color: T.lime },
-                  { label: "Membership fees",   val: metrics.totalMembers * 52,             color: T.teal },
-                  { label: "Transfer fees",     val: Math.round(metrics.totalGMV / 240),    color: T.amber },
-                  { label: "Premium services",  val: 240,                                   color: T.purple },
+                  { label: "Escrow fees (3%)", val: metrics.escrowFees, color: T.lime },
+                  { label: "Resale fees (8%)", val: metrics.resaleFees, color: T.amber },
                 ].map(row => (
-                  <div key={row.label} style={{ marginBottom: 9 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                  <div key={row.label} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                       <span style={{ fontSize: 10, color: T.chalk }}>{row.label}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: row.color }}>
                         ${row.val.toLocaleString()}
                       </span>
                     </div>
-                    <Bar value={row.val} max={metrics.platformFees} color={row.color} h={4} />
+                    <Bar value={row.val} max={metrics.platformFees || 1} color={row.color} h={5} />
                   </div>
                 ))}
-                <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #1A4A2E",
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #1A4A2E",
                   display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 11, color: T.mist }}>Total fees earned</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.lime,
+                  <span style={{ fontSize: 14, fontWeight: 700, color: T.lime,
                     fontFamily: "Georgia,serif" }}>${metrics.platformFees.toLocaleString()}</span>
+                </div>
+                <div style={{ fontSize: 10, color: T.mist, marginTop: 8, lineHeight: 1.5 }}>
+                  Based on {pods.length} pods · {metrics.totalGMV > 0 ? `$${Math.round(metrics.totalGMV).toLocaleString()}` : "—"} GMV
                 </div>
               </Card>
             </div>
 
-            {/* Insights */}
+            {/* Key Insights */}
             <Card>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>🔍 Key Insights</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[
-                  { c: T.lime, t: "P009 (Logan Square) hit 100% escrow funding in 8 days — fastest in cohort. Investigate referral-loop pattern for replication." },
-                  { c: T.red,  t: "M006 + M009 are high churn risk: unfunded escrow, no games attended. Trigger Email 4/5 urgency sequence immediately." },
-                  { c: T.amber,t: "Resale conversion dropped to 67% this week (from 84%). Pricing slider defaults may need adjustment." },
-                  { c: T.lime, t: "M010 (Blake N.) referred 3 members — activate referral reward and request a testimonial for the pitch deck." },
-                ].map(({ c, t }, i) => (
-                  <div key={i} style={{ background: "#0A0A0A", borderRadius: 10, padding: 12,
-                    borderLeft: `3px solid ${c}` }}>
-                    <div style={{ fontSize: 12, color: T.chalk, lineHeight: 1.6 }}>{t}</div>
-                  </div>
-                ))}
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.white, marginBottom: 12 }}>
+                🔍 Key Insights
               </div>
+              {insights.length === 0 ? (
+                <div style={{ color: T.mist, fontSize: 12, textAlign: "center", padding: "16px 0" }}>
+                  No data yet — invite pods to the beta.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {insights.map(({ c, t }, i) => (
+                    <div key={i} style={{ background: "#0A0A0A", borderRadius: 10, padding: 12,
+                      borderLeft: `3px solid ${c}` }}>
+                      <div style={{ fontSize: 12, color: T.chalk, lineHeight: 1.6 }}>{t}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
         )}
 
-        {/* ── PODS ── */}
+        {/* ── PODS ─────────────────────────────────────────────────────────────── */}
         {tab === "pods" && (
           <div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              {["all", "active", "partial", "recruiting"].map(f => (
-                <div key={f} onClick={() => setPodFilter(f)}
-                  style={{ padding: "5px 14px", borderRadius: 20, cursor: "pointer",
-                    fontSize: 11, fontWeight: 700,
-                    background: podFilter === f ? T.lime : "#1A4A2E",
-                    color: podFilter === f ? T.dark : T.mist, transition: "all .2s" }}>
-                  {f.charAt(0).toUpperCase() + f.slice(1)}&nbsp;
-                  ({f === "all" ? PODS_DATA.length : PODS_DATA.filter(p => p.status === f).length})
-                </div>
-              ))}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              {["all", "active", "recruiting", "draft", "completed"].map(f => {
+                const count = f === "all" ? pods.length : pods.filter(p => p.status === f).length;
+                if (f !== "all" && count === 0) return null;
+                return (
+                  <div key={f} onClick={() => setPodFilter(f)}
+                    style={{ padding: "5px 14px", borderRadius: 20, cursor: "pointer",
+                      fontSize: 11, fontWeight: 700, transition: "all .2s",
+                      background: podFilter === f ? T.lime : "#1A4A2E",
+                      color: podFilter === f ? T.dark : T.mist }}>
+                    {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: T.forest, borderBottom: "1px solid #1A4A2E" }}>
-                    {["Pod","Team","Members","Escrow %","GMV","Attend %","Resale","NPS","Renewal","Status"].map(h => (
-                      <th key={h} style={{ padding: "10px 12px", textAlign: "left",
-                        color: T.mist, fontWeight: 700, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPods.map((pod, i) => {
-                    const escrowPct = Math.round((pod.escrowFunded / (pod.escrowFunded + pod.escrowPending)) * 100) || 0;
-                    const attendPct = pod.gamesTotal ? Math.round((pod.gamesAttended / pod.gamesTotal) * 100) : 0;
-                    return (
-                      <tr key={pod.id} style={{ background: i%2===0 ? "transparent" : "#0D2B1A44", borderBottom: "1px solid #0D2B1A" }}>
-                        <td style={{ padding: "9px 12px" }}>
-                          <div style={{ fontWeight: 700, color: T.white }}>{pod.sport} {pod.name}</div>
-                          <div style={{ fontSize: 10, color: T.mist }}>{pod.id}</div>
-                        </td>
-                        <td style={{ padding: "9px 12px", color: T.chalk }}>{pod.team}</td>
-                        <td style={{ padding: "9px 12px", color: T.white }}>{pod.members}/{pod.maxMembers}</td>
-                        <td style={{ padding: "9px 12px", color: escrowPct===100 ? T.lime : T.amber, fontWeight: 700 }}>{escrowPct}%</td>
-                        <td style={{ padding: "9px 12px", color: T.lime, fontWeight: 700 }}>${pod.gmv.toLocaleString()}</td>
-                        <td style={{ padding: "9px 12px", color: attendPct>=70 ? T.lime : attendPct>=50 ? T.amber : T.red, fontWeight: 700 }}>{attendPct}%</td>
-                        <td style={{ padding: "9px 12px", color: T.teal }}>${pod.resaleRevenue.toLocaleString()}</td>
-                        <td style={{ padding: "9px 12px", color: pod.nps>=8 ? T.lime : pod.nps>=6 ? T.amber : T.red }}>{pod.nps||"—"}/10</td>
-                        <td style={{ padding: "9px 12px" }}><Badge color={pod.renewalIntent==="yes" ? T.lime : pod.renewalIntent==="maybe" ? T.amber : T.mist}>{pod.renewalIntent}</Badge></td>
-                        <td style={{ padding: "9px 12px" }}><Badge color={statusColor[pod.status]}>{pod.status}</Badge></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {filteredPods.length === 0 ? (
+              <div style={{ textAlign: "center", color: T.mist, padding: "48px 0", fontSize: 13 }}>
+                No pods in this category yet.
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: T.forest, borderBottom: "1px solid #1A4A2E" }}>
+                      {["Pod","Team","Members","Escrow","GMV","Games","Attend %","Resale","Status"].map(h => (
+                        <th key={h} style={{ padding: "10px 12px", textAlign: "left",
+                          color: T.mist, fontWeight: 700, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPods.map((pod, i) => {
+                      const escrowPct  = pod.members > 0 ? Math.round((pod.escrowFunded / pod.members) * 100) : 0;
+                      const attendPct  = pod.gamesTotal > 0 ? Math.round((pod.gamesAttended / pod.gamesTotal) * 100) : 0;
+                      return (
+                        <tr key={pod.id} style={{ background: i%2===0 ? "transparent" : "#0D2B1A44",
+                          borderBottom: "1px solid #0D2B1A" }}>
+                          <td style={{ padding: "9px 12px" }}>
+                            <div style={{ fontWeight: 700, color: T.white }}>
+                              {pod.sportEmoji} {pod.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: T.mist }}>
+                              Created {daysAgo(pod.created)}d ago
+                            </div>
+                          </td>
+                          <td style={{ padding: "9px 12px", color: T.chalk }}>{pod.team}</td>
+                          <td style={{ padding: "9px 12px", color: T.white }}>
+                            {pod.members}/{pod.maxMembers}
+                          </td>
+                          <td style={{ padding: "9px 12px", fontWeight: 700,
+                            color: escrowPct === 100 ? T.lime : escrowPct > 0 ? T.amber : T.red }}>
+                            {escrowPct}%
+                          </td>
+                          <td style={{ padding: "9px 12px", color: T.lime, fontWeight: 700 }}>
+                            {pod.gmv > 0 ? `$${Math.round(pod.gmv).toLocaleString()}` : "—"}
+                          </td>
+                          <td style={{ padding: "9px 12px", color: T.chalk }}>
+                            {pod.gamesTotal > 0 ? `${pod.gamesAttended}/${pod.gamesTotal}` : "—"}
+                          </td>
+                          <td style={{ padding: "9px 12px", fontWeight: 700,
+                            color: attendPct >= 70 ? T.lime : attendPct >= 40 ? T.amber : pod.gamesTotal > 0 ? T.red : T.mist }}>
+                            {pod.gamesTotal > 0 ? `${attendPct}%` : "—"}
+                          </td>
+                          <td style={{ padding: "9px 12px", color: T.teal }}>
+                            {pod.resaleRevenue > 0 ? `$${Math.round(pod.resaleRevenue).toLocaleString()}` : "—"}
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <Badge color={statusColor[pod.status] || T.mist}>{pod.status}</Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── MEMBERS ── */}
+        {/* ── MEMBERS ──────────────────────────────────────────────────────────── */}
         {tab === "members" && (
           <div>
             <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
               <span style={{ fontSize: 11, color: T.mist }}>Sort by:</span>
-              {[["churnRisk","Churn Risk"],["nps","NPS"],["referrals","Referrals"]].map(([k, lbl]) => (
+              {[["churnRisk","Churn Risk"],["referrals","Referrals"],["games","Games"]].map(([k, lbl]) => (
                 <div key={k} onClick={() => setMemberSort(k)}
                   style={{ padding: "5px 12px", borderRadius: 20, cursor: "pointer",
-                    fontSize: 11, fontWeight: 700,
+                    fontSize: 11, fontWeight: 700, transition: "all .2s",
                     background: memberSort === k ? T.lime : "#1A4A2E",
-                    color: memberSort === k ? T.dark : T.mist, transition: "all .2s" }}>{lbl}</div>
+                    color: memberSort === k ? T.dark : T.mist }}>{lbl}</div>
               ))}
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: T.forest, borderBottom: "1px solid #1A4A2E" }}>
-                    {["Member","Pod","Verified","Funded","Games","NPS","Refs","Tier","Risk","Action"].map(h => (
-                      <th key={h} style={{ padding: "10px 12px", textAlign: "left",
-                        color: T.mist, fontWeight: 700, fontSize: 11 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedMembers.map((m, i) => {
-                    const pod = PODS_DATA.find(p => p.id === m.pod);
-                    const action = m.churnRisk==="high" && !m.escrowFunded ? "Send Email 4"
-                      : m.churnRisk==="high" ? "Call/DM"
-                      : m.referrals>=2 ? "Issue reward" : "—";
-                    return (
-                      <tr key={m.id} style={{ background: i%2===0 ? "transparent" : "#0D2B1A44", borderBottom: "1px solid #0D2B1A" }}>
-                        <td style={{ padding: "9px 12px" }}><div style={{ fontWeight: 700, color: T.white }}>{m.name}</div><div style={{ fontSize: 10, color: T.mist }}>{m.id}</div></td>
-                        <td style={{ padding: "9px 12px", color: T.mist, fontSize: 11 }}>{pod?.name?.split(" ").slice(0,2).join(" ")}</td>
-                        <td style={{ padding: "9px 12px" }}><Badge color={m.verified ? T.lime : T.red}>{m.verified ? "✓" : "✗"}</Badge></td>
-                        <td style={{ padding: "9px 12px" }}><Badge color={m.escrowFunded ? T.teal : T.amber}>{m.escrowFunded ? "✓" : "Pending"}</Badge></td>
-                        <td style={{ padding: "9px 12px", color: T.chalk }}>{m.gamesAttended}/{m.gamesAllocated}</td>
-                        <td style={{ padding: "9px 12px", color: m.nps>=8 ? T.lime : m.nps>=6 ? T.amber : m.nps ? T.red : T.mist }}>{m.nps||"—"}</td>
-                        <td style={{ padding: "9px 12px", color: m.referrals>0 ? T.lime : T.mist }}>{m.referrals}</td>
-                        <td style={{ padding: "9px 12px" }}><Badge color={m.tier==="captain" ? T.lime : m.tier==="pro" ? T.teal : T.mist}>{m.tier}</Badge></td>
-                        <td style={{ padding: "9px 12px" }}><Badge color={riskColor[m.churnRisk]}>{m.churnRisk}</Badge></td>
-                        <td style={{ padding: "9px 12px" }}>
-                          {action !== "—"
-                            ? <div style={{ background: `${T.lime}18`, color: T.lime, border: `1px solid ${T.lime}44`, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{action}</div>
-                            : <span style={{ color: T.mist }}>—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {sortedMembers.length === 0 ? (
+              <div style={{ textAlign: "center", color: T.mist, padding: "48px 0", fontSize: 13 }}>
+                No members yet.
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: T.forest, borderBottom: "1px solid #1A4A2E" }}>
+                      {["Member","Pod","Verified","Funded","Games","Refs","Tier","Risk","Action"].map(h => (
+                        <th key={h} style={{ padding: "10px 12px", textAlign: "left",
+                          color: T.mist, fontWeight: 700, fontSize: 11 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedMembers.map((m, i) => {
+                      const action = !m.escrowFunded && daysAgo(m.joinedAt) >= 3 ? "Send reminder"
+                        : m.churnRisk === "high" ? "Follow up"
+                        : m.referrals >= 2 ? "Issue reward"
+                        : "—";
+                      return (
+                        <tr key={m.id} style={{ background: i%2===0 ? "transparent" : "#0D2B1A44",
+                          borderBottom: "1px solid #0D2B1A" }}>
+                          <td style={{ padding: "9px 12px" }}>
+                            <div style={{ fontWeight: 700, color: T.white }}>{m.name}</div>
+                            <div style={{ fontSize: 10, color: T.mist }}>
+                              Joined {daysAgo(m.joinedAt)}d ago
+                            </div>
+                          </td>
+                          <td style={{ padding: "9px 12px", color: T.mist, fontSize: 11 }}>
+                            {m.podName?.split(" ").slice(0,3).join(" ")}
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <Badge color={m.verified ? T.lime : T.red}>{m.verified ? "✓" : "✗"}</Badge>
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <Badge color={m.escrowFunded ? T.teal : T.amber}>
+                              {m.escrowFunded ? "✓" : "Pending"}
+                            </Badge>
+                          </td>
+                          <td style={{ padding: "9px 12px", color: T.chalk }}>
+                            {m.gamesAttended}/{m.gamesAllocated}
+                          </td>
+                          <td style={{ padding: "9px 12px",
+                            color: m.referrals > 0 ? T.lime : T.mist }}>
+                            {m.referrals}
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <Badge color={m.tier === "captain" ? T.lime : m.tier === "pro" ? T.teal : T.mist}>
+                              {m.tier}
+                            </Badge>
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <Badge color={riskColor[m.churnRisk] || T.mist}>{m.churnRisk}</Badge>
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            {action !== "—"
+                              ? <div style={{ background: `${T.lime}18`, color: T.lime,
+                                  border: `1px solid ${T.lime}44`, borderRadius: 6,
+                                  padding: "2px 8px", fontSize: 10, fontWeight: 700,
+                                  cursor: "pointer", whiteSpace: "nowrap" }}>{action}</div>
+                              : <span style={{ color: T.mist }}>—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── FUNNEL ── */}
+        {/* ── FUNNEL ───────────────────────────────────────────────────────────── */}
         {tab === "funnel" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Card>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 16 }}>Full Activation Funnel</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 16 }}>
+                Full Activation Funnel
+              </div>
               {[
-                { stage: "1. Signed up",        n: metrics.totalMembers },
-                { stage: "2. Completed KYC",    n: metrics.verifiedMembers },
-                { stage: "3. Joined a pod",     n: metrics.fundedMembers+2 },
-                { stage: "4. Funded escrow",    n: metrics.fundedMembers },
-                { stage: "5. Received tickets", n: MEMBERS_DATA.filter(m=>m.gamesAllocated>0).length },
-                { stage: "6. Attended a game",  n: MEMBERS_DATA.filter(m=>m.gamesAttended>0).length },
-                { stage: "7. Left a review",    n: MEMBERS_DATA.filter(m=>m.nps).length },
-                { stage: "8. Made a referral",  n: MEMBERS_DATA.filter(m=>m.referrals>0).length },
+                { stage: "1. Signed up",        n: metrics.totalProfiles    },
+                { stage: "2. Joined a pod",      n: metrics.totalMembers     },
+                { stage: "3. KYC verified",      n: metrics.verifiedMembers  },
+                { stage: "4. Funded escrow",     n: metrics.fundedMembers    },
+                { stage: "5. Got tickets",       n: metrics.allocatedMembers },
+                { stage: "6. Attended a game",   n: metrics.attendedMembers  },
               ].map((row, i, arr) => {
-                const drop = i > 0 ? Math.round(((arr[i-1].n - row.n) / arr[i-1].n) * 100) : 0;
+                const drop = i > 0 && arr[i-1].n > 0
+                  ? Math.round(((arr[i-1].n - row.n) / arr[i-1].n) * 100) : 0;
+                const pct  = arr[0].n > 0 ? Math.round((row.n / arr[0].n) * 100) : 0;
                 return (
                   <div key={row.stage} style={{ marginBottom: 11 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
@@ -406,85 +1018,584 @@ export default function BetaDashboard() {
                       <div style={{ display: "flex", gap: 8 }}>
                         {drop > 0 && <span style={{ fontSize: 10, color: T.amber }}>↓{drop}%</span>}
                         <span style={{ fontSize: 11, fontWeight: 700, color: T.lime }}>
-                          {row.n} ({Math.round((row.n/arr[0].n)*100)}%)
+                          {row.n} ({pct}%)
                         </span>
                       </div>
                     </div>
-                    <Bar value={row.n} max={arr[0].n} color={T.lime} h={6} />
+                    <Bar value={row.n} max={arr[0].n || 1} color={T.lime} h={6} />
                   </div>
                 );
               })}
             </Card>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <Card>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 12 }}>Biggest Drop-offs & Actions</div>
-                {[
-                  { step: "Pod join → Funded escrow", rate: "78%", action: "Trigger Email 3 within 12h of pod join (currently 48h)", sev: "high" },
-                  { step: "Funded → Attended game",   rate: "72%", action: "Add 3-day pre-game reminder — not currently in sequence", sev: "high" },
-                  { step: "Attended → Left review",   rate: "64%", action: "A/B test in-app prompt timing: immediate vs. next morning", sev: "med" },
-                  { step: "Review → Referral",        rate: "44%", action: "Referral ask is too generic — personalise with savings figure", sev: "med" },
-                ].map(r => (
-                  <div key={r.step} style={{ padding: "9px 0", borderBottom: "1px solid #1A4A2E" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: T.white, fontWeight: 700 }}>{r.step}</span>
-                      <Badge color={r.sev === "high" ? T.red : T.amber}>{r.rate}</Badge>
-                    </div>
-                    <div style={{ fontSize: 11, color: T.mist }}>→ {r.action}</div>
-                  </div>
-                ))}
-              </Card>
-              <Card>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 12 }}>Weekly New Members</div>
-                <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 60 }}>
-                  {WEEKLY_DATA.map((w, i) => {
-                    const mx = Math.max(...WEEKLY_DATA.map(x => x.newMembers));
-                    const h = Math.round((w.newMembers / mx) * 50) + 4;
-                    return (
-                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column",
-                        alignItems: "center", gap: 2 }}>
-                        <div style={{ fontSize: 9, color: T.lime }}>{w.newMembers}</div>
-                        <div style={{ width: "100%", height: h,
-                          background: i === WEEKLY_DATA.length-1 ? T.lime : `${T.lime}55`,
-                          borderRadius: "3px 3px 0 0" }} />
-                        <div style={{ fontSize: 8, color: T.mist }}>{w.week.split(" ")[1]}</div>
-                      </div>
-                    );
-                  })}
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 12 }}>
+                  Weekly New Members
                 </div>
+                {weeklyData.length < 2 ? (
+                  <div style={{ color: T.mist, fontSize: 11, textAlign: "center", padding: "16px 0" }}>
+                    Not enough weeks of data yet.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 60 }}>
+                    {weeklyData.map((w, i) => {
+                      const mx = Math.max(...weeklyData.map(x => x.newMembers));
+                      const h  = mx > 0 ? Math.round((w.newMembers / mx) * 50) + 4 : 4;
+                      return (
+                        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column",
+                          alignItems: "center", gap: 2 }}>
+                          {w.newMembers > 0 && (
+                            <div style={{ fontSize: 9, color: T.lime }}>{w.newMembers}</div>
+                          )}
+                          <div style={{ width: "100%", height: h,
+                            background: i === weeklyData.length-1 ? T.lime : `${T.lime}55`,
+                            borderRadius: "3px 3px 0 0" }} />
+                          <div style={{ fontSize: 8, color: T.mist }}>{w.week.split(" ")[1]}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 12 }}>
+                  Drop-off Analysis
+                </div>
+                {metrics.totalProfiles === 0 ? (
+                  <div style={{ color: T.mist, fontSize: 11 }}>No data yet.</div>
+                ) : (
+                  [
+                    { step: "Signed up → Joined pod",
+                      rate: metrics.totalProfiles > 0 ? `${Math.round((metrics.totalMembers / metrics.totalProfiles) * 100)}%` : "—",
+                      action: "Improve onboarding invite flow" },
+                    { step: "Joined → KYC verified",
+                      rate: metrics.totalMembers > 0 ? `${Math.round((metrics.verifiedMembers / metrics.totalMembers) * 100)}%` : "—",
+                      action: "Add in-app KYC prompt after joining" },
+                    { step: "Joined → Funded escrow",
+                      rate: metrics.totalMembers > 0 ? `${Math.round((metrics.fundedMembers / metrics.totalMembers) * 100)}%` : "—",
+                      action: "Trigger payment reminder 48h after joining" },
+                    { step: "Funded → Attended game",
+                      rate: metrics.fundedMembers > 0 ? `${Math.round((metrics.attendedMembers / metrics.fundedMembers) * 100)}%` : "—",
+                      action: "Send 3-day pre-game reminder" },
+                  ].map(r => (
+                    <div key={r.step} style={{ padding: "8px 0", borderBottom: "1px solid #1A4A2E" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ fontSize: 11, color: T.white, fontWeight: 700 }}>{r.step}</span>
+                        <Badge color={T.lime}>{r.rate}</Badge>
+                      </div>
+                      <div style={{ fontSize: 11, color: T.mist }}>→ {r.action}</div>
+                    </div>
+                  ))
+                )}
               </Card>
             </div>
           </div>
         )}
 
-        {/* ── ALERTS ── */}
+        {/* ── REVENUE ──────────────────────────────────────────────────────────── */}
+        {tab === "revenue" && (() => {
+          const escrowFees   = pods.reduce((s, p) => s + p.gmv * 0.03, 0);
+          const resaleFees   = pods.reduce((s, p) => s + p.resaleRevenue * 0.08, 0);
+          const totalRevenue = escrowFees + resaleFees;
+          const avgFeePerPod = pods.length > 0 ? totalRevenue / pods.length : 0;
+
+          const weeklyRevenue = weeklyData.map(w => ({
+            week: w.week,
+            fees: Math.round(w.gmv * 0.03 + w.resaleRev * 0.08),
+          }));
+          const maxFees = Math.max(...weeklyRevenue.map(w => w.fees), 1);
+
+          return (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+                <Stat label="Total Revenue" icon="💰"
+                  value={`$${Math.round(totalRevenue).toLocaleString()}`}
+                  sub="beta cohort YTD" />
+                <Stat label="Escrow Fees (3%)" icon="🏦" color={T.teal}
+                  value={`$${Math.round(escrowFees).toLocaleString()}`}
+                  sub={`from $${Math.round(metrics.totalGMV).toLocaleString()} GMV`} />
+                <Stat label="Resale Fees (8%)" icon="♻️" color={T.amber}
+                  value={`$${Math.round(resaleFees).toLocaleString()}`}
+                  sub={`from $${Math.round(metrics.totalResale).toLocaleString()} resale vol`} />
+                <Stat label="Avg per Pod" icon="📐" color={T.mist}
+                  value={pods.length > 0 ? `$${Math.round(avgFeePerPod).toLocaleString()}` : "—"}
+                  sub="across all pods" />
+              </div>
+
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 14 }}>
+                  Weekly Platform Revenue
+                </div>
+                {weeklyRevenue.length < 2 ? (
+                  <div style={{ color: T.mist, fontSize: 11, textAlign: "center", padding: "20px 0" }}>
+                    Not enough weeks of data yet.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 100 }}>
+                    {weeklyRevenue.map((w, i) => {
+                      const h = Math.round((w.fees / maxFees) * 80) + 4;
+                      return (
+                        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column",
+                          alignItems: "center", gap: 4 }}>
+                          <div style={{ fontSize: 9, color: T.lime, fontWeight: 700 }}>
+                            {w.fees > 0 ? `$${w.fees}` : "—"}
+                          </div>
+                          <div style={{ width: "100%", height: h,
+                            background: i === weeklyRevenue.length - 1 ? T.lime : `${T.lime}55`,
+                            borderRadius: "3px 3px 0 0" }} />
+                          <div style={{ fontSize: 8, color: T.mist, whiteSpace: "nowrap" }}>
+                            {w.week}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 14 }}>
+                  Per-Pod Revenue Breakdown
+                </div>
+                {pods.length === 0 ? (
+                  <div style={{ color: T.mist, fontSize: 11, textAlign: "center", padding: "20px 0" }}>
+                    No pods yet.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px 80px",
+                      gap: 8, marginBottom: 10 }}>
+                      {["Pod", "GMV", "Escrow Fee", "Resale Fee", "Total"].map(h => (
+                        <div key={h} style={{ fontSize: 9, color: T.mist, fontWeight: 700, letterSpacing: 0.5 }}>
+                          {h}
+                        </div>
+                      ))}
+                    </div>
+                    {[...pods]
+                      .map(p => ({ ...p, totalFee: p.gmv * 0.03 + p.resaleRevenue * 0.08 }))
+                      .sort((a, b) => b.totalFee - a.totalFee)
+                      .map(p => (
+                        <div key={p.id} style={{ display: "grid",
+                          gridTemplateColumns: "1fr 80px 80px 80px 80px",
+                          gap: 8, padding: "8px 0", borderBottom: "1px solid #1A4A2E",
+                          alignItems: "center" }}>
+                          <div>
+                            <div style={{ fontSize: 12, color: T.white, fontWeight: 600 }}>
+                              {p.sportEmoji} {p.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: T.mist }}>{p.team}</div>
+                          </div>
+                          <div style={{ fontSize: 12, color: T.chalk }}>
+                            {p.gmv > 0 ? `$${Math.round(p.gmv).toLocaleString()}` : "—"}
+                          </div>
+                          <div style={{ fontSize: 12, color: T.teal }}>
+                            ${Math.round(p.gmv * 0.03)}
+                          </div>
+                          <div style={{ fontSize: 12, color: T.amber }}>
+                            {p.resaleRevenue > 0 ? `$${Math.round(p.resaleRevenue * 0.08)}` : "—"}
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: T.lime, fontFamily: "Georgia,serif" }}>
+                            ${Math.round(p.totalFee)}
+                          </div>
+                        </div>
+                      ))}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px 80px",
+                      gap: 8, padding: "10px 0 0" }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T.white }}>Totals</div>
+                      <div style={{ fontSize: 12, color: T.chalk }}>
+                        ${Math.round(metrics.totalGMV).toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: 12, color: T.teal, fontWeight: 700 }}>
+                        ${Math.round(escrowFees)}
+                      </div>
+                      <div style={{ fontSize: 12, color: T.amber, fontWeight: 700 }}>
+                        ${Math.round(resaleFees)}
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.lime, fontFamily: "Georgia,serif" }}>
+                        ${Math.round(totalRevenue)}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </Card>
+            </div>
+          );
+        })()}
+
+        {/* ── RECEIPTS ─────────────────────────────────────────────────────────── */}
+        {tab === "receipts" && (() => {
+          const pending  = pods.filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected);
+          const verified = pods.filter(p => p.receiptVerified);
+          const rejected = pods.filter(p => p.receiptRejected);
+          const noReceipt = pods.filter(p => !p.receiptUrl);
+
+          const ReceiptRow = ({ pod }) => {
+            const busy = receiptBusy === pod.id;
+            const showReject = showRejectBox === pod.id;
+            return (
+              <div style={{ background: T.forest, border: "1px solid #1A4A2E",
+                borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  alignItems: "flex-start", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>
+                      {pod.sportEmoji} {pod.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.mist, marginTop: 2 }}>
+                      {pod.team} · ${Math.round(pod.gmv).toLocaleString()} season cost · {daysAgo(pod.created)}d ago
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {pod.receiptVerified && <Badge color={T.lime}>✓ Verified</Badge>}
+                    {pod.receiptRejected && <Badge color={T.red}>✗ Rejected</Badge>}
+                    {pod.receiptUrl && !pod.receiptVerified && !pod.receiptRejected && (
+                      <Badge color={T.amber}>⏳ Pending</Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Receipt note (if rejected) */}
+                {pod.receiptNote && (
+                  <div style={{ fontSize: 11, color: T.amber, background: `${T.amber}10`,
+                    border: `1px solid ${T.amber}30`, borderRadius: 6,
+                    padding: "6px 10px", marginBottom: 8 }}>
+                    Note to member: "{pod.receiptNote}"
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {/* View receipt */}
+                  {pod.receiptUrl && (
+                    <a href={pod.receiptUrl} target="_blank" rel="noreferrer"
+                      style={{ background: "#1A4A2E", color: T.chalk, border: "none",
+                        borderRadius: 7, padding: "6px 14px", fontSize: 11,
+                        fontWeight: 700, cursor: "pointer", textDecoration: "none" }}>
+                      👁 View Receipt
+                    </a>
+                  )}
+
+                  {/* Verify button */}
+                  {!pod.receiptVerified && pod.receiptUrl && (
+                    <button disabled={busy} onClick={() => handleReceiptVerify(pod.id)}
+                      style={{ background: `${T.lime}22`, color: T.lime,
+                        border: `1px solid ${T.lime}44`, borderRadius: 7,
+                        padding: "6px 14px", fontSize: 11, fontWeight: 700,
+                        cursor: busy ? "not-allowed" : "pointer",
+                        opacity: busy ? 0.5 : 1 }}>
+                      {busy ? "…" : "✓ Verify"}
+                    </button>
+                  )}
+
+                  {/* Reject / reject form toggle */}
+                  {!pod.receiptRejected && pod.receiptUrl && (
+                    <button disabled={busy} onClick={() => setShowRejectBox(showReject ? null : pod.id)}
+                      style={{ background: `${T.red}18`, color: T.red,
+                        border: `1px solid ${T.red}44`, borderRadius: 7,
+                        padding: "6px 14px", fontSize: 11, fontWeight: 700,
+                        cursor: busy ? "not-allowed" : "pointer",
+                        opacity: busy ? 0.5 : 1 }}>
+                      ✗ Reject
+                    </button>
+                  )}
+
+                  {/* Reset to pending */}
+                  {(pod.receiptVerified || pod.receiptRejected) && (
+                    <button disabled={busy} onClick={() => handleReceiptReset(pod.id)}
+                      style={{ background: "transparent", color: T.mist,
+                        border: `1px solid #1A4A2E`, borderRadius: 7,
+                        padding: "6px 14px", fontSize: 11,
+                        cursor: busy ? "not-allowed" : "pointer" }}>
+                      ↺ Reset
+                    </button>
+                  )}
+                </div>
+
+                {/* Inline rejection note form */}
+                {showReject && (
+                  <div style={{ marginTop: 10 }}>
+                    <textarea
+                      rows={2}
+                      placeholder="Optional note to captain / members (e.g. 'Receipt amount doesn't match stated cost')"
+                      value={rejectNote[pod.id] || ""}
+                      onChange={e => setRejectNote(n => ({ ...n, [pod.id]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 11px", background: T.dark,
+                        border: `1px solid ${T.red}44`, borderRadius: 8, color: T.white,
+                        fontSize: 12, fontFamily: "Calibri,sans-serif", outline: "none",
+                        resize: "none", boxSizing: "border-box" }}
+                    />
+                    <button onClick={() => handleReceiptReject(pod.id)}
+                      style={{ marginTop: 6, background: T.red, color: T.white,
+                        border: "none", borderRadius: 7, padding: "7px 16px",
+                        fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      Confirm Rejection
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          };
+
+          return (
+            <div>
+              {/* Summary stats */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 16 }}>
+                <Stat label="Pending Review" icon="⏳" color={T.amber} value={pending.length} />
+                <Stat label="Verified"       icon="✓"  color={T.lime}  value={verified.length} />
+                <Stat label="Rejected"       icon="✗"  color={T.red}   value={rejected.length} />
+                <Stat label="No Receipt"     icon="📄" color={T.mist}  value={noReceipt.length} />
+              </div>
+
+              {/* Pending */}
+              {pending.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.amber,
+                    marginBottom: 10, letterSpacing: 0.5 }}>
+                    ⏳ PENDING REVIEW ({pending.length})
+                  </div>
+                  {pending.map(pod => <ReceiptRow key={pod.id} pod={pod} />)}
+                </div>
+              )}
+
+              {/* Verified */}
+              {verified.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.lime,
+                    marginBottom: 10, letterSpacing: 0.5 }}>
+                    ✓ VERIFIED ({verified.length})
+                  </div>
+                  {verified.map(pod => <ReceiptRow key={pod.id} pod={pod} />)}
+                </div>
+              )}
+
+              {/* Rejected */}
+              {rejected.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.red,
+                    marginBottom: 10, letterSpacing: 0.5 }}>
+                    ✗ REJECTED ({rejected.length})
+                  </div>
+                  {rejected.map(pod => <ReceiptRow key={pod.id} pod={pod} />)}
+                </div>
+              )}
+
+              {/* No receipt */}
+              {noReceipt.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.mist,
+                    marginBottom: 10, letterSpacing: 0.5 }}>
+                    📄 NO RECEIPT UPLOADED ({noReceipt.length})
+                  </div>
+                  {noReceipt.map(pod => (
+                    <div key={pod.id} style={{ background: T.forest,
+                      border: "1px solid #1A4A2E", borderRadius: 12,
+                      padding: "12px 14px", marginBottom: 8,
+                      display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: T.white }}>
+                          {pod.sportEmoji} {pod.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: T.mist, marginTop: 2 }}>
+                          {pod.team} · ${Math.round(pod.gmv).toLocaleString()} · {daysAgo(pod.created)}d old
+                        </div>
+                      </div>
+                      <Badge color={pod.status === "active" ? T.amber : T.mist}>
+                        {pod.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {pods.length === 0 && (
+                <div style={{ textAlign: "center", color: T.mist, padding: "48px 0", fontSize: 13 }}>
+                  No pods yet.
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── CODES ────────────────────────────────────────────────────────────── */}
+        {tab === "codes" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Card>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white, marginBottom: 14 }}>
+                🔑 Create Invite Code
+              </div>
+              {codesMsg && (
+                <div style={{
+                  background: codesMsg.type === "error" ? "rgba(239,68,68,0.15)" : "rgba(52,211,153,0.15)",
+                  border: `1px solid ${codesMsg.type === "error" ? T.red : T.teal}`,
+                  borderRadius: 8, padding: "9px 13px", fontSize: 12,
+                  color: codesMsg.type === "error" ? T.red : T.teal, marginBottom: 12,
+                }}>
+                  {codesMsg.msg}
+                </div>
+              )}
+              <form onSubmit={handleCreateCode}
+                style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 10, alignItems: "end" }}>
+                <div>
+                  <div style={{ fontSize: 10, color: T.mist, fontWeight: 700, marginBottom: 5,
+                    textTransform: "uppercase" }}>Code</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input value={newCodeVal} onChange={e => setNewCodeVal(e.target.value.toUpperCase())}
+                      placeholder="HALFTIME6" required
+                      style={{ flex: 1, background: T.dark, border: `1px solid ${T.green}`,
+                        borderRadius: 8, padding: "9px 11px", color: T.white,
+                        fontSize: 13, fontFamily: "monospace", outline: "none" }} />
+                    <button type="button" onClick={generateRandomCode} title="Generate random code"
+                      style={{ background: "#1A4A2E", border: "none", borderRadius: 8,
+                        padding: "9px 12px", color: T.mist, fontSize: 13, cursor: "pointer" }}>🎲</button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: T.mist, fontWeight: 700, marginBottom: 5,
+                    textTransform: "uppercase" }}>Label (optional)</div>
+                  <input value={newLabel} onChange={e => setNewLabel(e.target.value)}
+                    placeholder="For Jordan K."
+                    style={{ width: "100%", background: T.dark, border: `1px solid ${T.green}`,
+                      borderRadius: 8, padding: "9px 11px", color: T.white,
+                      fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: T.mist, fontWeight: 700, marginBottom: 5,
+                    textTransform: "uppercase" }}>Max uses</div>
+                  <input type="number" value={newMaxUses} onChange={e => setNewMaxUses(e.target.value)}
+                    min="0"
+                    style={{ width: 70, background: T.dark, border: `1px solid ${T.green}`,
+                      borderRadius: 8, padding: "9px 11px", color: T.white, fontSize: 13, outline: "none" }} />
+                </div>
+                <button type="submit" disabled={codesBusy || !newCodeVal.trim()}
+                  style={{ background: T.lime, border: "none", borderRadius: 8,
+                    padding: "9px 18px", color: T.dark, fontSize: 13, fontWeight: 700,
+                    cursor: codesBusy ? "not-allowed" : "pointer",
+                    opacity: codesBusy ? 0.6 : 1, whiteSpace: "nowrap" }}>
+                  {codesBusy ? "…" : "Create →"}
+                </button>
+              </form>
+              <div style={{ fontSize: 10, color: T.mist, marginTop: 10 }}>
+                Max uses: <strong style={{ color: T.chalk }}>0 = unlimited</strong> · Codes are case-insensitive
+              </div>
+            </Card>
+
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between",
+                alignItems: "center", marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>All Invite Codes</div>
+                <button onClick={loadCodes}
+                  style={{ background: "#1A4A2E", border: "none", borderRadius: 6,
+                    padding: "5px 12px", color: T.mist, fontSize: 11, cursor: "pointer" }}>
+                  ↻ Refresh
+                </button>
+              </div>
+              {codesLoading ? (
+                <div style={{ textAlign: "center", color: T.mist, padding: 24, fontSize: 13 }}>
+                  Loading codes…
+                </div>
+              ) : codes.length === 0 ? (
+                <div style={{ textAlign: "center", color: T.mist, padding: 24, fontSize: 13 }}>
+                  No codes yet. Create one above.
+                </div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1A4A2E" }}>
+                        {["Code","Label","Uses","Status","Expires","Created",""].map(h => (
+                          <th key={h} style={{ padding: "8px 12px", textAlign: "left",
+                            color: T.mist, fontWeight: 700, fontSize: 10,
+                            textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {codes.map((c, i) => {
+                        const isExpired   = c.expires_at && new Date(c.expires_at) < new Date();
+                        const isExhausted = c.max_uses > 0 && c.use_count >= c.max_uses;
+                        const sColor      = isExpired || isExhausted ? T.red : T.lime;
+                        const sLabel      = isExpired ? "Expired" : isExhausted ? "Used up" : "Active";
+                        return (
+                          <tr key={c.id}
+                            style={{ background: i%2===0 ? "transparent" : "#0D2B1A44",
+                              borderBottom: "1px solid #0D2B1A" }}>
+                            <td style={{ padding: "9px 12px" }}>
+                              <span style={{ fontFamily: "monospace", fontSize: 13,
+                                fontWeight: 700, color: T.white, letterSpacing: 1 }}>{c.code}</span>
+                            </td>
+                            <td style={{ padding: "9px 12px", color: T.mist, fontSize: 11 }}>
+                              {c.label || <span style={{ opacity: 0.4 }}>—</span>}
+                            </td>
+                            <td style={{ padding: "9px 12px" }}>
+                              <span style={{ color: c.use_count > 0 ? T.lime : T.mist, fontWeight: 700 }}>
+                                {c.max_uses === 0 ? `${c.use_count} / ∞` : `${c.use_count} / ${c.max_uses}`}
+                              </span>
+                            </td>
+                            <td style={{ padding: "9px 12px" }}>
+                              <Badge color={sColor}>{sLabel}</Badge>
+                            </td>
+                            <td style={{ padding: "9px 12px", color: T.mist, fontSize: 11 }}>
+                              {c.expires_at
+                                ? new Date(c.expires_at).toLocaleDateString()
+                                : <span style={{ opacity: 0.4 }}>Never</span>}
+                            </td>
+                            <td style={{ padding: "9px 12px", color: T.mist, fontSize: 10 }}>
+                              {new Date(c.created_at).toLocaleDateString()}
+                            </td>
+                            <td style={{ padding: "9px 12px" }}>
+                              <button onClick={() => handleDeleteCode(c.id, c.code)}
+                                style={{ background: "rgba(239,68,68,0.15)",
+                                  border: "1px solid rgba(239,68,68,0.3)",
+                                  borderRadius: 6, padding: "3px 10px",
+                                  color: T.red, fontSize: 11, cursor: "pointer" }}>
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* ── ALERTS ───────────────────────────────────────────────────────────── */}
         {tab === "alerts" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {[
-              { sev:"high",   icon:"🔴", title:"M006 (Riley S.) — Escrow unfunded, Day 7",      body:"Final deadline email not triggered. Manual follow-up or release pod spot to waitlist within 24 hours.", action:"Send Email 5 now" },
-              { sev:"high",   icon:"🔴", title:"M009 (Sage L.) — Unverified, Day 10",             body:"KYC never started. Pod P008 is at partial funding. Notify pod captain (M008).", action:"Flag to pod captain" },
-              { sev:"medium", icon:"🟡", title:"P005 (Soldier Field South) — 1 member unfunded",  body:"Bears pod has renewal intent 'maybe' and one pending escrow. Season starts in 18 days.", action:"Trigger Email 4" },
-              { sev:"medium", icon:"🟡", title:"P006 (Section 220) — 3 games with no confirmed attendee", body:"Allocation ran but 3 upcoming games assigned to members who haven't confirmed attendance.", action:"Send no-show reminder" },
-              { sev:"low",    icon:"🟢", title:"M010 (Blake N.) — 3 referrals, reward pending",   body:"Referral reward not yet issued. Delay risks reducing future referral motivation.", action:"Issue $50 credit" },
-              { sev:"low",    icon:"🟢", title:"P003 (North End Bloc) — NPS 10, testimonial opportunity", body:"Drew W. rated 10/10 after their second game. High-quality testimonial candidate.", action:"Request testimonial" },
-            ].map((alert, i) => (
+            {alerts.map((alert, i) => (
               <div key={i} style={{
                 background: T.forest,
-                border: `1px solid ${alert.sev==="high" ? T.red+"44" : alert.sev==="medium" ? T.amber+"44" : "#1A4A2E"}`,
-                borderLeft: `4px solid ${alert.sev==="high" ? T.red : alert.sev==="medium" ? T.amber : T.lime}`,
+                border: `1px solid ${alert.sev === "high" ? T.red+"44" : alert.sev === "medium" ? T.amber+"44" : "#1A4A2E"}`,
+                borderLeft: `4px solid ${alert.sev === "high" ? T.red : alert.sev === "medium" ? T.amber : T.lime}`,
                 borderRadius: 12, padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between",
                   alignItems: "flex-start", marginBottom: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>{alert.icon} {alert.title}</div>
-                  <Badge color={alert.sev==="high" ? T.red : alert.sev==="medium" ? T.amber : T.lime}>{alert.sev}</Badge>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>
+                    {alert.icon} {alert.title}
+                  </div>
+                  <Badge color={alert.sev === "high" ? T.red : alert.sev === "medium" ? T.amber : T.lime}>
+                    {alert.sev}
+                  </Badge>
                 </div>
-                <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.5, marginBottom: 10 }}>{alert.body}</div>
-                <div style={{ background: `${T.lime}18`, color: T.lime, border: `1px solid ${T.lime}33`,
-                  borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700,
-                  display: "inline-block", cursor: "pointer" }}>→ {alert.action}</div>
+                <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.5, marginBottom: alert.action ? 10 : 0 }}>
+                  {alert.body}
+                </div>
+                {alert.action && (
+                  <div style={{ background: `${T.lime}18`, color: T.lime, border: `1px solid ${T.lime}33`,
+                    borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700,
+                    display: "inline-block", cursor: "pointer" }}>
+                    → {alert.action}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
+
       </div>
     </div>
   );

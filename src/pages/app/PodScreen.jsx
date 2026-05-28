@@ -1,5 +1,5 @@
 // ─── PodScreen ────────────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
 import Badge from "../../components/Badge";
@@ -8,7 +8,11 @@ import Card from "../../components/Card";
 import EscrowPaymentScreen from "./EscrowPaymentScreen";
 import { useMyPods, usePod } from "../../hooks/usePod";
 import { useActivePod } from "../../context/ActivePodContext";
+import { usePodChat } from "../../hooks/usePodChat";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { useCurrentUserId } from "../../hooks/useCurrentUserId";
+import { notify } from "../../lib/notify";
+import { awardBidCredits } from "../../api/bids";
 
 // Deterministic color per member slot
 const MEMBER_COLORS = ["#C8F135", "#34D399", "#A78BFA", "#FBBF24", "#F87171", "#60A5FA"];
@@ -18,16 +22,36 @@ export default function PodScreen({ state, dispatch }) {
   const [tab, setTab]               = useState("members");
   const [showPayment, setShowPayment] = useState(false);
   const [showInvite,  setShowInvite]  = useState(false);
+  const [chatInput,   setChatInput]   = useState("");
+  const chatBottomRef = useRef(null);
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectError, setConnectError]     = useState(null);
 
+  // Captain admin state
+  const [announcement,  setAnnouncement]  = useState("");
+  const [announceBusy,  setAnnounceBusy]  = useState(false);
+  const [announceOk,    setAnnounceOk]    = useState(false);
+  const [statusBusy,    setStatusBusy]    = useState(false);
+  const [removingId,    setRemovingId]    = useState(null); // user_id being removed
+  const [removeConfirm, setRemoveConfirm] = useState(null); // user_id to confirm remove
+  const [editShareFor,  setEditShareFor]  = useState(null); // user_id whose share is being edited
+  const [editShareVal,  setEditShareVal]  = useState("");
+  const [regenBusy,     setRegenBusy]     = useState(false);
+  const [linkCopied,    setLinkCopied]    = useState(false);
+
+  // Pod settings edit state (captain only)
+  const [editPodSettings, setEditPodSettings] = useState(false);
+  const [podSettingsForm,  setPodSettingsForm]  = useState({});
+  const [savingSettings,   setSavingSettings]   = useState(false);
+  const [settingsErr,      setSettingsErr]      = useState(null);
+
+  // Bid credit award state (captain only)
+  const [awardCreditsFor,  setAwardCreditsFor]  = useState(null); // member id
+  const [awardAmount,      setAwardAmount]      = useState("10");
+  const [awardBusy,        setAwardBusy]        = useState(false);
+
   // Current user
-  const [currentUserId, setCurrentUserId] = useState(null);
-  if (!currentUserId && isSupabaseConfigured) {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.id) setCurrentUserId(session.user.id);
-    });
-  }
+  const currentUserId = useCurrentUserId();
 
   // My pods → find the active one
   const { pods } = useMyPods();
@@ -38,6 +62,14 @@ export default function PodScreen({ state, dispatch }) {
 
   // Full pod with ALL members (requires SECURITY DEFINER RLS policy)
   const { pod: fullPod, escrowBalance: realEscrowBalance, refresh: refreshPod } = usePod(activePodId);
+  const { messages, sending, sendMessage } = usePodChat(activePodId);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (tab === "chat") {
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, tab]);
 
   // Current user's membership info
   const myEscrowFunded = Boolean(myMemberRow?.escrow_funded);
@@ -80,6 +112,17 @@ export default function PodScreen({ state, dispatch }) {
     setShowPayment(false);
     refreshPod();
     dispatch({ type: "FUND_ESCROW" });
+    // Notify the captain that a member funded their escrow share
+    // (skip if the captain is funding their own share)
+    if (fullPod?.captain_id && fullPod.captain_id !== currentUserId) {
+      notify({
+        userId: fullPod.captain_id,
+        type:   "escrow_funded",
+        title:  "💰 Escrow funded",
+        body:   `A member just funded their escrow share for ${fullPod.name ?? "your pod"}. Check escrow status.`,
+        url:    "/app",
+      });
+    }
   }
 
   // ── Captain detection + payout info ─────────────────────────────────────────
@@ -114,6 +157,125 @@ export default function PodScreen({ state, dispatch }) {
       const msg = e?.context?.message || e?.context?.error || e?.message || "Unknown error";
       setConnectError(msg);
       setConnectLoading(false);
+    }
+  }
+
+  // ── Captain admin handlers ───────────────────────────────────────────────────
+  async function handleSendAnnouncement() {
+    if (!announcement.trim() || !activePodId) return;
+    setAnnounceBusy(true);
+    try {
+      await supabase.from("pod_messages").insert({
+        pod_id:  activePodId,
+        user_id: currentUserId,
+        content: `📢 ${announcement.trim()}`,
+      });
+      setAnnouncement("");
+      setAnnounceOk(true);
+      setTimeout(() => setAnnounceOk(false), 2000);
+    } catch (e) { console.error(e); }
+    finally { setAnnounceBusy(false); }
+  }
+
+  async function handleTogglePodStatus() {
+    if (!fullPod || !activePodId) return;
+    const next = fullPod.status === "active" ? "recruiting" : "active";
+    setStatusBusy(true);
+    try {
+      await supabase.from("pods").update({ status: next }).eq("id", activePodId);
+      await refreshPod();
+    } catch (e) { console.error(e); }
+    finally { setStatusBusy(false); }
+  }
+
+  async function handleRemoveMember(userId) {
+    if (!activePodId) return;
+    setRemovingId(userId);
+    try {
+      await supabase.from("pod_members")
+        .delete()
+        .eq("pod_id", activePodId)
+        .eq("user_id", userId);
+      setRemoveConfirm(null);
+      await refreshPod();
+    } catch (e) { console.error(e); }
+    finally { setRemovingId(null); }
+  }
+
+  async function handleRegenInviteCode() {
+    if (!activePodId) return;
+    setRegenBusy(true);
+    try {
+      await supabase.rpc("regenerate_pod_invite_code", { p_pod_id: activePodId });
+      await refreshPod();
+    } catch (e) { console.error(e); }
+    finally { setRegenBusy(false); }
+  }
+
+  async function handleCopyInviteLink() {
+    const url = `${window.location.origin}/join/${fullPod?.invite_code}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2500);
+  }
+
+  async function handleSaveShare(userId) {
+    const pct = parseFloat(editShareVal);
+    if (isNaN(pct) || pct <= 0 || pct > 100 || !activePodId) return;
+    const newCost = totalCost * (pct / 100);
+    try {
+      await supabase.from("pod_members")
+        .update({ share_pct: pct, cost: newCost.toFixed(2) })
+        .eq("pod_id", activePodId)
+        .eq("user_id", userId);
+      setEditShareFor(null);
+      await refreshPod();
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleSavePodSettings() {
+    if (!activePodId) return;
+    setSavingSettings(true);
+    setSettingsErr(null);
+    try {
+      const updates = {};
+      if (podSettingsForm.name?.trim())      updates.name        = podSettingsForm.name.trim();
+      if (podSettingsForm.venue?.trim() !== undefined) updates.venue = podSettingsForm.venue?.trim() || null;
+      if (podSettingsForm.season_cost)       updates.season_cost = parseFloat(podSettingsForm.season_cost) || totalCost;
+      if (podSettingsForm.max_members)       updates.max_members = parseInt(podSettingsForm.max_members) || maxMembers;
+      const { error } = await supabase.from("pods").update(updates).eq("id", activePodId);
+      if (error) throw error;
+      setEditPodSettings(false);
+      await refreshPod();
+    } catch (e) {
+      setSettingsErr(e.message);
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  async function handleAwardCredits(memberId) {
+    const amount = parseInt(awardAmount, 10);
+    if (!amount || amount < 1 || !activePodId) return;
+    setAwardBusy(true);
+    try {
+      await awardBidCredits(activePodId, memberId, amount);
+      setAwardCreditsFor(null);
+      setAwardAmount("10");
+      await refreshPod();
+    } catch (e) {
+      console.error("Award credits:", e.message);
+    } finally {
+      setAwardBusy(false);
     }
   }
 
@@ -182,9 +344,15 @@ export default function PodScreen({ state, dispatch }) {
 
       {/* Tabs */}
       <div style={{ display: "flex", background: T.dark, borderBottom: "1px solid #1A4A2E" }}>
-        {[["members", "👥 Members"], ["escrow", "💳 Escrow"], ["rules", "📋 Rules"]].map(([k, lbl]) => (
+        {[
+          ["members", "👥 Members"],
+          ["chat",    "💬 Chat"   ],
+          ["escrow",  "💳 Escrow" ],
+          ["rules",   "📋 Rules"  ],
+          ...(isCaptain ? [["admin", "⚙️ Admin"]] : []),
+        ].map(([k, lbl]) => (
           <div key={k} onClick={() => setTab(k)} style={{
-            flex: 1, padding: "11px 0", textAlign: "center", fontSize: 11, fontWeight: 700,
+            flex: 1, padding: "11px 0", textAlign: "center", fontSize: 10, fontWeight: 700,
             color: tab === k ? T.lime : T.mist,
             borderBottom: `2px solid ${tab === k ? T.lime : "transparent"}`, cursor: "pointer",
           }}>{lbl}</div>
@@ -277,6 +445,108 @@ export default function PodScreen({ state, dispatch }) {
                   border: `1px solid ${T.lime}44`, borderRadius: 8, fontSize: 12,
                   fontWeight: 700, cursor: "pointer" }}>
                   + Invite a Member
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Chat tab ── */}
+        {tab === "chat" && (
+          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 230px)" }}>
+            {/* Message list */}
+            <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
+              {messages.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0" }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>💬</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
+                    fontFamily: "Georgia,serif", marginBottom: 6 }}>Pod group chat</div>
+                  <div style={{ fontSize: 12, color: T.mist }}>
+                    Be the first to send a message!
+                  </div>
+                </div>
+              ) : (
+                messages.map((msg, i) => {
+                  const isMe = msg.user_id === currentUserId;
+                  const showName = i === 0 || messages[i - 1]?.user_id !== msg.user_id;
+                  return (
+                    <div key={msg.id} style={{
+                      display: "flex", flexDirection: isMe ? "row-reverse" : "row",
+                      gap: 8, marginBottom: 8, alignItems: "flex-end",
+                    }}>
+                      {!isMe && (
+                        <div style={{
+                          width: 28, height: 28, borderRadius: "50%",
+                          background: T.green, flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 10, fontWeight: 700, color: T.lime,
+                        }}>
+                          {(msg.profiles?.avatar_initials || "??").slice(0, 2)}
+                        </div>
+                      )}
+                      <div style={{ maxWidth: "72%" }}>
+                        {showName && !isMe && (
+                          <div style={{ fontSize: 9, color: T.mist, marginBottom: 3, marginLeft: 4 }}>
+                            {msg.profiles?.display_name || "Member"}
+                          </div>
+                        )}
+                        <div style={{
+                          background: isMe ? T.lime : T.forest,
+                          color: isMe ? T.dark : T.chalk,
+                          padding: "8px 12px", borderRadius: 14,
+                          borderBottomRightRadius: isMe ? 4 : 14,
+                          borderBottomLeftRadius: isMe ? 14 : 4,
+                          fontSize: 13, lineHeight: 1.4,
+                          wordBreak: "break-word",
+                        }}>
+                          {msg.content}
+                        </div>
+                        <div style={{ fontSize: 9, color: T.mist,
+                          textAlign: isMe ? "right" : "left", marginTop: 2, marginLeft: 4 }}>
+                          {new Date(msg.created_at).toLocaleTimeString("en-US",
+                            { hour: "numeric", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              {/* Scroll anchor — auto-scrolls to latest message */}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Input bar */}
+            {!isSupabaseConfigured ? (
+              <div style={{ textAlign: "center", fontSize: 11, color: T.mist, padding: "12px 0" }}>
+                Chat requires Supabase
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, paddingTop: 10,
+                borderTop: "1px solid #1A4A2E" }}>
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && !e.shiftKey && chatInput.trim()) {
+                      e.preventDefault();
+                      sendMessage(chatInput);
+                      setChatInput("");
+                    }
+                  }}
+                  placeholder="Say something to your pod…"
+                  style={{ flex: 1, padding: "10px 12px", background: T.forest,
+                    border: `1px solid #1A4A2E`, borderRadius: 20, color: T.white,
+                    fontSize: 13, outline: "none", fontFamily: "Calibri,sans-serif" }}
+                />
+                <button
+                  onClick={() => { if (chatInput.trim()) { sendMessage(chatInput); setChatInput(""); } }}
+                  disabled={sending || !chatInput.trim()}
+                  style={{ width: 38, height: 38, borderRadius: "50%",
+                    background: chatInput.trim() ? T.lime : T.green,
+                    border: "none", color: T.dark, fontSize: 18, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0, transition: "background 0.15s" }}>
+                  ↑
                 </button>
               </div>
             )}
@@ -432,6 +702,405 @@ export default function PodScreen({ state, dispatch }) {
                   </div>
                 </div>
               ))}
+            </Card>
+          </div>
+        )}
+
+        {/* ── Captain Admin tab ── */}
+        {tab === "admin" && isCaptain && (
+          <div>
+            {/* ── Pod Settings ── */}
+            <Card style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white, fontFamily: "Georgia,serif" }}>
+                  ⚙️ Pod Settings
+                </div>
+                <button
+                  onClick={() => {
+                    setEditPodSettings(v => !v);
+                    setPodSettingsForm({ name: podName, venue: fullPod?.venue || "", season_cost: String(totalCost), max_members: String(maxMembers) });
+                    setSettingsErr(null);
+                  }}
+                  style={{ padding: "4px 10px", background: "transparent",
+                    border: `1px solid ${T.lime}55`, borderRadius: 6,
+                    color: T.lime, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                  {editPodSettings ? "✕ Cancel" : "Edit"}
+                </button>
+              </div>
+
+              {editPodSettings ? (
+                <div>
+                  {[
+                    { label: "Pod Name",      key: "name",         type: "text",   placeholder: podName },
+                    { label: "Venue",         key: "venue",        type: "text",   placeholder: "e.g. United Center" },
+                    { label: "Season Cost ($)",key: "season_cost", type: "number", placeholder: String(totalCost) },
+                    { label: "Max Members",   key: "max_members",  type: "number", placeholder: String(maxMembers) },
+                  ].map(({ label, key, type, placeholder }) => (
+                    <div key={key} style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, color: T.mist, marginBottom: 4, letterSpacing: 0.5 }}>
+                        {label.toUpperCase()}
+                      </div>
+                      <input
+                        type={type}
+                        value={podSettingsForm[key] ?? ""}
+                        placeholder={placeholder}
+                        onChange={e => setPodSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                        style={{ width: "100%", padding: "9px 12px", background: T.forest,
+                          border: `1px solid #1A4A2E`, borderRadius: 8, color: T.white,
+                          fontSize: 13, outline: "none", fontFamily: "Calibri,sans-serif",
+                          boxSizing: "border-box" }}
+                      />
+                    </div>
+                  ))}
+                  {settingsErr && (
+                    <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{settingsErr}</div>
+                  )}
+                  <button
+                    onClick={handleSavePodSettings}
+                    disabled={savingSettings}
+                    style={{ width: "100%", padding: "11px", background: T.lime,
+                      border: "none", borderRadius: 8, color: T.dark,
+                      fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      opacity: savingSettings ? 0.6 : 1 }}>
+                    {savingSettings ? "Saving…" : "Save Changes"}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  {[
+                    { l: "Pod Name",    v: podName },
+                    { l: "Team",        v: teamName },
+                    { l: "Venue",       v: fullPod?.venue || "—" },
+                    { l: "Season Cost", v: totalCost > 0 ? `$${totalCost.toLocaleString()}` : "—" },
+                    { l: "Max Members", v: maxMembers },
+                  ].map(({ l, v }) => (
+                    <div key={l} style={{ display: "flex", justifyContent: "space-between",
+                      padding: "7px 0", borderBottom: "1px solid #1A4A2E", fontSize: 12 }}>
+                      <span style={{ color: T.mist }}>{l}</span>
+                      <span style={{ color: T.chalk, fontWeight: 600 }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* ── Invite Link ── */}
+            <Card style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif", marginBottom: 6 }}>🔗 Pod Invite Link</div>
+              <div style={{ fontSize: 11, color: T.mist, marginBottom: 10 }}>
+                Share this link with anyone you want to invite. They'll see your pod details and can join in one tap.
+              </div>
+
+              {fullPod?.invite_code ? (
+                <>
+                  {/* URL display */}
+                  <div style={{ background: "#0D1F12", borderRadius: 8, padding: "9px 12px",
+                    marginBottom: 10, fontFamily: "monospace", fontSize: 11,
+                    color: T.lime, wordBreak: "break-all", border: "1px solid #1A4A2E" }}>
+                    {window.location.origin}/join/{fullPod.invite_code}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={handleCopyInviteLink}
+                      style={{ flex: 1, padding: "10px", background: linkCopied ? T.teal : T.lime,
+                        border: "none", borderRadius: 8, color: T.dark,
+                        fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        transition: "background 0.2s" }}>
+                      {linkCopied ? "✓ Copied!" : "📋 Copy Link"}
+                    </button>
+
+                    {navigator.share && (
+                      <button
+                        onClick={() => navigator.share({
+                          title: `Join ${podName} on HalfTime`,
+                          text: `I'm inviting you to my season ticket pod. Tap to join:`,
+                          url: `${window.location.origin}/join/${fullPod.invite_code}`,
+                        })}
+                        style={{ flex: 1, padding: "10px", background: "transparent",
+                          border: `1px solid ${T.lime}55`, borderRadius: 8,
+                          color: T.lime, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                        ↗ Share
+                      </button>
+                    )}
+
+                    <button
+                      onClick={handleRegenInviteCode}
+                      disabled={regenBusy}
+                      title="Generate a new link — old link stops working"
+                      style={{ padding: "10px 12px", background: "transparent",
+                        border: `1px solid ${T.amber}44`, borderRadius: 8,
+                        color: T.amber, fontSize: 11, fontWeight: 700,
+                        cursor: regenBusy ? "not-allowed" : "pointer",
+                        opacity: regenBusy ? 0.6 : 1 }}>
+                      {regenBusy ? "…" : "🔄 New Link"}
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: 10, color: T.mist, marginTop: 8 }}>
+                    Code: <strong style={{ color: T.lime, fontFamily: "monospace",
+                      letterSpacing: 1 }}>{fullPod.invite_code}</strong> ·
+                    "New Link" revokes this code and generates a fresh one.
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: T.mist }}>
+                  No invite code yet — run the 010 migration in Supabase.
+                </div>
+              )}
+            </Card>
+
+            {/* ── Pod status ── */}
+            <Card style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif", marginBottom: 10 }}>🏟️ Pod Status</div>
+              <div style={{ display: "flex", justifyContent: "space-between",
+                alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 12, color: T.chalk }}>
+                    Currently <strong style={{ color: fullPod?.status === "active" ? T.lime : T.amber }}>
+                      {fullPod?.status === "active" ? "Active" : "Recruiting"}
+                    </strong>
+                  </div>
+                  <div style={{ fontSize: 10, color: T.mist, marginTop: 2 }}>
+                    {fullPod?.status === "active"
+                      ? "Members can't join unless you switch to Recruiting"
+                      : "Pod is accepting new members"}
+                  </div>
+                </div>
+                <button
+                  onClick={handleTogglePodStatus}
+                  disabled={statusBusy}
+                  style={{
+                    padding: "7px 14px", background: "transparent",
+                    border: `1px solid ${fullPod?.status === "active" ? T.amber + "66" : T.lime + "66"}`,
+                    borderRadius: 8, color: fullPod?.status === "active" ? T.amber : T.lime,
+                    fontSize: 11, fontWeight: 700, cursor: "pointer",
+                  }}>
+                  {statusBusy ? "…" : fullPod?.status === "active" ? "Set Recruiting" : "Set Active"}
+                </button>
+              </div>
+            </Card>
+
+            {/* ── Send announcement ── */}
+            <Card style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif", marginBottom: 10 }}>📢 Send Announcement</div>
+              <div style={{ fontSize: 11, color: T.mist, marginBottom: 10 }}>
+                Broadcasts a pinned message to the pod chat.
+              </div>
+              <textarea
+                value={announcement}
+                onChange={e => setAnnouncement(e.target.value)}
+                placeholder="e.g. Reminder: playoff tickets go on sale Friday — check your email!"
+                rows={3}
+                style={{
+                  width: "100%", padding: "10px 12px", background: T.forest,
+                  border: `1px solid #1A4A2E`, borderRadius: 8, color: T.white,
+                  fontSize: 12, outline: "none", fontFamily: "Calibri,sans-serif",
+                  resize: "none", boxSizing: "border-box", marginBottom: 10,
+                }}
+              />
+              <button
+                onClick={handleSendAnnouncement}
+                disabled={!announcement.trim() || announceBusy}
+                style={{
+                  width: "100%", padding: "11px", background: announceOk ? T.teal : T.lime,
+                  border: "none", borderRadius: 8, color: T.dark,
+                  fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  opacity: (!announcement.trim() || announceBusy) ? 0.6 : 1,
+                  transition: "background 0.2s",
+                }}>
+                {announceBusy ? "Sending…" : announceOk ? "✓ Sent!" : "Send to Pod Chat →"}
+              </button>
+            </Card>
+
+            {/* ── Playoff Bid Auction ── */}
+            <Card style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif", marginBottom: 6 }}>🏆 Playoff Bid Auction</div>
+              <div style={{ fontSize: 11, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
+                For marquee and playoff games, run a bid-credits auction. Members spend credits
+                to compete for the seat — the highest bid wins. Losers keep their credits.
+              </div>
+              <button
+                onClick={() => dispatch({ type: "SET_SCREEN", screen: "bids" })}
+                style={{
+                  width: "100%", padding: "12px",
+                  background: "transparent",
+                  border: `1px solid ${T.amber}55`,
+                  borderRadius: 8, color: T.amber,
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                🏆 Manage Bid Auctions →
+              </button>
+            </Card>
+
+            {/* ── Member management ── */}
+            <Card>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif", marginBottom: 12 }}>👥 Member Management</div>
+
+              {members.map((m, idx) => {
+                const isEditing  = editShareFor === m.id;
+                const isRemoving = removingId   === m.id;
+                const isConfirm  = removeConfirm === m.id;
+                return (
+                  <div key={m.id ?? idx} style={{
+                    padding: "10px 0",
+                    borderBottom: idx < members.length - 1 ? "1px solid #1A4A2E" : "none",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <Avatar initials={m.initials} size={32} color={m.color} />
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700,
+                            color: m.isMe ? T.lime : T.white }}>
+                            {m.name}{m.isMe ? " (You)" : ""}
+                          </div>
+                          <div style={{ fontSize: 10, color: T.mist }}>
+                            {m.share}% · {m.credits} credits · {m.escrowFunded ? "✓ Funded" : "⏳ Pending"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action buttons — don't show for self */}
+                      {!m.isMe && (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          <button
+                            onClick={() => {
+                              setEditShareFor(isEditing ? null : m.id);
+                              setEditShareVal(String(m.share));
+                            }}
+                            style={{
+                              padding: "4px 10px", background: "transparent",
+                              border: `1px solid ${T.teal}55`, borderRadius: 6,
+                              color: T.teal, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                            }}>
+                            {isEditing ? "✕" : "Edit %"}
+                          </button>
+                          <button
+                            onClick={() => setAwardCreditsFor(awardCreditsFor === m.id ? null : m.id)}
+                            style={{
+                              padding: "4px 10px", background: "transparent",
+                              border: `1px solid ${T.lime}55`, borderRadius: 6,
+                              color: T.lime, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                            }}>
+                            🎯 Credits
+                          </button>
+                          {!isConfirm && (
+                            <button
+                              onClick={() => setRemoveConfirm(m.id)}
+                              style={{
+                                padding: "4px 10px", background: "transparent",
+                                border: `1px solid ${T.red}55`, borderRadius: 6,
+                                color: T.red, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                              }}>
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Share % editor */}
+                    {isEditing && (
+                      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                        <div style={{ flex: 1, display: "flex", alignItems: "center",
+                          background: T.forest, border: `1px solid #1A4A2E`,
+                          borderRadius: 8, padding: "6px 10px" }}>
+                          <input
+                            type="number"
+                            value={editShareVal}
+                            onChange={e => setEditShareVal(e.target.value)}
+                            min="1" max="99" step="0.5"
+                            style={{ flex: 1, background: "transparent", border: "none",
+                              color: T.white, fontSize: 13, outline: "none",
+                              fontFamily: "Georgia,serif", fontWeight: 700, width: "100%" }}
+                          />
+                          <span style={{ fontSize: 11, color: T.mist }}>%</span>
+                        </div>
+                        <button onClick={() => handleSaveShare(m.id)}
+                          style={{ padding: "8px 14px", background: T.lime, border: "none",
+                            borderRadius: 8, color: T.dark, fontSize: 12,
+                            fontWeight: 700, cursor: "pointer" }}>
+                          Save
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Award bid credits panel */}
+                    {awardCreditsFor === m.id && (
+                      <div style={{ marginTop: 10, background: `${T.lime}08`,
+                        border: `1px solid ${T.lime}33`, borderRadius: 8, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 11, color: T.lime, fontWeight: 700, marginBottom: 8 }}>
+                          🎯 Award bid credits to {m.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: T.mist, marginBottom: 8 }}>
+                          Current balance: <strong style={{ color: T.chalk }}>{m.credits} credits</strong>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                          {[5, 10, 25, 50].map(amt => (
+                            <button key={amt} onClick={() => setAwardAmount(String(amt))}
+                              style={{
+                                flex: 1, padding: "6px", background: awardAmount === String(amt) ? T.lime : "transparent",
+                                border: `1px solid ${T.lime}44`, borderRadius: 6,
+                                color: awardAmount === String(amt) ? T.dark : T.lime,
+                                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                              }}>
+                              +{amt}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => setAwardCreditsFor(null)}
+                            style={{ flex: 1, padding: "8px", background: "transparent",
+                              border: `1px solid #1A4A2E`, borderRadius: 6, color: T.mist,
+                              fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                            Cancel
+                          </button>
+                          <button onClick={() => handleAwardCredits(m.id)} disabled={awardBusy}
+                            style={{ flex: 2, padding: "8px", background: T.lime,
+                              border: "none", borderRadius: 6, color: T.dark,
+                              fontSize: 11, fontWeight: 700, cursor: "pointer",
+                              opacity: awardBusy ? 0.6 : 1 }}>
+                            {awardBusy ? "Awarding…" : `Award +${awardAmount} credits`}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Remove confirmation */}
+                    {isConfirm && (
+                      <div style={{ marginTop: 10, background: `${T.red}10`,
+                        border: `1px solid ${T.red}33`, borderRadius: 8, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 11, color: T.red, fontWeight: 700, marginBottom: 8 }}>
+                          Remove {m.name} from the pod?
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => setRemoveConfirm(null)}
+                            style={{ flex: 1, padding: "7px", background: "transparent",
+                              border: `1px solid #1A4A2E`, borderRadius: 6, color: T.mist,
+                              fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                            Cancel
+                          </button>
+                          <button onClick={() => handleRemoveMember(m.id)}
+                            disabled={isRemoving}
+                            style={{ flex: 1, padding: "7px", background: T.red,
+                              border: "none", borderRadius: 6, color: T.white,
+                              fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                            {isRemoving ? "Removing…" : "Yes, Remove"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </Card>
           </div>
         )}

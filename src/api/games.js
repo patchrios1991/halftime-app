@@ -1,5 +1,6 @@
 // ─── Games & Assignments API ──────────────────────────────────────────────────
 import { supabase } from "../lib/supabase";
+import { notify } from "../lib/notify";
 import { runSnakeDraft, runLottery, runAIFairness } from "../engine/allocation";
 
 /** Fetch all games for a pod, including assignment info */
@@ -99,6 +100,18 @@ export async function runAndSaveAllocation(pod, games, members, method) {
     .update({ allocation_done: true, allocation_method: method })
     .eq("id", pod.id);
 
+  // Notify all pod members that games have been distributed
+  const methodLabel = method === "snake" ? "Snake Draft"
+    : method === "lottery" ? "Random Lottery"
+    : "AI Fairness";
+  notify({
+    podId: pod.id,
+    type:  "game_allocated",
+    title: "🎟️ Games allocated!",
+    body:  `Your ${methodLabel} is done. Open the Schedule tab to see your games.`,
+    url:   "/app",
+  });
+
   return assignmentMap;
 }
 
@@ -114,6 +127,45 @@ export async function confirmAttendance(gameId) {
     .from("assignments")
     .update({ confirmed: true })
     .eq("game_id", gameId);
+
+  if (error) throw error;
+}
+
+/**
+ * Captain manually assigns an unassigned game to a specific pod member.
+ * Safe to call on already-assigned games (it'll just change the assignee).
+ */
+export async function assignGame(gameId, podId, userId) {
+  const { error } = await supabase
+    .from("assignments")
+    .upsert(
+      { game_id: gameId, pod_id: podId, user_id: userId, method: "manual", confirmed: false },
+      { onConflict: "game_id" }
+    );
+  if (error) throw error;
+}
+
+/**
+ * Release a game back to the pod — nullifies the assignment so it shows
+ * as unassigned and becomes available for re-allocation or trade.
+ */
+export async function releaseGame(gameId) {
+  const { error } = await supabase
+    .from("assignments")
+    .update({ user_id: null, confirmed: false })
+    .eq("game_id", gameId);
+
+  if (error) throw error;
+}
+
+/**
+ * Update a game's tier (captain only — no RLS check here, enforced by DB policy).
+ */
+export async function updateGameTier(gameId, tier) {
+  const { error } = await supabase
+    .from("games")
+    .update({ tier })
+    .eq("id", gameId);
 
   if (error) throw error;
 }

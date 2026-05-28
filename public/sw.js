@@ -1,5 +1,5 @@
 // ─── HalfTime Service Worker ──────────────────────────────────────────────────
-const CACHE_NAME = 'halftime-v1';
+const CACHE_NAME = 'halftime-v2';
 
 // App shell files to cache on install
 const SHELL_URLS = [
@@ -28,6 +28,38 @@ self.addEventListener('activate', event => {
           .map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())
+  );
+});
+
+// ── Push: show notification when server sends a push ─────────────────────────
+self.addEventListener('push', event => {
+  const data = event.data?.json() ?? {};
+  const title = data.title || 'HalfTime';
+  const options = {
+    body: data.body || '',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
+    tag: data.tag || 'halftime',
+    data: { url: data.url || '/app' },
+    vibrate: [200, 100, 200],
+    requireInteraction: false,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ── Notification click: focus existing window or open new one ────────────────
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/app';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      for (const client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
   );
 });
 
