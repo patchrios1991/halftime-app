@@ -47,9 +47,34 @@ function AdminRoute({ children }) {
 }
 
 function Landing() {
-  const [email,     setEmail]     = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [wlBusy,    setWlBusy]    = useState(false);
+  const navigate = useNavigate();
+  const [email,        setEmail]        = useState("");
+  const [submitted,    setSubmitted]    = useState(false);
+  const [wlBusy,       setWlBusy]       = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // If already signed in, skip the landing page and go straight to the app
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate("/app", { replace: true });
+      } else {
+        setCheckingAuth(false);
+      }
+    });
+  }, [navigate]);
+
+  if (checkingAuth) {
+    return (
+      <div style={{ background: T.dark, minHeight: "100vh", display: "flex",
+        alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 32, height: 32, borderRadius: "50%",
+          border: `3px solid #1A4A2E`, borderTopColor: T.lime,
+          animation: "spin 0.8s linear infinite" }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   async function handleWaitlist(e) {
     e.preventDefault();
