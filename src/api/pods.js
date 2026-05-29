@@ -77,26 +77,32 @@ function generateInviteCode() {
 
 /** Create a new pod (caller becomes captain) */
 export async function createPod(podData) {
-  const user = (await supabase.auth.getUser()).data.user;
+  // getSession() reads local storage — no network round-trip, can't hang
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) throw new Error("Must be signed in to create a pod");
+
+  // Pull out captainShare — it's a UI helper, not a pods column
+  const { captainShare, ...podColumns } = podData;
 
   const { data: pod, error: podError } = await supabase
     .from("pods")
-    .insert({ ...podData, captain_id: user.id, invite_code: generateInviteCode() })
+    .insert({ ...podColumns, captain_id: user.id, invite_code: generateInviteCode() })
     .select()
     .single();
 
   if (podError) throw podError;
 
   // Auto-add captain as first member
+  const shareToUse = captainShare || 25;
   const { error: memberError } = await supabase
     .from("pod_members")
     .insert({
-      pod_id:       pod.id,
-      user_id:      user.id,
-      share_pct:    podData.captainShare || 25,
-      cost:         (pod.season_cost * (podData.captainShare || 25)) / 100,
-      tier:         "captain",
+      pod_id:    pod.id,
+      user_id:   user.id,
+      share_pct: shareToUse,
+      cost:      (pod.season_cost * shareToUse) / 100,
+      tier:      "captain",
     });
 
   if (memberError) throw memberError;

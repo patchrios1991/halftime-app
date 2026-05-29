@@ -54,7 +54,7 @@ export default function PodScreen({ state, dispatch }) {
   const currentUserId = useCurrentUserId();
 
   // My pods → find the active one
-  const { pods } = useMyPods();
+  const { pods, loading: podsLoading } = useMyPods();
   const { activePodId: selectedPodId } = useActivePod();
   const myPodRow      = pods.find(p => p.id === selectedPodId) ?? pods?.[0] ?? null;
   const activePodId   = myPodRow?.id ?? null;
@@ -277,6 +277,22 @@ export default function PodScreen({ state, dispatch }) {
     } finally {
       setAwardBusy(false);
     }
+  }
+
+  // Still loading — show spinner so user doesn't think creation failed
+  if (isSupabaseConfigured && podsLoading && !activePodId) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", minHeight: "60vh", gap: 16 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: "50%",
+          border: `3px solid #1A4A2E`, borderTopColor: T.lime,
+          animation: "spin 0.8s linear infinite",
+        }} />
+        <div style={{ fontSize: 12, color: T.mist }}>Loading your pod…</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
   }
 
   // No pod yet → prompt to get one

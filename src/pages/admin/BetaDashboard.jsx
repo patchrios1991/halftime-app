@@ -690,7 +690,7 @@ export default function BetaDashboard() {
         {/* ── OVERVIEW ─────────────────────────────────────────────────────────── */}
         {tab === "overview" && (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 12 }}>
               <Stat label="Total GMV" icon="💰"
                 value={metrics.totalGMV > 0 ? `$${(metrics.totalGMV / 1000).toFixed(1)}K` : "—"}
                 sub="season ticket value" />
@@ -700,6 +700,12 @@ export default function BetaDashboard() {
               <Stat label="Members" icon="👥"
                 value={metrics.totalMembers}
                 sub={`${metrics.fundedMembers} escrow funded`} />
+              <div onClick={() => setTab("signups")} style={{ cursor: "pointer" }}
+                title="Click to view all signups">
+                <Stat label="Sign Ups" icon="🙋" color={T.teal}
+                  value={metrics.totalProfiles}
+                  sub={`${metrics.totalMembers} joined a pod`} />
+              </div>
               <Stat label="Platform Fees" icon="📈"
                 value={metrics.platformFees > 0 ? `$${metrics.platformFees.toLocaleString()}` : "—"}
                 sub="3% escrow + 8% resale" />
