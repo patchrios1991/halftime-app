@@ -6,17 +6,31 @@ import { createPod } from "../../api/pods";
 import { supabase } from "../../lib/supabase";
 
 const SPORTS = [
-  { value: "NBA",  label: "🏀 NBA"  },
-  { value: "NFL",  label: "🏈 NFL"  },
-  { value: "MLB",  label: "⚾ MLB"  },
-  { value: "NHL",  label: "🏒 NHL"  },
-  { value: "MLS",  label: "⚽ MLS"  },
-  { value: "WNBA", label: "🏀 WNBA" },
-  { value: "other",label: "🎫 Other" },
+  // ── Pro ──────────────────────────────────────────────────────────────────────
+  { value: "NBA",            label: "🏀 NBA"                    },
+  { value: "NFL",            label: "🏈 NFL"                    },
+  { value: "MLB",            label: "⚾ MLB"                    },
+  { value: "NHL",            label: "🏒 NHL"                    },
+  { value: "MLS",            label: "⚽ MLS"                    },
+  { value: "WNBA",           label: "🏀 WNBA"                   },
+  // ── NCAA ─────────────────────────────────────────────────────────────────────
+  { value: "ncaa-football",   label: "🏈 NCAA Football"          },
+  { value: "ncaa-basketball", label: "🏀 NCAA Men's Basketball"  },
+  { value: "ncaa-wbasketball",label: "🏀 NCAA Women's Basketball"},
+  { value: "ncaa-baseball",   label: "⚾ NCAA Baseball"          },
+  { value: "ncaa-hockey",     label: "🏒 NCAA Hockey"            },
+  // ── Other ────────────────────────────────────────────────────────────────────
+  { value: "other",           label: "🎫 Other"                  },
 ];
 
 const SPORT_EMOJI = {
-  NBA: "🏀", NFL: "🏈", MLB: "⚾", NHL: "🏒", MLS: "⚽", WNBA: "🏀", other: "🎫",
+  NBA: "🏀", NFL: "🏈", MLB: "⚾", NHL: "🏒", MLS: "⚽", WNBA: "🏀",
+  "ncaa-football":   "🏈",
+  "ncaa-basketball": "🏀",
+  "ncaa-wbasketball":"🏀",
+  "ncaa-baseball":   "⚾",
+  "ncaa-hockey":     "🏒",
+  other: "🎫",
 };
 
 const inputStyle = {
@@ -90,6 +104,8 @@ export default function CreatePodScreen({ dispatch }) {
     if (!form.name.trim())      errs.name        = "Pod name is required.";
     if (!form.team_name.trim()) errs.team_name   = "Team name is required.";
     if (!cost || cost <= 0)     errs.season_cost = "Enter a valid season ticket cost.";
+    // TODO (post-beta): make receipt required before launch
+    // if (!receiptFile)        errs.receipt     = "A season ticket receipt is required.";
     if (Object.keys(errs).length) { setFE(errs); return; }
 
     setBusy(true);

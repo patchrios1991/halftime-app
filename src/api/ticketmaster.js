@@ -8,7 +8,15 @@ const KEY  = import.meta.env.VITE_TICKETMASTER_API_KEY;
 
 // Typical home games per sport per season (used to project total cost)
 const HOME_GAMES = {
-  NBA: 41, NFL: 9, MLB: 81, NHL: 41, MLS: 17, WNBA: 20, other: 25,
+  // Pro
+  NBA: 41, NFL: 9, MLB: 81, NHL: 41, MLS: 17, WNBA: 20,
+  // NCAA (regular season home games only)
+  "ncaa-football":    7,
+  "ncaa-basketball":  17,
+  "ncaa-wbasketball": 17,
+  "ncaa-baseball":    25,
+  "ncaa-hockey":      18,
+  other: 25,
 };
 
 /**
