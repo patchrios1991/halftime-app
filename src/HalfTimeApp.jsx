@@ -92,7 +92,9 @@ function PodSwitcher({ dispatch }) {
           onClick={() => setOpen(false)}>
           <div style={{ width: "100%", maxWidth: 430, background: T.dark,
             borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
-            borderBottom: "none", padding: "20px 20px 40px" }}
+            borderBottom: "none",
+            padding: "20px 20px calc(env(safe-area-inset-bottom, 0px) + 32px)",
+            maxHeight: "80vh", overflowY: "auto" }}
             onClick={e => e.stopPropagation()}>
 
             <div style={{ width: 40, height: 4, borderRadius: 2,
