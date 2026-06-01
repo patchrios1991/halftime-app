@@ -8,6 +8,7 @@ import Wordmark from "../../components/Wordmark";
 import { supabase } from "../../lib/supabase";
 import { getPodByInviteCode, joinPod } from "../../api/pods";
 import { notify } from "../../lib/notify";
+import { friendlyError } from "../../lib/friendlyError";
 
 const SPORT_EMOJI = { basketball: "🏀", football: "🏈", baseball: "⚾", hockey: "🏒", soccer: "⚽" };
 
@@ -65,7 +66,7 @@ export default function JoinPodScreen() {
       }
       setTimeout(() => navigate("/app"), 2500);
     } catch (e) {
-      setJoinErr(e.message);
+      setJoinErr(friendlyError(e));
       setJoining(false);
     }
   }

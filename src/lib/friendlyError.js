@@ -42,7 +42,15 @@ const MAP = [
  */
 export function friendlyError(err) {
   if (!err) return "Something went wrong. Please try again.";
-  const raw = (err instanceof Error ? err.message : String(err)) || "";
+  // Supabase throws plain PostgrestError objects (not Error instances) with a
+  // .message string — check that first before falling back to String(err) which
+  // would produce "[object Object]" for any plain object.
+  const raw = (
+    err instanceof Error                              ? err.message :
+    err?.message && typeof err.message === "string"  ? err.message :
+    typeof err === "string"                          ? err :
+    ""
+  ) || "";
 
   for (const [key, friendly] of MAP) {
     if (raw.toLowerCase().includes(key.toLowerCase())) return friendly;
