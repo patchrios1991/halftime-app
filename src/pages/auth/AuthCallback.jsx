@@ -48,10 +48,29 @@ export default function AuthCallback() {
     }, 10000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         if (session) {
           clearTimeout(timeout);
           subscription.unsubscribe();
+
+          // Block new OAuth signups that bypassed the invite-code flow.
+          // Email/password signups are already gated in SignIn.jsx.
+          // OAuth (Google) auto-creates an account on first use — reject those
+          // by detecting a freshly-created non-email user (created within last 60s).
+          const user = session.user;
+          const isOAuth = user.app_metadata?.provider &&
+                          user.app_metadata.provider !== "email";
+          const ageMs   = Date.now() - new Date(user.created_at).getTime();
+          if (isOAuth && ageMs < 60_000) {
+            await supabase.auth.signOut();
+            setError(
+              "Google sign-in is for existing accounts only. " +
+              "Please sign up with your email and invite code first."
+            );
+            setPhase("error");
+            return;
+          }
+
           // Honour pending redirect (e.g. /join/:code saved before sign-in)
           const returnTo = sessionStorage.getItem("auth_return") || "/app";
           sessionStorage.removeItem("auth_return");

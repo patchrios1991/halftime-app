@@ -273,6 +273,9 @@ export default function SignIn() {
                 </svg>
                 Continue with Google
               </Btn>
+              <p style={{ fontSize: 11, color: T.mist, textAlign: "center", margin: "-6px 0 0" }}>
+                For existing accounts only — new? Sign up with email + invite code.
+              </p>
               <Divider />
             </>
           )}
