@@ -38,6 +38,7 @@ export default function ScheduleScreen({ state, dispatch }) {
   const [deliveryMap,      setDeliveryMap]      = useState({}); // game_id → assignment row
   const [deliverFor,       setDeliverFor]        = useState(null); // game being marked delivered
   const [deliveryNote,     setDeliveryNote]      = useState("");
+  const [deliveryUrl,      setDeliveryUrl]       = useState("");
   const [deliveryBusy,     setDeliveryBusy]      = useState(false);
   const [confirmBusy,      setConfirmBusy]       = useState(null); // assignmentId being confirmed
 
@@ -176,9 +177,10 @@ export default function ScheduleScreen({ state, dispatch }) {
     if (!assignment) return;
     setDeliveryBusy(true);
     try {
-      await markTicketDelivered(assignment.id, deliveryNote);
+      await markTicketDelivered(assignment.id, deliveryNote, deliveryUrl);
       setDeliverFor(null);
       setDeliveryNote("");
+      setDeliveryUrl("");
       await loadDelivery();
     } catch (e) {
       console.error("Delivery error:", e);
@@ -487,16 +489,31 @@ export default function ScheduleScreen({ state, dispatch }) {
                         <Badge color={T.teal}>✅ Ticket confirmed</Badge>
                       )}
                       {dlvStatus === "delivered" && (
-                        <button
-                          onClick={() => handleConfirmReceipt(game.id)}
-                          disabled={confirmBusy === delivery.id}
-                          style={{
-                            padding: "3px 10px", background: T.teal, border: "none",
-                            borderRadius: 20, fontSize: 10, fontWeight: 700,
-                            color: T.dark, cursor: "pointer",
-                          }}>
-                          {confirmBusy === delivery.id ? "…" : "📬 Confirm receipt →"}
-                        </button>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {delivery.ticket_url && (
+                            <a
+                              href={delivery.ticket_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                padding: "3px 10px", background: T.lime, border: "none",
+                                borderRadius: 20, fontSize: 10, fontWeight: 700,
+                                color: T.dark, cursor: "pointer", textDecoration: "none",
+                              }}>
+                              🎟️ Claim Ticket →
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleConfirmReceipt(game.id)}
+                            disabled={confirmBusy === delivery.id}
+                            style={{
+                              padding: "3px 10px", background: T.teal, border: "none",
+                              borderRadius: 20, fontSize: 10, fontWeight: 700,
+                              color: T.dark, cursor: "pointer",
+                            }}>
+                            {confirmBusy === delivery.id ? "…" : "📬 Confirm receipt →"}
+                          </button>
+                        </div>
                       )}
                       {dlvStatus === "pending" && (
                         <Badge color={T.amber}>⏳ Awaiting ticket</Badge>
@@ -593,7 +610,7 @@ export default function ScheduleScreen({ state, dispatch }) {
     {deliverFor && (
       <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
         zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-        onClick={e => { if (e.target === e.currentTarget) { setDeliverFor(null); setDeliveryNote(""); } }}>
+        onClick={e => { if (e.target === e.currentTarget) { setDeliverFor(null); setDeliveryNote(""); setDeliveryUrl(""); } }}>
         <div style={{ width: "100%", maxWidth: 430, background: T.dark,
           borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
           borderBottom: "none", padding: "20px 20px 44px" }}
@@ -624,6 +641,23 @@ export default function ScheduleScreen({ state, dispatch }) {
             </div>
           </div>
 
+          {/* Ticket claim URL */}
+          <div style={{ fontSize: 10, color: T.lime, marginBottom: 6, letterSpacing: 1, fontWeight: 700 }}>
+            TICKET CLAIM LINK (RECOMMENDED)
+          </div>
+          <input
+            value={deliveryUrl}
+            onChange={e => setDeliveryUrl(e.target.value)}
+            placeholder="e.g. https://www.ticketmaster.com/transfer/..."
+            style={{ width: "100%", padding: "10px 12px", background: T.forest,
+              border: `1px solid ${T.lime}44`, borderRadius: 8, color: T.white,
+              fontSize: 12, outline: "none", fontFamily: "Calibri,sans-serif",
+              marginBottom: 12, boxSizing: "border-box" }}
+          />
+          <div style={{ fontSize: 10, color: T.mist, marginBottom: 16, lineHeight: 1.5 }}>
+            Paste the Ticketmaster transfer link, SeatGeek link, or any URL where the member can claim their ticket. They'll see a "Claim Ticket →" button in the app.
+          </div>
+
           {/* Optional note */}
           <div style={{ fontSize: 10, color: T.mist, marginBottom: 6, letterSpacing: 1 }}>
             ADD A NOTE (OPTIONAL)
@@ -631,7 +665,7 @@ export default function ScheduleScreen({ state, dispatch }) {
           <input
             value={deliveryNote}
             onChange={e => setDeliveryNote(e.target.value)}
-            placeholder="e.g. Transferred via Ticketmaster — check your email"
+            placeholder="e.g. Check your Ticketmaster email to accept the transfer"
             style={{ width: "100%", padding: "10px 12px", background: T.forest,
               border: `1px solid #1A4A2E`, borderRadius: 8, color: T.white,
               fontSize: 12, outline: "none", fontFamily: "Calibri,sans-serif",
@@ -639,7 +673,7 @@ export default function ScheduleScreen({ state, dispatch }) {
           />
 
           <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={() => { setDeliverFor(null); setDeliveryNote(""); }}
+            <button onClick={() => { setDeliverFor(null); setDeliveryNote(""); setDeliveryUrl(""); }}
               style={{ flex: 1, padding: "12px", background: "transparent",
                 border: `1px solid #1A4A2E`, borderRadius: 10, color: T.mist,
                 fontSize: 13, fontWeight: 700, cursor: "pointer" }}>

@@ -6,12 +6,13 @@ import { notify }   from "../lib/notify";
  * Captain: mark a ticket as forwarded for an assignment.
  * Writes to the notifications table (in-app bell) AND fires a push to the member's device.
  */
-export async function markTicketDelivered(assignmentId, note = "") {
+export async function markTicketDelivered(assignmentId, note = "", ticketUrl = "") {
   const { error } = await supabase
     .from("assignments")
     .update({
       delivery_status: "delivered",
-      delivery_note:   note || null,
+      delivery_note:   note       || null,
+      ticket_url:      ticketUrl  || null,
       delivered_at:    new Date().toISOString(),
     })
     .eq("id", assignmentId);
@@ -28,7 +29,9 @@ export async function markTicketDelivered(assignmentId, note = "") {
   if (assignment?.user_id) {
     const opponent = assignment.games?.opponent || "upcoming game";
     const title    = "🎟️ Your ticket is ready!";
-    const body     = note
+    const body     = ticketUrl
+      ? `Your captain forwarded your ticket for vs. ${opponent}. Tap "Claim Ticket" in the app to get it.`
+      : note
       ? `Your captain forwarded your ticket for vs. ${opponent}. ${note}`
       : `Your captain forwarded your ticket for vs. ${opponent}. Check your email or Ticketmaster.`;
 
@@ -70,7 +73,7 @@ export async function getPodDeliveryStatus(podId) {
   if (!podId) return {};
   const { data, error } = await supabase
     .from("assignments")
-    .select("id, game_id, user_id, delivery_status, delivery_note, delivered_at, confirmed_at")
+    .select("id, game_id, user_id, delivery_status, delivery_note, ticket_url, delivered_at, confirmed_at")
     .eq("pod_id", podId);
 
   if (error) throw error;
