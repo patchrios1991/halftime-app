@@ -186,6 +186,23 @@ serve(async (req: Request) => {
             // Non-fatal — captain can trigger manually from the app
             console.warn("Auto-payout skipped:", payoutErr);
           }
+
+          // Notify the captain to start sending tickets
+          const { data: pod } = await supabase
+            .from("pods")
+            .select("captain_id, name")
+            .eq("id", pod_id)
+            .single();
+
+          if (pod?.captain_id) {
+            await supabase.from("notifications").insert({
+              user_id: pod.captain_id,
+              type:    "pod_active",
+              title:   "🎟️ Pod fully funded — send tickets!",
+              body:    `All members of ${pod.name} have funded their escrow. Head to the Schedule tab and use "Mark Delivered" to forward each member's tickets.`,
+              pod_id,
+            });
+          }
         }
 
         await supabase.from("notifications").insert({
