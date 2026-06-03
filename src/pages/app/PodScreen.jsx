@@ -61,7 +61,7 @@ export default function PodScreen({ state, dispatch }) {
 
   // My pods → find the active one
   const { pods, loading: podsLoading } = useMyPods();
-  const { activePodId: selectedPodId, setActivePodId } = useActivePod();
+  const { activePodId: selectedPodId, setActivePodId, refresh: refreshPodContext } = useActivePod();
   const myPodRow      = pods.find(p => p.id === selectedPodId) ?? pods?.[0] ?? null;
   const activePodId   = myPodRow?.id ?? null;
   const myMemberRow   = myPodRow?.pod_members?.[0] ?? null;
@@ -205,10 +205,14 @@ export default function PodScreen({ state, dispatch }) {
 
       // 2. Delete the pod (cascades to members, games, assignments)
       await deletePod(activePodId);
+
+      // 3. Refresh the context so pod switcher + all screens see updated list
+      await refreshPodContext();
       setShowDeleteConfirm(false);
 
-      // 3. Switch to another pod or return to onboarding
-      const remaining = pods.filter(p => p.id !== activePodId);
+      // 4. Fetch live pods directly — React state won't update until next render
+      const { getMyPods } = await import("../../api/pods");
+      const remaining = await getMyPods();
       if (remaining.length > 0) {
         setActivePodId(remaining[0].id);
         dispatch({ type: "SET_SCREEN", screen: "dashboard" });
