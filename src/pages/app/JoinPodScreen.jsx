@@ -23,6 +23,7 @@ export default function JoinPodScreen() {
   const [joining,           setJoining]           = useState(false);
   const [joined,            setJoined]            = useState(false);
   const [joinErr,           setJoinErr]           = useState(null);
+  const [showSeatMap,       setShowSeatMap]       = useState(false);
 
   // Waitlist state (when pod is full)
   const [waitlistEmail,     setWaitlistEmail]     = useState("");
@@ -233,6 +234,21 @@ export default function JoinPodScreen() {
         )}
       </div>
 
+      {/* Seat map button */}
+      {pod.seat_map_url && (
+        <button
+          onClick={() => setShowSeatMap(true)}
+          style={{
+            width: "100%", maxWidth: 360, padding: "12px 0",
+            background: "transparent", border: `1.5px solid ${T.teal}55`,
+            borderRadius: 12, color: T.teal, fontSize: 13, fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          🗺️ View Seat Map
+        </button>
+      )}
+
       {/* Invite code badge */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 11, color: T.mist }}>Invite code:</span>
@@ -340,6 +356,66 @@ export default function JoinPodScreen() {
               ~${Math.round(myEstimate)} season cost · 3% platform fee on escrow
             </p>
           )}
+        </div>
+      )}
+      {/* Seat map modal */}
+      {showSeatMap && pod.seat_map_url && (
+        <div
+          onClick={() => setShowSeatMap(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 300,
+            background: "rgba(6,15,8,0.95)",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 430 }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.white,
+                  fontFamily: "Georgia,serif" }}>🗺️ Seat Map</div>
+                <div style={{ fontSize: 11, color: T.mist, marginTop: 2 }}>
+                  {pod.venue || pod.team_name}
+                  {(pod.section || pod.row) && (
+                    <span style={{ color: T.lime, fontWeight: 700 }}>
+                      {" · "}
+                      {pod.section && `Section ${pod.section}`}
+                      {pod.section && pod.row && ", "}
+                      {pod.row && `Row ${pod.row}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSeatMap(false)}
+                style={{ background: "none", border: "none", color: T.mist,
+                  fontSize: 24, cursor: "pointer", lineHeight: 1, padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Map image */}
+            <div style={{ borderRadius: 14, overflow: "hidden",
+              border: `1px solid ${T.green}`, background: T.forest }}>
+              <img
+                src={pod.seat_map_url}
+                alt={`${pod.venue || pod.team_name} seat map`}
+                style={{ width: "100%", display: "block" }}
+              />
+            </div>
+
+            <div style={{ fontSize: 10, color: T.mist, textAlign: "center",
+              marginTop: 10 }}>
+              Tap anywhere outside to close
+            </div>
+          </div>
         </div>
       )}
     </Screen>

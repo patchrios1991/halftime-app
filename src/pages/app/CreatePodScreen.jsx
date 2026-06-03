@@ -1,10 +1,12 @@
 // ─── CreatePodScreen ──────────────────────────────────────────────────────────
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { T } from "../../tokens";
 import Card from "../../components/Card";
 import { createPod } from "../../api/pods";
 import { supabase } from "../../lib/supabase";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
+import { findTeamVenue } from "../../lib/teamVenues";
+import { fetchVenueSeatMap } from "../../api/ticketmaster";
 
 const SPORTS = [
   // ── Pro ──────────────────────────────────────────────────────────────────────
@@ -56,6 +58,17 @@ export default function CreatePodScreen({ dispatch }) {
     () => findTeamTicketUrl(form.team_name, form.sport),
     [form.team_name, form.sport]
   );
+
+  // Auto-populate venue when team/sport changes, unless captain manually edited it
+  const [venueAutoSet, setVenueAutoSet] = useState(false);
+  useEffect(() => {
+    const autoVenue = findTeamVenue(form.team_name, form.sport);
+    if (autoVenue && (!form.venue.trim() || venueAutoSet)) {
+      set("venue", autoVenue);
+      setVenueAutoSet(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.team_name, form.sport]);
 
   const [busy,        setBusy]        = useState(false);
   const [error,       setError]       = useState(null);
@@ -116,7 +129,14 @@ export default function CreatePodScreen({ dispatch }) {
 
     setBusy(true);
     try {
-      // 1. Create the pod
+      // 1. Fetch seat map URL from Ticketmaster (non-blocking if it fails)
+      let seatMapUrl = null;
+      if (form.venue.trim()) {
+        const venueData = await fetchVenueSeatMap(form.venue.trim());
+        seatMapUrl = venueData?.seatMapUrl ?? null;
+      }
+
+      // 2. Create the pod
       const pod = await createPod({
         name:            form.name.trim(),
         team_name:       form.team_name.trim(),
@@ -130,6 +150,7 @@ export default function CreatePodScreen({ dispatch }) {
         venue:           form.venue.trim() || null,
         section:         form.section.trim() || null,
         row:             form.row.trim() || null,
+        seat_map_url:    seatMapUrl,
         status:          "recruiting",
       });
 
@@ -373,8 +394,11 @@ export default function CreatePodScreen({ dispatch }) {
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={labelStyle}>VENUE</label>
-            <input style={inputStyle} placeholder='e.g. "United Center"'
-              value={form.venue} onChange={e => set("venue", e.target.value)} />
+            <input style={inputStyle} placeholder='e.g. "Kaseya Center"'
+              value={form.venue} onChange={e => {
+                set("venue", e.target.value);
+                setVenueAutoSet(false); // captain took manual control
+              }} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>

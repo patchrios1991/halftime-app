@@ -20,6 +20,37 @@ const HOME_GAMES = {
 };
 
 /**
+ * Looks up a venue by name and returns its Ticketmaster seat map image URL.
+ * @param {string} venueName  e.g. "Kaseya Center"
+ * @returns {Promise<{ venueId: string, venueName: string, seatMapUrl: string } | null>}
+ */
+export async function fetchVenueSeatMap(venueName) {
+  if (!KEY || !venueName?.trim()) return null;
+
+  try {
+    const params = new URLSearchParams({
+      keyword: venueName.trim(),
+      apikey:  KEY,
+    });
+
+    const res = await fetch(`${BASE}/venues.json?${params}`);
+    if (!res.ok) return null;
+
+    const json  = await res.json();
+    const venue = json?._embedded?.venues?.[0];
+    if (!venue) return null;
+
+    return {
+      venueId:    venue.id,
+      venueName:  venue.name,
+      seatMapUrl: venue.seatmap?.staticUrl ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetches events for a team from Ticketmaster and returns a per-seat market estimate.
  *
  * @param {string} teamName  e.g. "Chicago Bulls"
