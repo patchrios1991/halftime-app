@@ -188,9 +188,18 @@ export default function PodScreen({ state, dispatch }) {
     setDeleteErr(null);
     setDeleteBusy(true);
     try {
+      // 1. Refund any funded members via Stripe before deleting
+      const { data, error: refundErr } = await supabase.functions.invoke("refund-pod", {
+        body: { podId: activePodId },
+      });
+      if (refundErr) throw new Error(refundErr.message);
+      if (data?.error)  throw new Error(data.error);
+
+      // 2. Delete the pod (cascades to members, games, assignments)
       await deletePod(activePodId);
       setShowDeleteConfirm(false);
-      // Switch to another pod or go home
+
+      // 3. Switch to another pod or return to onboarding
       const remaining = pods.filter(p => p.id !== activePodId);
       if (remaining.length > 0) {
         setActivePodId(remaining[0].id);
@@ -1157,9 +1166,9 @@ export default function PodScreen({ state, dispatch }) {
                 <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6, marginBottom: 14 }}>
                   Permanently deletes this pod and removes all members, games, and assignments.
                   This cannot be undone.{" "}
-                  {fullPod?.status === "recruiting" && (
-                    <span style={{ color: T.amber }}>
-                      If any members have already funded escrow, you must refund them manually before deleting.
+                  {members.some(m => m.escrowFunded) && (
+                    <span style={{ color: T.teal }}>
+                      HalfTime will automatically refund all funded members before deleting.
                     </span>
                   )}
                 </div>
@@ -1230,10 +1239,22 @@ export default function PodScreen({ state, dispatch }) {
           <div style={{ fontSize: 12, color: T.mist, textAlign: "center",
             lineHeight: 1.6, marginBottom: 20 }}>
             This permanently deletes the pod, removes all members, and
-            wipes all games and assignments. <strong style={{ color: T.red }}>This cannot be undone.</strong>
-            {fullPod?.status === "recruiting" && (
-              <div style={{ marginTop: 8, color: T.amber, fontSize: 11 }}>
-                ⚠️ If any members have funded their escrow, refund them manually first.
+            wipes all games and assignments.{" "}
+            <strong style={{ color: T.red }}>This cannot be undone.</strong>
+            {members.some(m => m.escrowFunded) && (
+              <div style={{ marginTop: 10, background: `${T.teal}12`,
+                border: `1px solid ${T.teal}33`, borderRadius: 8,
+                padding: "10px 14px", textAlign: "left" }}>
+                <div style={{ fontSize: 11, color: T.teal, fontWeight: 700, marginBottom: 4 }}>
+                  💰 Automatic refunds
+                </div>
+                <div style={{ fontSize: 11, color: T.teal, opacity: 0.85, lineHeight: 1.5 }}>
+                  {members.filter(m => m.escrowFunded).length} member
+                  {members.filter(m => m.escrowFunded).length !== 1 ? "s have" : " has"} funded
+                  escrow. HalfTime will automatically issue Stripe refunds to{" "}
+                  {members.filter(m => m.escrowFunded).length !== 1 ? "all of them" : "them"} before
+                  deleting. Funds appear within 5–10 business days.
+                </div>
               </div>
             )}
           </div>
@@ -1262,7 +1283,9 @@ export default function PodScreen({ state, dispatch }) {
                 fontSize: 13, fontWeight: 700,
                 cursor: deleteBusy ? "not-allowed" : "pointer",
                 opacity: deleteBusy ? 0.6 : 1 }}>
-              {deleteBusy ? "Deleting…" : "Yes, Delete Pod"}
+              {deleteBusy
+                ? (members.some(m => m.escrowFunded) ? "Refunding & Deleting…" : "Deleting…")
+                : "Yes, Delete Pod"}
             </button>
           </div>
         </div>
