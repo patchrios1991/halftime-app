@@ -172,7 +172,7 @@ serve(async (req: Request) => {
           const wasRefunded = refundedUserIds.has(m.user_id);
           return {
             user_id: m.user_id,
-            type:    "pod_active", // reuses the pod icon in email template
+            type:    "pod_dissolved",
             title:   `${pod.name} has been dissolved`,
             body:    wasRefunded
               ? `The captain dissolved ${pod.name}. Your escrow payment has been refunded and should appear in your account within 5–10 business days.`

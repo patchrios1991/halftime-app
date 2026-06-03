@@ -11,13 +11,16 @@ const APP_URL        = Deno.env.get("APP_URL")    ?? "https://halftime-app-hyxh.
 // ── Icon per notification type ─────────────────────────────────────────────────
 function notifIcon(type: string): string {
   switch (type) {
-    case "escrow_funded":  return "✅";
-    case "escrow_failed":  return "❌";
-    case "pod_active":     return "🎉";
-    case "game_allocated": return "🎟️";
-    case "resale_sold":    return "💰";
-    case "resale_listing": return "♻️";
-    default:               return "🔔";
+    case "escrow_funded":   return "✅";
+    case "escrow_failed":   return "❌";
+    case "pod_active":      return "🎉";
+    case "pod_dissolved":   return "🗑️";
+    case "game_allocated":  return "🎟️";
+    case "resale_sold":     return "💰";
+    case "resale_listing":  return "♻️";
+    case "member_joined":   return "👥";
+    case "ticket_delivered":return "🎟️";
+    default:                return "🔔";
   }
 }
 
