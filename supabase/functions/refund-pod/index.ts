@@ -80,13 +80,13 @@ serve(async (req: Request) => {
     const failures: { userId: string; error: string }[] = [];
 
     for (const payment of payments) {
+      const piId = payment.stripe_payment_intent_id ?? "";
       try {
-        if (!payment.stripe_payment_intent_id) {
+        if (!piId) {
           throw new Error(`Payment ${payment.id} has no Stripe ID — contact support.`);
         }
 
         // Build refund params — Stripe accepts either payment_intent (pi_) or charge (ch_)
-        const piId = payment.stripe_payment_intent_id;
         const refundParams = piId.startsWith("ch_")
           ? { charge: piId }
           : { payment_intent: piId };
