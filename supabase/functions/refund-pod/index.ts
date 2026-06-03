@@ -157,6 +157,32 @@ serve(async (req: Request) => {
     const totalRefunded = results.reduce((s, r) => s + r.amount, 0);
     console.log(`✅ All ${results.length} escrow payment(s) refunded — total $${totalRefunded.toFixed(2)}`);
 
+    // ── Notify all members the pod is being dissolved ─────────────────────────
+    const { data: allMembers } = await supabase
+      .from("pod_members")
+      .select("user_id")
+      .eq("pod_id", podId)
+      .neq("user_id", pod.captain_id); // captain doesn't need to notify themselves
+
+    const refundedUserIds = new Set(results.map(r => r.userId));
+
+    if (allMembers?.length) {
+      await supabase.from("notifications").insert(
+        allMembers.map((m: { user_id: string }) => {
+          const wasRefunded = refundedUserIds.has(m.user_id);
+          return {
+            user_id: m.user_id,
+            type:    "pod_active", // reuses the pod icon in email template
+            title:   `${pod.name} has been dissolved`,
+            body:    wasRefunded
+              ? `The captain dissolved ${pod.name}. Your escrow payment has been refunded and should appear in your account within 5–10 business days.`
+              : `The captain dissolved ${pod.name}. You had not funded your escrow, so you have not been charged.`,
+            pod_id:  podId,
+          };
+        })
+      );
+    }
+
     return new Response(
       JSON.stringify({ refunded: results.length, total: totalRefunded }),
       { headers: { ...cors, "Content-Type": "application/json" } },
