@@ -55,7 +55,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { userId, podId, title, body, url } = await req.json();
+    const { userId, podId, type, title, body, url } = await req.json();
 
     if (!title) {
       return new Response(
@@ -87,7 +87,25 @@ serve(async (req) => {
       return new Response(JSON.stringify({ sent: 0 }), { headers: corsHeaders });
     }
 
-    // ── Fetch subscriptions ────────────────────────────────────────────────
+    // ── Persist in-app notifications ───────────────────────────────────────
+    // Insert a notifications row for each target user. This:
+    //   1. Shows up in the in-app bell panel immediately
+    //   2. Triggers the Supabase DB webhook → send-email edge function
+    // Uses the service-role client so it can bypass RLS.
+    const notifRows = targetUserIds.map((uid: string) => ({
+      user_id: uid,
+      pod_id:  podId ?? null,
+      type:    type  ?? "general",
+      title,
+      body:    body  ?? "",
+    }));
+    const { error: notifErr } = await supabase.from("notifications").insert(notifRows);
+    if (notifErr) {
+      // Non-fatal — log but continue so the push still goes out
+      console.error("notifications insert error:", notifErr.message);
+    }
+
+    // ── Fetch push subscriptions ───────────────────────────────────────────
     const { data: subs, error: subsErr } = await supabase
       .from("push_subscriptions")
       .select("*")
