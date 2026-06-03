@@ -125,6 +125,23 @@ serve(async (req: Request) => {
         console.log(`✅ Refunded $${payment.amount} → user ${payment.user_id} (refund ${refund.id})`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
+
+        // Test/live mode mismatch — payment was made in the other Stripe environment.
+        // No real money was charged, so skip the Stripe refund and clean up the DB.
+        const isModeMismatch = msg.includes("test mode") || msg.includes("live mode");
+        if (isModeMismatch) {
+          console.warn(`Skipping Stripe refund for ${piId} — test/live mode mismatch, no real money charged.`);
+          await supabase.from("escrow_payments")
+            .update({ status: "refunded", stripe_status: "refunded" })
+            .eq("id", payment.id);
+          await supabase.from("pod_members")
+            .update({ escrow_funded: false, escrow_funded_at: null })
+            .eq("pod_id", podId)
+            .eq("user_id", payment.user_id);
+          results.push({ userId: payment.user_id, amount: Number(payment.amount), refundId: "test_mode_skip" });
+          continue; // Don't count as a failure
+        }
+
         console.error(`❌ Refund failed for payment ${payment.id}:`, msg);
         failures.push({ userId: payment.user_id, error: msg });
       }
