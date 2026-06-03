@@ -176,6 +176,18 @@ export async function getPodByInviteCode(code) {
   return data;
 }
 
+/**
+ * Delete a pod entirely (captain only, pod must not be fully funded/active).
+ * Cascades to pod_members, games, assignments, etc. via DB constraints.
+ */
+export async function deletePod(podId) {
+  const { error } = await supabase
+    .from("pods")
+    .delete()
+    .eq("id", podId);
+  if (error) throw error;
+}
+
 /** Get the escrow balance for a pod (sum of succeeded payments) */
 export async function getPodEscrowBalance(podId) {
   const { data, error } = await supabase

@@ -7,6 +7,7 @@ import Bar from "../../components/Bar";
 import Card from "../../components/Card";
 import EscrowPaymentScreen from "./EscrowPaymentScreen";
 import { useMyPods, usePod } from "../../hooks/usePod";
+import { deletePod } from "../../api/pods";
 import { useActivePod } from "../../context/ActivePodContext";
 import { usePodChat } from "../../hooks/usePodChat";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
@@ -50,12 +51,17 @@ export default function PodScreen({ state, dispatch }) {
   const [awardAmount,      setAwardAmount]      = useState("10");
   const [awardBusy,        setAwardBusy]        = useState(false);
 
+  // Delete pod state (captain only)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteBusy,        setDeleteBusy]        = useState(false);
+  const [deleteErr,         setDeleteErr]         = useState(null);
+
   // Current user
   const currentUserId = useCurrentUserId();
 
   // My pods → find the active one
   const { pods, loading: podsLoading } = useMyPods();
-  const { activePodId: selectedPodId } = useActivePod();
+  const { activePodId: selectedPodId, setActivePodId } = useActivePod();
   const myPodRow      = pods.find(p => p.id === selectedPodId) ?? pods?.[0] ?? null;
   const activePodId   = myPodRow?.id ?? null;
   const myMemberRow   = myPodRow?.pod_members?.[0] ?? null;
@@ -175,6 +181,30 @@ export default function PodScreen({ state, dispatch }) {
       setTimeout(() => setAnnounceOk(false), 2000);
     } catch (e) { console.error(e); }
     finally { setAnnounceBusy(false); }
+  }
+
+  async function handleDeletePod() {
+    if (!activePodId) return;
+    setDeleteErr(null);
+    setDeleteBusy(true);
+    try {
+      await deletePod(activePodId);
+      setShowDeleteConfirm(false);
+      // Switch to another pod or go home
+      const remaining = pods.filter(p => p.id !== activePodId);
+      if (remaining.length > 0) {
+        setActivePodId(remaining[0].id);
+        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
+      } else {
+        localStorage.removeItem("ht_active_pod");
+        localStorage.removeItem("ht_onboarded");
+        dispatch({ type: "SET_SCREEN", screen: "onboarding" });
+      }
+    } catch (e) {
+      setDeleteErr(e?.message || "Failed to delete pod. Please try again.");
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   async function handleTogglePodStatus() {
@@ -1118,6 +1148,30 @@ export default function PodScreen({ state, dispatch }) {
                 );
               })}
             </Card>
+
+            {/* ── Danger Zone ── */}
+            {fullPod?.status !== "active" && (
+              <Card style={{ marginBottom: 12, border: `1px solid ${T.red}33` }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.red,
+                  fontFamily: "Georgia,serif", marginBottom: 6 }}>🗑️ Danger Zone</div>
+                <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6, marginBottom: 14 }}>
+                  Permanently deletes this pod and removes all members, games, and assignments.
+                  This cannot be undone.{" "}
+                  {fullPod?.status === "recruiting" && (
+                    <span style={{ color: T.amber }}>
+                      If any members have already funded escrow, you must refund them manually before deleting.
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setDeleteErr(null); setShowDeleteConfirm(true); }}
+                  style={{ width: "100%", padding: "11px", background: "transparent",
+                    border: `1px solid ${T.red}66`, borderRadius: 8,
+                    color: T.red, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Delete Pod
+                </button>
+              </Card>
+            )}
           </div>
         )}
 
@@ -1150,6 +1204,70 @@ export default function PodScreen({ state, dispatch }) {
         )}
       </div>
     </div>
+
+    {/* ── Delete pod confirmation modal ── */}
+    {showDeleteConfirm && (
+      <div
+        onClick={() => setShowDeleteConfirm(false)}
+        style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
+          zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ width: "100%", maxWidth: 430, background: T.dark,
+            borderRadius: "20px 20px 0 0", border: `1px solid ${T.red}44`,
+            borderBottom: "none",
+            padding: "24px 20px calc(env(safe-area-inset-bottom, 0px) + 32px)" }}
+        >
+          <div style={{ width: 40, height: 4, borderRadius: 2,
+            background: "#1A4A2E", margin: "0 auto 20px" }} />
+
+          <div style={{ fontSize: 24, textAlign: "center", marginBottom: 8 }}>🗑️</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", textAlign: "center", marginBottom: 8 }}>
+            Delete "{podName}"?
+          </div>
+          <div style={{ fontSize: 12, color: T.mist, textAlign: "center",
+            lineHeight: 1.6, marginBottom: 20 }}>
+            This permanently deletes the pod, removes all members, and
+            wipes all games and assignments. <strong style={{ color: T.red }}>This cannot be undone.</strong>
+            {fullPod?.status === "recruiting" && (
+              <div style={{ marginTop: 8, color: T.amber, fontSize: 11 }}>
+                ⚠️ If any members have funded their escrow, refund them manually first.
+              </div>
+            )}
+          </div>
+
+          {deleteErr && (
+            <div style={{ background: "rgba(239,68,68,0.12)", border: `1px solid ${T.red}`,
+              borderRadius: 8, padding: "10px 14px", color: T.red,
+              fontSize: 12, textAlign: "center", marginBottom: 14 }}>
+              {deleteErr}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              style={{ flex: 1, padding: "13px", background: "transparent",
+                border: `1px solid #1A4A2E`, borderRadius: 10, color: T.mist,
+                fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              Cancel
+            </button>
+            <button
+              onClick={handleDeletePod}
+              disabled={deleteBusy}
+              style={{ flex: 1, padding: "13px", background: T.red,
+                border: "none", borderRadius: 10, color: T.white,
+                fontSize: 13, fontWeight: 700,
+                cursor: deleteBusy ? "not-allowed" : "pointer",
+                opacity: deleteBusy ? 0.6 : 1 }}>
+              {deleteBusy ? "Deleting…" : "Yes, Delete Pod"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Escrow payment modal */}
     {showPayment && activePodId && (
