@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
 import { findTeamVenue } from "../../lib/teamVenues";
 import { fetchVenueSeatMap } from "../../api/ticketmaster";
+import { useActivePod } from "../../context/ActivePodContext";
 
 const SPORTS = [
   // ── Pro ──────────────────────────────────────────────────────────────────────
@@ -49,10 +50,12 @@ const labelStyle = {
 };
 
 export default function CreatePodScreen({ dispatch }) {
+  const { setActivePodId, refresh: refreshPods } = useActivePod();
+
   const [form, setForm] = useState({
     name: "", team_name: "", sport: "NBA", season: "2025-26",
     season_cost: "", max_members: "4", captainShare: "25",
-    venue: "", section: "", row: "",
+    venue: "", section: "", row: "", seat: "",
   });
   const ticketUrl = useMemo(
     () => findTeamTicketUrl(form.team_name, form.sport),
@@ -123,8 +126,10 @@ export default function CreatePodScreen({ dispatch }) {
     if (!form.name.trim())      errs.name        = "Pod name is required.";
     if (!form.team_name.trim()) errs.team_name   = "Team name is required.";
     if (!cost || cost <= 0)     errs.season_cost = "Enter a valid season ticket cost.";
-    // TODO (post-beta): make receipt required before launch
-    // if (!receiptFile)        errs.receipt     = "A season ticket receipt is required.";
+    if (!form.venue.trim())     errs.venue       = "Venue is required.";
+    if (!form.section.trim())   errs.section     = "Section is required.";
+    if (!form.row.trim())       errs.row         = "Row is required.";
+    if (!form.seat.trim())      errs.seat        = "Seat number is required.";
     if (Object.keys(errs).length) { setFE(errs); return; }
 
     setBusy(true);
@@ -150,6 +155,7 @@ export default function CreatePodScreen({ dispatch }) {
         venue:           form.venue.trim() || null,
         section:         form.section.trim() || null,
         row:             form.row.trim() || null,
+        seat:            form.seat.trim() || null,
         seat_map_url:    seatMapUrl,
         status:          "recruiting",
       });
@@ -165,6 +171,10 @@ export default function CreatePodScreen({ dispatch }) {
         }
       }
 
+      // Refresh pods list so context knows about the new pod,
+      // then switch to it before navigating to the pod screen
+      await refreshPods();
+      setActivePodId(pod.id);
       dispatch({ type: "SET_SCREEN", screen: "pod" });
     } catch (e) {
       setError(e.message);
@@ -386,30 +396,54 @@ export default function CreatePodScreen({ dispatch }) {
           )}
         </Card>
 
-        {/* ── Seat Info (optional) ──────────────────────────────────────────── */}
+        {/* ── Seat Info ─────────────────────────────────────────────────────── */}
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.white,
             fontFamily: "Georgia,serif", marginBottom: 14 }}>
-            📍 Seat Info <span style={{ color: T.mist, fontWeight: 400 }}>(optional)</span>
+            📍 Seat Info
           </div>
+
           <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>VENUE</label>
-            <input style={inputStyle} placeholder='e.g. "Kaseya Center"'
-              value={form.venue} onChange={e => {
-                set("venue", e.target.value);
-                setVenueAutoSet(false); // captain took manual control
-              }} />
+            <label style={{ ...labelStyle, color: fieldErr.venue ? T.red : T.mist }}>VENUE</label>
+            <input
+              style={{ ...inputStyle, borderColor: fieldErr.venue ? T.red : T.green }}
+              placeholder='e.g. "Kaseya Center"'
+              value={form.venue}
+              onChange={e => { set("venue", e.target.value); setVenueAutoSet(false); clearFE("venue"); }}
+            />
+            {fieldErr.venue && <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>{fieldErr.venue}</div>}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div>
-              <label style={labelStyle}>SECTION</label>
-              <input style={inputStyle} placeholder="114"
-                value={form.section} onChange={e => set("section", e.target.value)} />
+              <label style={{ ...labelStyle, color: fieldErr.section ? T.red : T.mist }}>SECTION</label>
+              <input
+                style={{ ...inputStyle, borderColor: fieldErr.section ? T.red : T.green }}
+                placeholder="114"
+                value={form.section}
+                onChange={e => { set("section", e.target.value); clearFE("section"); }}
+              />
+              {fieldErr.section && <div style={{ fontSize: 10, color: T.red, marginTop: 3 }}>{fieldErr.section}</div>}
             </div>
             <div>
-              <label style={labelStyle}>ROW</label>
-              <input style={inputStyle} placeholder="8"
-                value={form.row} onChange={e => set("row", e.target.value)} />
+              <label style={{ ...labelStyle, color: fieldErr.row ? T.red : T.mist }}>ROW</label>
+              <input
+                style={{ ...inputStyle, borderColor: fieldErr.row ? T.red : T.green }}
+                placeholder="8"
+                value={form.row}
+                onChange={e => { set("row", e.target.value); clearFE("row"); }}
+              />
+              {fieldErr.row && <div style={{ fontSize: 10, color: T.red, marginTop: 3 }}>{fieldErr.row}</div>}
+            </div>
+            <div>
+              <label style={{ ...labelStyle, color: fieldErr.seat ? T.red : T.mist }}>SEAT</label>
+              <input
+                style={{ ...inputStyle, borderColor: fieldErr.seat ? T.red : T.green }}
+                placeholder="4"
+                value={form.seat}
+                onChange={e => { set("seat", e.target.value); clearFE("seat"); }}
+              />
+              {fieldErr.seat && <div style={{ fontSize: 10, color: T.red, marginTop: 3 }}>{fieldErr.seat}</div>}
             </div>
           </div>
         </Card>

@@ -8,23 +8,30 @@ import { useMyPods } from "../hooks/usePod";
 const ActivePodCtx = createContext(null);
 
 export function ActivePodProvider({ children }) {
-  const { pods, loading } = useMyPods();
+  const { pods, loading, refresh } = useMyPods();
 
   const [activePodId, setActivePodIdRaw] = useState(
     () => localStorage.getItem("ht_active_pod") || null,
   );
 
-  // When pods load, ensure the stored ID is still valid
+  // When pods load, ensure the stored ID is still valid.
+  // Only resets to the first pod when the ID is genuinely gone (deleted/left),
+  // NOT during a brief window where pods are refreshing after a new pod was created.
   useEffect(() => {
     if (!loading && pods.length > 0) {
-      const stillValid = pods.some(p => p.id === activePodId);
+      const stored = localStorage.getItem("ht_active_pod");
+      const stillValid = pods.some(p => p.id === stored);
       if (!stillValid) {
+        // Stored ID not found in pods — fall back to first pod
         const first = pods[0].id;
         setActivePodIdRaw(first);
         localStorage.setItem("ht_active_pod", first);
+      } else if (stored !== activePodId) {
+        // localStorage was updated (e.g. new pod created) — sync state
+        setActivePodIdRaw(stored);
       }
     }
-  }, [pods, loading, activePodId]);
+  }, [pods, loading]); // intentionally omits activePodId to avoid re-triggering
 
   function setActivePodId(id) {
     setActivePodIdRaw(id);
@@ -32,7 +39,7 @@ export function ActivePodProvider({ children }) {
   }
 
   return (
-    <ActivePodCtx.Provider value={{ activePodId, setActivePodId, pods, loading }}>
+    <ActivePodCtx.Provider value={{ activePodId, setActivePodId, pods, loading, refresh }}>
       {children}
     </ActivePodCtx.Provider>
   );
