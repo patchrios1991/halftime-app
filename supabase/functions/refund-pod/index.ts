@@ -133,9 +133,8 @@ serve(async (req: Request) => {
     // ── Abort if any refund failed ────────────────────────────────────────────
     // Don't delete the pod if we couldn't refund everyone — captain can retry.
     if (failures.length > 0) {
-      throw new Error(
-        `${failures.length} refund(s) failed. Please try again or contact support before deleting.`
-      );
+      const details = failures.map(f => f.error).join("; ");
+      throw new Error(`Refund failed: ${details}`);
     }
 
     const totalRefunded = results.reduce((s, r) => s + r.amount, 0);
