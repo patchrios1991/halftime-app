@@ -1,9 +1,10 @@
 // ─── CreatePodScreen ──────────────────────────────────────────────────────────
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { T } from "../../tokens";
 import Card from "../../components/Card";
 import { createPod } from "../../api/pods";
 import { supabase } from "../../lib/supabase";
+import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
 
 const SPORTS = [
   // ── Pro ──────────────────────────────────────────────────────────────────────
@@ -51,6 +52,11 @@ export default function CreatePodScreen({ dispatch }) {
     season_cost: "", max_members: "4", captainShare: "25",
     venue: "", section: "", row: "",
   });
+  const ticketUrl = useMemo(
+    () => findTeamTicketUrl(form.team_name, form.sport),
+    [form.team_name, form.sport]
+  );
+
   const [busy,        setBusy]        = useState(false);
   const [error,       setError]       = useState(null);
   const [fieldErr,    setFE]          = useState({});
@@ -208,6 +214,22 @@ export default function CreatePodScreen({ dispatch }) {
               onChange={e => { set("team_name", e.target.value); clearFE("team_name"); }}
             />
             {fieldErr.team_name && <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>{fieldErr.team_name}</div>}
+
+            {/* Season ticket portal link */}
+            {ticketUrl && (
+              <a
+                href={ticketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  marginTop: 7, fontSize: 11, color: T.lime,
+                  textDecoration: "none", fontWeight: 700,
+                }}
+              >
+                🎟️ Buy season tickets (official site) →
+              </a>
+            )}
           </div>
 
           <div>
