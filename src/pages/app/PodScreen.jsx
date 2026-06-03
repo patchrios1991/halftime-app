@@ -192,8 +192,16 @@ export default function PodScreen({ state, dispatch }) {
       const { data, error: refundErr } = await supabase.functions.invoke("refund-pod", {
         body: { podId: activePodId },
       });
-      if (refundErr) throw new Error(refundErr.message);
-      if (data?.error)  throw new Error(data.error);
+      if (refundErr) {
+        // Extract the real error message from the edge function response body
+        let msg = refundErr.message;
+        try {
+          const body = await refundErr.context?.json();
+          if (body?.error) msg = body.error;
+        } catch { /* ignore parse errors */ }
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
 
       // 2. Delete the pod (cascades to members, games, assignments)
       await deletePod(activePodId);

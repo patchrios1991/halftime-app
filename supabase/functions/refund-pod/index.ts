@@ -81,10 +81,18 @@ serve(async (req: Request) => {
 
     for (const payment of payments) {
       try {
-        // Create Stripe refund (full amount, no reason needed)
-        const refund = await stripePost("/refunds", {
-          payment_intent: payment.stripe_payment_intent_id,
-        });
+        if (!payment.stripe_payment_intent_id) {
+          throw new Error(`Payment ${payment.id} has no Stripe ID — contact support.`);
+        }
+
+        // Build refund params — Stripe accepts either payment_intent (pi_) or charge (ch_)
+        const piId = payment.stripe_payment_intent_id;
+        const refundParams = piId.startsWith("ch_")
+          ? { charge: piId }
+          : { payment_intent: piId };
+
+        console.log(`Refunding ${piId} ($${payment.amount}) for user ${payment.user_id}`);
+        const refund = await stripePost("/refunds", refundParams);
 
         // Mark payment as refunded in DB
         await supabase
