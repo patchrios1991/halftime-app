@@ -379,7 +379,7 @@ export default function BrowsePodsScreen({ dispatch }) {
                     The captain submitted a ticket receipt and HalfTime is reviewing it.
                   </div>
                 </div>
-              ) : (
+              ) : pod.pod_type !== "group_buy" ? (
                 <div style={{ background: "rgba(148,163,184,0.06)",
                   border: "1px solid rgba(148,163,184,0.15)", borderRadius: 10,
                   padding: "12px 14px", marginBottom: 14 }}>
@@ -387,7 +387,7 @@ export default function BrowsePodsScreen({ dispatch }) {
                     📄 No receipt uploaded yet — ask the captain to share proof of purchase before you commit.
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Error */}
               {error && (
