@@ -38,7 +38,7 @@ alter table public.perk_bids  enable row level security;
 -- pod_perks: any pod member (incl. captain) can view
 create policy "Pod members can view perks"
   on public.pod_perks for select using (
-    pod_id in (select unnest(get_my_pod_ids()))
+    pod_id in (select public.get_my_pod_ids())
   );
 
 -- pod_perks: only captain can post
@@ -57,7 +57,7 @@ create policy "Captain can update perks"
 -- perk_bids: any pod member can view bids (to see competition)
 create policy "Pod members can view perk bids"
   on public.perk_bids for select using (
-    pod_id in (select unnest(get_my_pod_ids()))
+    pod_id in (select public.get_my_pod_ids())
   );
 
 -- perk_bids: members can place/update their own bid
