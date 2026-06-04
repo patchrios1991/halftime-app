@@ -69,15 +69,8 @@ export function reducer(state, action) {
       };
     }
 
-    case "FUND_ESCROW": {
-      const members = state.members.map(m =>
-        m.id === "m3" ? { ...m, escrowFunded: true } : m
-      );
-      return {
-        ...state, escrowBalance: state.escrowBalance + 184, members,
-        toast: "✓ Sam R. funded their escrow share",
-      };
-    }
+    case "FUND_ESCROW":
+      return { ...state, toast: "✓ Escrow funded successfully!" };
 
     case "VERIFY_MEMBER": {
       const members = state.members.map(m =>
