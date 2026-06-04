@@ -139,11 +139,19 @@ export default function CreatePodScreen({ dispatch }) {
 
     setBusy(true);
     try {
-      // 1. Fetch seat map URL from Ticketmaster (non-blocking if it fails)
+      // 1. Fetch seat map URL from Ticketmaster — 5s timeout so a slow/
+      //    unreachable API never blocks pod creation.
       let seatMapUrl = null;
       if (form.venue.trim()) {
-        const venueData = await fetchVenueSeatMap(form.venue.trim());
-        seatMapUrl = venueData?.seatMapUrl ?? null;
+        try {
+          const venueData = await Promise.race([
+            fetchVenueSeatMap(form.venue.trim()),
+            new Promise(resolve => setTimeout(() => resolve(null), 5000)),
+          ]);
+          seatMapUrl = venueData?.seatMapUrl ?? null;
+        } catch {
+          seatMapUrl = null;
+        }
       }
 
       // 2. Create the pod
