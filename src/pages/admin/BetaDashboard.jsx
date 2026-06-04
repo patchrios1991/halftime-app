@@ -129,6 +129,53 @@ export default function BetaDashboard() {
     if (tab === "signups") loadSignups();
   }, [tab, loadSignups]);
 
+  // ── Waitlist state ───────────────────────────────────────────────────────────
+  const [waitlist,        setWaitlist]        = useState([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistBusy,    setWaitlistBusy]    = useState(null); // entry id in flight
+
+  const loadWaitlist = useCallback(async () => {
+    setWaitlistLoading(true);
+    const { data } = await supabase
+      .from("waitlist")
+      .select("*")
+      .order("created_at", { ascending: true });
+    setWaitlist(data || []);
+    setWaitlistLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (tab === "waitlist") loadWaitlist();
+  }, [tab, loadWaitlist]);
+
+  async function handleWaitlistAction(entry, action) {
+    setWaitlistBusy(entry.id);
+    const updates = action === "approve"
+      ? { status: "approved", approved_at: new Date().toISOString() }
+      : { status: "rejected" };
+    await supabase.from("waitlist").update(updates).eq("id", entry.id);
+
+    if (action === "approve") {
+      const APP_URL = "https://halftime-app-hyxh.vercel.app";
+      await supabase.functions.invoke("send-email", {
+        body: {
+          type: "INSERT",
+          table: "notifications",
+          record: {
+            user_id: "00000000-0000-0000-0000-000000000000", // placeholder — send-email uses email field below
+            type:    "pod_active",
+            title:   "You're approved for HalfTime! 🎉",
+            body:    `Hey ${entry.name || "there"}, you've been approved to join HalfTime. Create your account here: ${APP_URL}/auth/signin?mode=signup&email=${encodeURIComponent(entry.email)}`,
+          },
+          _override_email: entry.email,
+        },
+      }).catch(() => {});
+    }
+
+    setWaitlist(prev => prev.map(e => e.id === entry.id ? { ...e, ...updates } : e));
+    setWaitlistBusy(null);
+  }
+
   // ── Invite codes state ───────────────────────────────────────────────────────
   const [codes,       setCodes]       = useState([]);
   const [codesLoading, setCodesLoading] = useState(false);
@@ -657,8 +704,9 @@ export default function BetaDashboard() {
         background: T.dark, padding: "0 24px", overflowX: "auto" }}>
         {[
           ["overview","📊 Overview"], ["pods","🏟️ Pods"], ["members","👥 Members"],
-          ["signups","🙋 Signups"],   ["funnel","🔽 Funnel"], ["revenue","💰 Revenue"],
-          ["receipts","🧾 Receipts"], ["codes","🔑 Codes"],   ["alerts","🚨 Alerts"],
+          ["waitlist","📋 Waitlist"], ["signups","🙋 Signups"], ["funnel","🔽 Funnel"],
+          ["revenue","💰 Revenue"],  ["receipts","🧾 Receipts"], ["codes","🔑 Codes"],
+          ["alerts","🚨 Alerts"],
         ].map(([k, lbl]) => (
           <div key={k} onClick={() => setTab(k)}
             style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700,
@@ -672,6 +720,13 @@ export default function BetaDashboard() {
                 borderRadius: "50%", width: 16, height: 16, display: "inline-flex",
                 alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>
                 {alerts.filter(a => a.sev === "high").length}
+              </span>
+            )}
+            {k === "waitlist" && waitlist.filter(e => e.status === "pending").length > 0 && (
+              <span style={{ marginLeft: 5, background: T.lime, color: T.dark,
+                borderRadius: "50%", width: 16, height: 16, display: "inline-flex",
+                alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>
+                {waitlist.filter(e => e.status === "pending").length}
               </span>
             )}
             {k === "receipts" && pods.filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected).length > 0 && (
@@ -1009,6 +1064,84 @@ export default function BetaDashboard() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── WAITLIST ─────────────────────────────────────────────────────────── */}
+        {tab === "waitlist" && (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+              <Stat label="Pending"  value={waitlist.filter(e => e.status === "pending").length}  color={T.amber} icon="⏳" />
+              <Stat label="Approved" value={waitlist.filter(e => e.status === "approved").length} color={T.lime}  icon="✅" />
+              <Stat label="Total"    value={waitlist.length}                                       color={T.mist}  icon="📋" />
+            </div>
+
+            {waitlistLoading ? (
+              <div style={{ color: T.mist, textAlign: "center", padding: 40 }}>Loading…</div>
+            ) : waitlist.length === 0 ? (
+              <div style={{ color: T.mist, textAlign: "center", padding: 40 }}>No waitlist entries yet.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {["pending", "approved", "rejected"].map(status => {
+                  const entries = waitlist.filter(e => e.status === status);
+                  if (entries.length === 0) return null;
+                  const statusColor = status === "pending" ? T.amber : status === "approved" ? T.lime : T.red;
+                  return (
+                    <div key={status}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.mist,
+                        letterSpacing: 1, marginBottom: 8, marginTop: 4 }}>
+                        {status.toUpperCase()} ({entries.length})
+                      </div>
+                      {entries.map(entry => (
+                        <Card key={entry.id} style={{ marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between",
+                            alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: T.white }}>
+                                {entry.name || "—"}
+                              </div>
+                              <div style={{ fontSize: 12, color: T.mist }}>{entry.email}</div>
+                              <div style={{ fontSize: 10, color: T.mist, marginTop: 2 }}>
+                                Joined {new Date(entry.created_at).toLocaleDateString()}
+                                {entry.approved_at && ` · Approved ${new Date(entry.approved_at).toLocaleDateString()}`}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              {status === "pending" && (
+                                <>
+                                  <button
+                                    disabled={waitlistBusy === entry.id}
+                                    onClick={() => handleWaitlistAction(entry, "approve")}
+                                    style={{ padding: "7px 14px", background: T.lime, color: T.dark,
+                                      border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                      cursor: "pointer", opacity: waitlistBusy === entry.id ? 0.5 : 1 }}>
+                                    {waitlistBusy === entry.id ? "…" : "Approve & Invite"}
+                                  </button>
+                                  <button
+                                    disabled={waitlistBusy === entry.id}
+                                    onClick={() => handleWaitlistAction(entry, "reject")}
+                                    style={{ padding: "7px 12px", background: "transparent",
+                                      border: `1px solid ${T.red}55`, color: T.red,
+                                      borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              {status === "approved" && (
+                                <Badge color={T.lime}>✓ Invite sent</Badge>
+                              )}
+                              {status === "rejected" && (
+                                <Badge color={T.red}>Rejected</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
