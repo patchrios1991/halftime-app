@@ -163,9 +163,20 @@ function CheckoutForm({ amount, podName, onSuccess, onCancel }) {
         </button>
       </div>
 
-      <p style={{ color: T.mist, fontSize: 11, textAlign: "center", margin: 0 }}>
-        🔒 Secured by Stripe · Funds held in escrow until season end
-      </p>
+      {/* Trust signals */}
+      <div style={{ background: "#0D1F12", border: "1px solid #1A4A2E",
+        borderRadius: 10, padding: "12px 14px" }}>
+        {[
+          "🔒 Payment secured by Stripe — PCI-compliant",
+          "🏦 Funds held in escrow, not released until tickets are confirmed",
+          "↩️ Full refund if the pod doesn't fund or captain fails to deliver",
+          "⚠️ Disputes reviewed by HalfTime within 48 hours",
+        ].map(line => (
+          <div key={line} style={{ fontSize: 11, color: T.mist, marginBottom: 4, lineHeight: 1.5 }}>
+            {line}
+          </div>
+        ))}
+      </div>
     </form>
   );
 }

@@ -238,6 +238,58 @@ export default function ScheduleScreen({ state, dispatch }) {
     }
   }
 
+  // ── Calendar export (ICS) ───────────────────────────────────────────────────
+  function exportToCalendar() {
+    const myGames = games.filter(g => g.assignments?.[0]?.user_id === currentUserId);
+    if (myGames.length === 0) return;
+
+    const escape = s => (s || "").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+    const fmtIcsDate = (dateStr, timeStr) => {
+      const [y, m, d]  = (dateStr || "").split("-");
+      const [hh, mm]   = (timeStr  || "19:00").split(":");
+      return `${y}${m}${d}T${hh}${mm}00`;
+    };
+
+    const events = myGames.map(g => {
+      const start = fmtIcsDate(g.game_date, g.game_time);
+      // Assume 3-hour game
+      const endDate = new Date(`${g.game_date}T${g.game_time || "19:00"}`);
+      endDate.setHours(endDate.getHours() + 3);
+      const end = fmtIcsDate(
+        endDate.toISOString().slice(0, 10),
+        endDate.toTimeString().slice(0, 5)
+      );
+      return [
+        "BEGIN:VEVENT",
+        `DTSTART:${start}`,
+        `DTEND:${end}`,
+        `SUMMARY:${escape(`${g.sport_emoji || "🎟️"} vs. ${g.opponent} (HalfTime)`)}`,
+        `DESCRIPTION:${escape(`Pod: ${fullPod?.name || ""}\n${fullPod?.venue || ""}`)}`,
+        fullPod?.venue ? `LOCATION:${escape(fullPod.venue)}` : "",
+        `UID:halftime-${g.id}@halftime.app`,
+        "END:VEVENT",
+      ].filter(Boolean).join("\r\n");
+    }).join("\r\n");
+
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//HalfTime//Season Tickets//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      events,
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `halftime-schedule.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // ── Captain: manually assign a game to a member ─────────────────────────────
   async function handleAssignGame(game, memberId) {
     setAssignBusy(true);
@@ -314,6 +366,15 @@ export default function ScheduleScreen({ state, dispatch }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {/* Calendar export button */}
+            {allocationDone && myGameCount > 0 && (
+              <div onClick={exportToCalendar}
+                style={{ cursor: "pointer", background: `${T.teal}18`,
+                  border: `1px solid ${T.teal}44`, borderRadius: 20, padding: "4px 10px",
+                  fontSize: 11, fontWeight: 700, color: T.teal }}>
+                📅 Export
+              </div>
+            )}
             {/* Share schedule button */}
             {allocationDone && myGameCount > 0 && (
               <div onClick={() => setShowShareCard(true)}

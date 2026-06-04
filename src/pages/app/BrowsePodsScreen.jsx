@@ -502,13 +502,20 @@ export default function BrowsePodsScreen({ dispatch }) {
                         fontSize: 10, fontWeight: 700, color: T.lime }}>
                         Open for members
                       </div>
-                      {captainRating?.rating_count > 0 && (
+                      {captainRating?.rating_count > 0 ? (
                         <div style={{ background: "rgba(251,191,36,0.12)",
                           border: "1px solid rgba(251,191,36,0.3)",
                           borderRadius: 20, padding: "2px 10px",
                           fontSize: 10, fontWeight: 700, color: "#FCD34D" }}>
                           {"★".repeat(Math.round(captainRating.avg_score))}
                           {" "}{captainRating.avg_score} · {captainRating.rating_count} rating{captainRating.rating_count !== 1 ? "s" : ""}
+                        </div>
+                      ) : (
+                        <div style={{ background: "rgba(148,163,184,0.1)",
+                          border: "1px solid rgba(148,163,184,0.2)",
+                          borderRadius: 20, padding: "2px 10px",
+                          fontSize: 10, fontWeight: 700, color: T.mist }}>
+                          New captain — no ratings yet
                         </div>
                       )}
                     </div>
@@ -816,6 +823,14 @@ export default function BrowsePodsScreen({ dispatch }) {
                   {error}
                 </div>
               )}
+
+              {/* Trust line */}
+              <div style={{ display: "flex", justifyContent: "center", gap: 16,
+                marginBottom: 12, flexWrap: "wrap" }}>
+                {["🔒 Stripe escrow", "↩️ Refund if cancelled", "⚡ Disputes in 48h"].map(t => (
+                  <span key={t} style={{ fontSize: 10, color: T.mist }}>{t}</span>
+                ))}
+              </div>
 
               {/* Join / member status — wait for check before showing Join button */}
               {!membershipReady ? (

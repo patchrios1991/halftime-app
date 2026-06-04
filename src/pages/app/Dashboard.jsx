@@ -347,6 +347,48 @@ export default function Dashboard({ state, dispatch, profile }) {
           </Card>
         )}
 
+        {/* ── Game day banner ─────────────────────────────────────────────── */}
+        {nextGame && daysUntil(nextGame.game_date) === 0 && (
+          <div style={{ background: `linear-gradient(135deg,${T.lime}22,${T.teal}14)`,
+            border: `1.5px solid ${T.lime}66`, borderRadius: 14,
+            padding: "16px", marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.lime,
+                letterSpacing: 2 }}>🏟️ GAME DAY</div>
+              <div style={{ background: T.lime, color: T.dark, borderRadius: 20,
+                padding: "3px 10px", fontSize: 10, fontWeight: 700 }}>TODAY</div>
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 4 }}>
+              {fullPod?.sport_emoji || "🎟️"} vs. {nextGame.opponent}
+            </div>
+            <div style={{ fontSize: 12, color: T.mist, marginBottom: 12 }}>
+              {fmtTime(nextGame.game_time)}{fullPod?.venue ? ` · ${fullPod.venue}` : ""}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {nextGame.assignments?.[0]?.user_id === currentUserId ? (
+                nextGame.assignments[0].confirmed ? (
+                  <div style={{ background: `${T.lime}18`, border: `1px solid ${T.lime}44`,
+                    borderRadius: 20, padding: "5px 14px", fontSize: 12, fontWeight: 700,
+                    color: T.lime }}>✅ You're confirmed</div>
+                ) : (
+                  <div onClick={() => dispatch({ type: "SET_SCREEN", screen: "schedule" })}
+                    style={{ background: `${T.amber}18`, border: `1px solid ${T.amber}44`,
+                      borderRadius: 20, padding: "5px 14px", fontSize: 12, fontWeight: 700,
+                      color: T.amber, cursor: "pointer" }}>⏳ Confirm attendance →</div>
+                )
+              ) : (
+                <div style={{ fontSize: 12, color: T.mist }}>Assigned to another member</div>
+              )}
+              <div onClick={() => dispatch({ type: "SET_SCREEN", screen: "schedule" })}
+                style={{ fontSize: 11, color: T.teal, fontWeight: 700, cursor: "pointer" }}>
+                View tickets →
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Primary next game card ──────────────────────────────────────── */}
         {nextGame ? (
           <div
