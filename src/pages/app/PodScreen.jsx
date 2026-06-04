@@ -9,6 +9,7 @@ import EscrowPaymentScreen from "./EscrowPaymentScreen";
 import { useMyPods, usePod } from "../../hooks/usePod";
 import { deletePod, leavePod } from "../../api/pods";
 import { getPodPerks, createPerk, placePerkBid, awardPerk, flagMissingPerk } from "../../api/perks";
+import { fileDispute, getPodDisputes, DISPUTE_TYPES } from "../../api/disputes";
 import { useActivePod } from "../../context/ActivePodContext";
 import { usePodChat } from "../../hooks/usePodChat";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
@@ -62,6 +63,15 @@ export default function PodScreen({ state, dispatch }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [leaveBusy,        setLeaveBusy]        = useState(false);
   const [leaveErr,         setLeaveErr]         = useState(null);
+
+  // Dispute state
+  const [showDisputeModal,  setShowDisputeModal]  = useState(false);
+  const [disputeType,       setDisputeType]       = useState("ticket_not_delivered");
+  const [disputeDesc,       setDisputeDesc]       = useState("");
+  const [disputeBusy,       setDisputeBusy]       = useState(false);
+  const [disputeDone,       setDisputeDone]       = useState(false);
+  const [disputeErr,        setDisputeErr]        = useState(null);
+  const [podDisputes,       setPodDisputes]       = useState([]);
 
   // Perks tab state
   const [perks,         setPerks]        = useState([]);
@@ -688,6 +698,27 @@ export default function PodScreen({ state, dispatch }) {
                   <div style={{ fontSize: 10, color: T.mist, marginTop: 5 }}>
                     Your escrow will be refunded if you leave
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Dispute button — all members */}
+            {fullPod && (
+              <div style={{ paddingTop: 16, textAlign: "center",
+                borderTop: !isCaptain && escrowFundedCount < members.length ? "none" : "1px solid #1A4A2E",
+                marginTop: !isCaptain && escrowFundedCount < members.length ? 0 : 8 }}>
+                {disputeDone ? (
+                  <div style={{ fontSize: 12, color: T.lime }}>
+                    ✓ Dispute filed — HalfTime will review within 48 hours. Your escrow is protected.
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setDisputeErr(null); setShowDisputeModal(true); }}
+                    style={{ background: "none", border: `1px solid rgba(148,163,184,0.2)`,
+                      borderRadius: 8, color: T.mist, fontSize: 11,
+                      cursor: "pointer", padding: "7px 16px" }}>
+                    ⚠️ Report an Issue
+                  </button>
                 )}
               </div>
             )}
@@ -1778,6 +1809,107 @@ export default function PodScreen({ state, dispatch }) {
         )}
       </div>
     </div>
+
+    {/* ── Dispute modal ── */}
+    {showDisputeModal && (
+      <div onClick={() => setShowDisputeModal(false)}
+        style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
+          zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        <div onClick={e => e.stopPropagation()}
+          style={{ width: "100%", maxWidth: 430, background: T.dark,
+            borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
+            borderBottom: "none",
+            padding: "24px 20px calc(env(safe-area-inset-bottom,0px) + 32px)",
+            maxHeight: "90vh", overflowY: "auto" }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2,
+            background: T.green, margin: "0 auto 20px" }} />
+
+          <div style={{ fontSize: 22, textAlign: "center", marginBottom: 8 }}>⚠️</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", textAlign: "center", marginBottom: 4 }}>
+            Report an Issue
+          </div>
+          <div style={{ fontSize: 11, color: T.mist, textAlign: "center",
+            lineHeight: 1.6, marginBottom: 20 }}>
+            HalfTime will review within 48 hours.
+            Your escrow is always protected — if an issue can't be resolved, you'll be refunded.
+          </div>
+
+          {/* Escrow protection banner */}
+          <div style={{ background: `${T.lime}08`, border: `1px solid ${T.lime}22`,
+            borderRadius: 10, padding: "10px 14px", marginBottom: 18,
+            fontSize: 11, color: T.lime, lineHeight: 1.6, textAlign: "center" }}>
+            🔒 Escrow protected — your funds are held securely by HalfTime until the issue is resolved.
+          </div>
+
+          {/* Issue type */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.mist,
+            letterSpacing: 1, marginBottom: 8 }}>ISSUE TYPE</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+            {DISPUTE_TYPES.map(({ value, label }) => (
+              <button key={value}
+                onClick={() => setDisputeType(value)}
+                style={{ padding: "10px 14px", borderRadius: 10, textAlign: "left",
+                  background: disputeType === value ? `${T.lime}15` : "#0D1F12",
+                  border: `1px solid ${disputeType === value ? T.lime : "#1A4A2E"}`,
+                  color: disputeType === value ? T.lime : T.mist,
+                  fontSize: 12, fontWeight: disputeType === value ? 700 : 400,
+                  cursor: "pointer" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Description */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.mist,
+            letterSpacing: 1, marginBottom: 6 }}>DESCRIBE THE ISSUE</div>
+          <textarea
+            value={disputeDesc}
+            onChange={e => setDisputeDesc(e.target.value)}
+            placeholder="What happened? Be as specific as possible — dates, amounts, what was promised vs. what occurred."
+            rows={4}
+            style={{ width: "100%", padding: "10px 12px", background: "#0D1F12",
+              border: "1px solid #1A4A2E", borderRadius: 8, color: T.white,
+              fontSize: 12, fontFamily: "Calibri,sans-serif",
+              outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 6 }}
+          />
+          {disputeErr && (
+            <div style={{ fontSize: 11, color: T.red, marginBottom: 10 }}>{disputeErr}</div>
+          )}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <button onClick={() => { setShowDisputeModal(false); setDisputeDesc(""); setDisputeErr(null); }}
+              style={{ flex: 1, padding: "12px 0", background: "transparent",
+                border: "1px solid #1A4A2E", borderRadius: 10,
+                color: T.mist, fontSize: 13, cursor: "pointer" }}>
+              Cancel
+            </button>
+            <button
+              disabled={disputeBusy}
+              onClick={async () => {
+                setDisputeErr(null);
+                setDisputeBusy(true);
+                try {
+                  await fileDispute(activePodId, disputeType, disputeDesc);
+                  setShowDisputeModal(false);
+                  setDisputeDesc("");
+                  setDisputeDone(true);
+                } catch (e) {
+                  setDisputeErr(e.message);
+                } finally {
+                  setDisputeBusy(false);
+                }
+              }}
+              style={{ flex: 2, padding: "12px 0",
+                background: disputeBusy ? T.mist : T.red,
+                color: T.white, border: "none", borderRadius: 10,
+                fontSize: 13, fontWeight: 700, cursor: disputeBusy ? "not-allowed" : "pointer" }}>
+              {disputeBusy ? "Submitting…" : "Submit Dispute →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* ── Leave pod confirmation modal ── */}
     {showLeaveConfirm && (
