@@ -2,7 +2,7 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import { T } from "../../tokens";
 import Card from "../../components/Card";
-import { createPod } from "../../api/pods";
+import { createPod, verifyTickets } from "../../api/pods";
 import { supabase } from "../../lib/supabase";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
 import { findTeamVenue } from "../../lib/teamVenues";
@@ -81,6 +81,7 @@ export default function CreatePodScreen({ dispatch }) {
   const [fieldErr,    setFE]          = useState({});
   const [receiptFile, setReceiptFile] = useState(null);   // File | null
   const [uploadPct,   setUploadPct]   = useState(null);   // null | 0-100
+  const [availabilityUrl, setAvailabilityUrl] = useState(""); // ticket availability URL for group_buy
   const fileInputRef = useRef(null);
 
   function clearFE(key) { setFE(f => ({ ...f, [key]: null })); }
@@ -172,6 +173,7 @@ export default function CreatePodScreen({ dispatch }) {
         seat_map_url:       seatMapUrl,
         pod_type:           podType,
         organizer_consent:  podType === "group_buy" ? organizerConsent : false,
+        ticket_url:         podType === "group_buy" && availabilityUrl.trim() ? availabilityUrl.trim() : null,
         status:             "recruiting",
       });
 
@@ -186,6 +188,11 @@ export default function CreatePodScreen({ dispatch }) {
         }
       }
 
+      // Fire ticket verification in background — non-blocking
+      if (podType === "group_buy" && (availabilityUrl.trim() || receiptFile)) {
+        verifyTickets(pod.id).catch(() => {});
+      }
+
       // Refresh pods list so context knows about the new pod,
       // then switch to it before navigating to the pod screen
       await refreshPods();
@@ -198,10 +205,6 @@ export default function CreatePodScreen({ dispatch }) {
       setUploadPct(null);
     }
   }
-
-  const receiptLabel = receiptFile
-    ? receiptFile.name
-    : "Tap to upload receipt (JPG, PNG, or PDF)";
 
   return (
     <div style={{ padding: "0 0 calc(100px + var(--kb-height, 0px))" }}>
@@ -369,17 +372,41 @@ export default function CreatePodScreen({ dispatch }) {
           )}
         </Card>
 
-        {/* ── Receipt Upload ────────────────────────────────────────────────── */}
+        {/* ── Proof of purchase / availability ─────────────────────────────── */}
         <Card>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.white,
             fontFamily: "Georgia,serif", marginBottom: 6 }}>
-            🧾 Season Ticket Receipt
+            {podType === "group_buy" ? "🎟️ Ticket Availability Proof" : "🧾 Season Ticket Receipt"}
           </div>
           <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6, marginBottom: 12 }}>
-            Upload proof of your ticket purchase so HalfTime can verify the price.
-            Members will see a <span style={{ color: T.lime }}>✓ Verified</span> badge
-            on your pod once reviewed — this builds trust and helps your pod fill faster.
+            {podType === "group_buy"
+              ? <>Provide evidence that these tickets are still available to buy.
+                  Both fields are optional but <span style={{ color: T.lime }}>strongly recommended</span> —
+                  HalfTime will verify your screenshot with AI and confirm the link is live,
+                  giving prospective members confidence before they fund.</>
+              : <>Upload proof of your ticket purchase so HalfTime can verify the price.
+                  Members will see a <span style={{ color: T.lime }}>✓ Verified</span> badge
+                  on your pod once reviewed — this builds trust and helps your pod fill faster.</>
+            }
           </div>
+
+          {/* Ticket URL — group_buy only */}
+          {podType === "group_buy" && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>TICKET AVAILABILITY URL</label>
+              <input
+                style={inputStyle}
+                type="url"
+                placeholder="https://www.ticketmaster.com/..."
+                value={availabilityUrl}
+                onChange={e => setAvailabilityUrl(e.target.value)}
+              />
+              <div style={{ fontSize: 10, color: T.mist, marginTop: 5, lineHeight: 1.5 }}>
+                Paste the direct link to the ticket page (Ticketmaster, team site, AXS, etc.).
+                HalfTime will automatically check that the link is live.
+              </div>
+            </div>
+          )}
 
           {/* Hidden file input */}
           <input
@@ -389,6 +416,10 @@ export default function CreatePodScreen({ dispatch }) {
             style={{ display: "none" }}
             onChange={handleFileChange}
           />
+
+          {podType === "group_buy" && (
+            <label style={{ ...labelStyle, marginBottom: 6 }}>AVAILABILITY SCREENSHOT</label>
+          )}
 
           {/* Styled upload tap target */}
           <div
@@ -406,7 +437,11 @@ export default function CreatePodScreen({ dispatch }) {
             </div>
             <div style={{ fontSize: 12, color: receiptFile ? T.lime : T.mist,
               fontWeight: receiptFile ? 700 : 400, wordBreak: "break-all" }}>
-              {receiptLabel}
+              {receiptFile
+                ? receiptFile.name
+                : podType === "group_buy"
+                  ? "Tap to upload a seat map screenshot (JPG, PNG)"
+                  : "Tap to upload receipt (JPG, PNG, or PDF)"}
             </div>
             {receiptFile && (
               <div style={{ fontSize: 10, color: T.mist, marginTop: 4 }}>
@@ -421,14 +456,16 @@ export default function CreatePodScreen({ dispatch }) {
               onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
               style={{ marginTop: 8, background: "none", border: "none",
                 color: T.mist, fontSize: 11, cursor: "pointer", padding: 0 }}>
-              ✕ Remove receipt
+              ✕ Remove {podType === "group_buy" ? "screenshot" : "receipt"}
             </button>
           )}
 
           {/* Skip note */}
           {!receiptFile && (
             <div style={{ fontSize: 10, color: T.mist, marginTop: 8, opacity: 0.7 }}>
-              Optional but strongly recommended — pods without verified receipts convert at a lower rate.
+              {podType === "group_buy"
+                ? "Optional — screenshot of the seat map or ticket listing page. Our AI will verify it shows available tickets."
+                : "Optional but strongly recommended — pods without verified receipts convert at a lower rate."}
             </div>
           )}
 
@@ -440,7 +477,7 @@ export default function CreatePodScreen({ dispatch }) {
                   background: T.lime, transition: "width .3s", borderRadius: 4 }} />
               </div>
               <div style={{ fontSize: 10, color: T.mist, marginTop: 4 }}>
-                {uploadPct < 100 ? "Uploading receipt…" : "Upload complete ✓"}
+                {uploadPct < 100 ? "Uploading…" : "Upload complete ✓"}
               </div>
             </div>
           )}

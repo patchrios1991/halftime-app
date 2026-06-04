@@ -5,7 +5,7 @@ import Card from "../../components/Card";
 import Badge from "../../components/Badge";
 import { SkeletonCard } from "../../components/Skeleton";
 import { useRecruitingPods } from "../../hooks/usePod";
-import { joinPod } from "../../api/pods";
+import { joinPod, verifyTickets } from "../../api/pods";
 import { friendlyError } from "../../lib/friendlyError";
 import { notify } from "../../lib/notify";
 import { useActivePod } from "../../context/ActivePodContext";
@@ -24,6 +24,7 @@ export default function BrowsePodsScreen({ dispatch }) {
   const [showSeatMap,      setShowSeatMap]      = useState(false);  // seat map sub-modal
   const [isMember,         setIsMember]         = useState(false);  // current user already in selectedPod
   const [membershipReady,  setMembershipReady]  = useState(false);  // check complete
+  const [recheckBusy,      setRecheckBusy]      = useState(false);  // URL re-check in flight
 
   // Membership check: first try myPods (instant), then fall back to direct DB query
   useEffect(() => {
@@ -89,6 +90,20 @@ export default function BrowsePodsScreen({ dispatch }) {
     } finally {
       setJoining(null);
     }
+  }
+
+  async function handleRecheckUrl() {
+    if (!selectedPod?.id || recheckBusy) return;
+    setRecheckBusy(true);
+    try {
+      const result = await verifyTickets(selectedPod.id, "url");
+      setSelectedPod(prev => prev ? {
+        ...prev,
+        ticket_url_live:       result.ticket_url_live,
+        ticket_url_checked_at: result.ticket_url_checked_at,
+      } : prev);
+    } catch { /* non-fatal */ }
+    finally { setRecheckBusy(false); }
   }
 
   return (
@@ -381,6 +396,109 @@ export default function BrowsePodsScreen({ dispatch }) {
                     the pod is cancelled and everyone is automatically refunded.
                     Your escrow is always protected.
                   </div>
+                </div>
+              )}
+
+              {/* Ticket availability verification — group_buy only */}
+              {pod.pod_type === "group_buy" && (pod.ticket_url || pod.screenshot_ai_status !== "unchecked") && (
+                <div style={{ background: "#0D1F12", border: "1px solid #1A4A2E",
+                  borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.mist,
+                    letterSpacing: 1, marginBottom: 10 }}>TICKET AVAILABILITY</div>
+
+                  {/* URL liveness */}
+                  {pod.ticket_url && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center",
+                        justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                        <a
+                          href={pod.ticket_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 12, color: T.teal, fontWeight: 700,
+                            textDecoration: "none", wordBreak: "break-all", flex: 1 }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          🔗 Check availability →
+                        </a>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleRecheckUrl(); }}
+                          disabled={recheckBusy}
+                          style={{ background: "transparent", border: `1px solid ${T.green}`,
+                            borderRadius: 6, color: T.mist, fontSize: 10, fontWeight: 700,
+                            cursor: recheckBusy ? "not-allowed" : "pointer",
+                            padding: "4px 10px", flexShrink: 0 }}>
+                          {recheckBusy ? "Checking…" : "Re-check"}
+                        </button>
+                      </div>
+
+                      {/* Live/dead badge */}
+                      {pod.ticket_url_live === true && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 5,
+                          marginTop: 6 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: "50%",
+                            background: T.lime, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, color: T.lime }}>
+                            Link is live
+                            {pod.ticket_url_checked_at && (
+                              <> · checked {new Date(pod.ticket_url_checked_at).toLocaleDateString()}</>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {pod.ticket_url_live === false && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 5,
+                          marginTop: 6 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: "50%",
+                            background: T.red, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, color: T.red }}>
+                            Link may be unavailable — tickets could be sold out
+                          </span>
+                        </div>
+                      )}
+                      {pod.ticket_url_live === null || pod.ticket_url_live === undefined ? (
+                        <div style={{ fontSize: 10, color: T.mist, marginTop: 4 }}>
+                          Not yet checked — tap Re-check to verify
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* AI screenshot status */}
+                  {pod.screenshot_ai_status === "valid" && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8,
+                      background: `${T.lime}08`, border: `1px solid ${T.lime}22`,
+                      borderRadius: 8, padding: "8px 10px" }}>
+                      <span style={{ color: T.lime, fontSize: 13, flexShrink: 0 }}>✓</span>
+                      <div>
+                        <div style={{ fontSize: 11, color: T.lime, fontWeight: 700 }}>
+                          AI verified — screenshot shows available tickets
+                        </div>
+                        {pod.screenshot_ai_note && (
+                          <div style={{ fontSize: 10, color: T.mist, marginTop: 2 }}>
+                            {pod.screenshot_ai_note}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {pod.screenshot_ai_status === "invalid" && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8,
+                      background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)",
+                      borderRadius: 8, padding: "8px 10px" }}>
+                      <span style={{ color: T.red, fontSize: 13, flexShrink: 0 }}>⚠</span>
+                      <div>
+                        <div style={{ fontSize: 11, color: T.red, fontWeight: 700 }}>
+                          Screenshot could not be verified
+                        </div>
+                        {pod.screenshot_ai_note && (
+                          <div style={{ fontSize: 10, color: T.mist, marginTop: 2 }}>
+                            {pod.screenshot_ai_note}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

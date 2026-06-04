@@ -209,6 +209,27 @@ export async function deletePod(podId) {
   if (error) throw error;
 }
 
+/**
+ * Verify ticket availability for a group-buy pod.
+ * action: 'url' | 'screenshot' | 'both'
+ * Results are stored on the pod record — call is non-blocking from the UI.
+ */
+export async function verifyTickets(podId, action = "both") {
+  const { data, error } = await supabase.functions.invoke("verify-tickets", {
+    body: { podId, action },
+  });
+  if (error) {
+    let msg = error.message;
+    try {
+      const body = await error.context?.json();
+      if (body?.error) msg = body.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 /** Get the escrow balance for a pod (sum of succeeded payments) */
 export async function getPodEscrowBalance(podId) {
   const { data, error } = await supabase
