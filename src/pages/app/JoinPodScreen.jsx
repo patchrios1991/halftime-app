@@ -154,13 +154,23 @@ export default function JoinPodScreen() {
               <div style={{ fontSize: 11, color: T.mist }}>
                 {pod.team_name} · Season {pod.season || "2025-26"}
               </div>
-              <div style={{ marginTop: 5, display: "inline-block",
-                background: isRecruiting ? `${T.lime}22` : `${T.amber}22`,
-                border: `1px solid ${isRecruiting ? T.lime : T.amber}44`,
-                borderRadius: 20, padding: "2px 10px",
-                fontSize: 10, fontWeight: 700,
-                color: isRecruiting ? T.lime : T.amber }}>
-                {isRecruiting ? "Open for members" : "Pod active"}
+              <div style={{ display: "flex", gap: 5, marginTop: 5, flexWrap: "wrap" }}>
+                <div style={{ display: "inline-block",
+                  background: isRecruiting ? `${T.lime}22` : `${T.amber}22`,
+                  border: `1px solid ${isRecruiting ? T.lime : T.amber}44`,
+                  borderRadius: 20, padding: "2px 10px",
+                  fontSize: 10, fontWeight: 700,
+                  color: isRecruiting ? T.lime : T.amber }}>
+                  {isRecruiting ? "Open for members" : "Pod active"}
+                </div>
+                {pod.pod_type === "group_buy" && (
+                  <div style={{ display: "inline-block",
+                    background: `${T.teal}22`, border: `1px solid ${T.teal}44`,
+                    borderRadius: 20, padding: "2px 10px",
+                    fontSize: 10, fontWeight: 700, color: T.teal }}>
+                    🛒 Group Buy
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -190,6 +200,21 @@ export default function JoinPodScreen() {
               : `Join this ${pod.sport || "sports"} pod to share the cost of a full season ticket package. Members split game attendance based on their ownership share.`}
           </div>
         </div>
+
+        {/* ── Group Buy info ────────────────────────────────────────────────── */}
+        {pod.pod_type === "group_buy" && (
+          <div style={{ margin: "0 16px 16px", background: `${T.teal}08`,
+            border: "1px solid rgba(52,211,153,0.2)", borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.teal, marginBottom: 4 }}>
+              🛒 Group Buy Pod
+            </div>
+            <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.5 }}>
+              The organizer hasn't purchased the tickets yet. Once all members fund their share,
+              the organizer has 48 hours to buy and upload a receipt. If they don't, the pod is
+              cancelled and you're automatically refunded. Your money is safe in escrow until then.
+            </div>
+          </div>
+        )}
 
         {/* ── Receipt verification banner ────────────────────────────────────── */}
         {pod.receipt_verified ? (

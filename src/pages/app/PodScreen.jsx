@@ -10,6 +10,7 @@ import { useMyPods, usePod } from "../../hooks/usePod";
 import { deletePod } from "../../api/pods";
 import { useActivePod } from "../../context/ActivePodContext";
 import { usePodChat } from "../../hooks/usePodChat";
+import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 import { useCurrentUserId } from "../../hooks/useCurrentUserId";
 import { notify } from "../../lib/notify";
@@ -425,6 +426,98 @@ export default function PodScreen({ state, dispatch }) {
           }}>{lbl}</div>
         ))}
       </div>
+
+      {/* ── Group Buy: Purchasing Banner ─────────────────────────────────────── */}
+      {fullPod?.pod_type === "group_buy" && fullPod?.status === "purchasing" && (() => {
+        const deadline   = fullPod.purchase_deadline ? new Date(fullPod.purchase_deadline) : null;
+        const msLeft     = deadline ? Math.max(0, deadline - Date.now()) : 0;
+        const hoursLeft  = Math.floor(msLeft / 3_600_000);
+        const minsLeft   = Math.floor((msLeft % 3_600_000) / 60_000);
+        const isPast     = msLeft === 0;
+        const ticketUrl  = findTeamTicketUrl(fullPod.team_name, fullPod.sport);
+        const [autoCancel, setAutoCancel] = useState(false);
+
+        return (
+          <div style={{ margin: "0 14px 4px" }}>
+            <div style={{
+              background:   isPast ? `${T.red}12`  : `${T.teal}10`,
+              border:       `1px solid ${isPast ? T.red : T.teal}44`,
+              borderRadius: 14, padding: "16px 16px 14px",
+            }}>
+              {isCaptain ? (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: isPast ? T.red : T.teal,
+                    fontFamily: "Georgia,serif", marginBottom: 6 }}>
+                    {isPast ? "⚠️ Purchase window expired" : "🛒 Time to buy the tickets!"}
+                  </div>
+                  {!isPast && (
+                    <div style={{ fontSize: 12, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
+                      All members have funded. Purchase the{" "}
+                      <strong style={{ color: T.white }}>{fullPod.team_name}</strong> season tickets,
+                      then upload your receipt below.{" "}
+                      <span style={{ color: T.amber, fontWeight: 700 }}>
+                        {hoursLeft}h {minsLeft}m remaining.
+                      </span>
+                    </div>
+                  )}
+                  {isPast && (
+                    <div style={{ fontSize: 12, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
+                      The 48-hour purchase window has passed without a receipt.
+                      Cancel the pod to automatically refund all members.
+                    </div>
+                  )}
+
+                  {!isPast && ticketUrl && (
+                    <a href={ticketUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ display: "block", width: "100%", padding: "11px 0",
+                        background: T.teal, color: T.dark, borderRadius: 10,
+                        textAlign: "center", fontWeight: 700, fontSize: 13,
+                        textDecoration: "none", marginBottom: 8 }}>
+                      🎟️ Buy Season Tickets (Official Site) →
+                    </a>
+                  )}
+                  {!isPast && (
+                    <div style={{ fontSize: 10, color: T.mist, textAlign: "center",
+                      lineHeight: 1.5 }}>
+                      After purchasing, go to the <strong style={{ color: T.chalk }}>Admin tab → Pod Settings</strong> to
+                      upload your receipt. Once HalfTime verifies it, your escrow will be released.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.teal,
+                    fontFamily: "Georgia,serif", marginBottom: 6 }}>
+                    🛒 Organizer is purchasing tickets
+                  </div>
+                  <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6 }}>
+                    The pod is fully funded. The organizer has{" "}
+                    <span style={{ color: T.amber, fontWeight: 700 }}>
+                      {hoursLeft}h {minsLeft}m
+                    </span>{" "}
+                    to purchase the tickets and upload a receipt.
+                    Your escrow is safe — if they miss the deadline, you'll be automatically refunded.
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Group Buy: Cancelled Banner ───────────────────────────────────────── */}
+      {fullPod?.pod_type === "group_buy" && fullPod?.status === "cancelled" && (
+        <div style={{ margin: "0 14px 4px", background: `${T.red}10`,
+          border: `1px solid ${T.red}33`, borderRadius: 14, padding: "14px 16px" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.red,
+            fontFamily: "Georgia,serif", marginBottom: 4 }}>
+            ❌ Pod cancelled
+          </div>
+          <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6 }}>
+            This pod was cancelled. All funded members have been automatically refunded.
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: 14 }}>
 

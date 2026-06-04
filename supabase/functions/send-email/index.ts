@@ -15,6 +15,7 @@ function notifIcon(type: string): string {
     case "escrow_failed":   return "❌";
     case "pod_active":      return "🎉";
     case "pod_dissolved":   return "🗑️";
+    case "pod_purchasing":  return "🛒";
     case "game_allocated":  return "🎟️";
     case "resale_sold":     return "💰";
     case "resale_listing":  return "♻️";

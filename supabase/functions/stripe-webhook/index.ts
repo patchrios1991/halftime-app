@@ -160,48 +160,82 @@ serve(async (req: Request) => {
           .eq("pod_id",  pod_id)
           .eq("user_id", user_id);
 
+        // Fetch pod to check type before handling full-fund
+        const { data: podInfo } = await supabase
+          .from("pods")
+          .select("captain_id, name, team_name, pod_type")
+          .eq("id", pod_id)
+          .single();
+
         const { data: members } = await supabase
           .from("pod_members")
-          .select("escrow_funded")
+          .select("escrow_funded, user_id")
           .eq("pod_id", pod_id);
 
         const allFunded = members?.every((m: { escrow_funded: boolean }) => m.escrow_funded) ?? false;
         if (allFunded) {
-          await supabase.from("pods").update({ status: "active" }).eq("id", pod_id);
 
-          // Auto-trigger payout if captain has Connect account set up
-          try {
-            await fetch(
-              `${Deno.env.get("SUPABASE_URL")}/functions/v1/payout-pod`,
-              {
-                method:  "POST",
-                headers: {
-                  "Content-Type":  "application/json",
-                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                },
-                body: JSON.stringify({ podId: pod_id }),
-              }
-            );
-          } catch (payoutErr) {
-            // Non-fatal — captain can trigger manually from the app
-            console.warn("Auto-payout skipped:", payoutErr);
-          }
+          // ── Group Buy pod: organizer still needs to purchase tickets ────────
+          if (podInfo?.pod_type === "group_buy") {
+            const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+            await supabase.from("pods")
+              .update({ status: "purchasing", purchase_deadline: deadline })
+              .eq("id", pod_id);
 
-          // Notify the captain to start sending tickets
-          const { data: pod } = await supabase
-            .from("pods")
-            .select("captain_id, name")
-            .eq("id", pod_id)
-            .single();
+            // Notify organizer to go buy the tickets
+            if (podInfo.captain_id) {
+              await supabase.from("notifications").insert({
+                user_id: podInfo.captain_id,
+                type:    "pod_purchasing",
+                title:   "🛒 All funded — buy the tickets now!",
+                body:    `${podInfo.name} is fully funded. You have 48 hours to purchase the ${podInfo.team_name} season tickets and upload your receipt. If the deadline passes without a receipt, the pod will be auto-cancelled and all members refunded.`,
+                pod_id,
+              });
+            }
 
-          if (pod?.captain_id) {
-            await supabase.from("notifications").insert({
-              user_id: pod.captain_id,
-              type:    "pod_active",
-              title:   "🎟️ Pod fully funded — send tickets!",
-              body:    `All members of ${pod.name} have funded their escrow. Head to the Schedule tab and use "Mark Delivered" to forward each member's tickets.`,
-              pod_id,
-            });
+            // Notify all members the organizer is purchasing
+            const memberNotifs = (members ?? [])
+              .filter((m: { user_id: string }) => m.user_id !== podInfo.captain_id)
+              .map((m: { user_id: string }) => ({
+                user_id: m.user_id,
+                type:    "pod_purchasing",
+                title:   "🎉 Pod fully funded!",
+                body:    `${podInfo.name} is fully funded. The organizer has 48 hours to purchase the tickets. You'll be notified once the tickets are confirmed.`,
+                pod_id,
+              }));
+            if (memberNotifs.length) await supabase.from("notifications").insert(memberNotifs);
+
+          // ── Standard pod: captain already has tickets, go active ────────────
+          } else {
+            await supabase.from("pods").update({ status: "active" }).eq("id", pod_id);
+
+            // Auto-trigger payout if captain has Connect account set up
+            try {
+              await fetch(
+                `${Deno.env.get("SUPABASE_URL")}/functions/v1/payout-pod`,
+                {
+                  method:  "POST",
+                  headers: {
+                    "Content-Type":  "application/json",
+                    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify({ podId: pod_id }),
+                }
+              );
+            } catch (payoutErr) {
+              console.warn("Auto-payout skipped:", payoutErr);
+            }
+
+            // Notify captain to send tickets
+            if (podInfo?.captain_id) {
+              await supabase.from("notifications").insert({
+                user_id: podInfo.captain_id,
+                type:    "pod_active",
+                title:   "🎟️ Pod fully funded — send tickets!",
+                body:    `All members of ${podInfo.name} have funded their escrow. Head to the Schedule tab and use "Mark Delivered" to forward each member's tickets.`,
+                pod_id,
+              });
+            }
           }
         }
 

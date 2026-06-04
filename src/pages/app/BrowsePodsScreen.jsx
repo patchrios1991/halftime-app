@@ -127,9 +127,14 @@ export default function BrowsePodsScreen({ dispatch }) {
                       </div>
                     </div>
                   </div>
-                  <Badge color={spotsLeft > 0 ? T.lime : T.amber}>
-                    {spotsLeft > 0 ? `${spotsLeft} spots` : "Full"}
-                  </Badge>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                    <Badge color={spotsLeft > 0 ? T.lime : T.amber}>
+                      {spotsLeft > 0 ? `${spotsLeft} spots` : "Full"}
+                    </Badge>
+                    {pod.pod_type === "group_buy" && (
+                      <Badge color={T.teal}>🛒 Group Buy</Badge>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
@@ -320,6 +325,23 @@ export default function BrowsePodsScreen({ dispatch }) {
                       🗺️ View Seat Map
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Group buy info */}
+              {pod.pod_type === "group_buy" && (
+                <div style={{ background: `${T.teal}08`,
+                  border: "1px solid rgba(52,211,153,0.2)", borderRadius: 12,
+                  padding: "14px 16px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.teal, marginBottom: 4 }}>
+                    🛒 Group Buy Pod
+                  </div>
+                  <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                    The organizer hasn't purchased the tickets yet. Once all members fund,
+                    the organizer has 48 hours to buy and upload a receipt. If they don't,
+                    the pod is cancelled and everyone is automatically refunded.
+                    Your escrow is always protected.
+                  </div>
                 </div>
               )}
 

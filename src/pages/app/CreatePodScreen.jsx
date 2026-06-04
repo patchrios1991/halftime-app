@@ -52,6 +52,9 @@ const labelStyle = {
 export default function CreatePodScreen({ dispatch }) {
   const { setActivePodId, refresh: refreshPods } = useActivePod();
 
+  const [podType, setPodType] = useState("standard"); // "standard" | "group_buy"
+  const [organizerConsent, setOrganizerConsent] = useState(false);
+
   const [form, setForm] = useState({
     name: "", team_name: "", sport: "NBA", season: "2025-26",
     season_cost: "", max_members: "4", captainShare: "25",
@@ -130,6 +133,8 @@ export default function CreatePodScreen({ dispatch }) {
     if (!form.section.trim())   errs.section     = "Section is required.";
     if (!form.row.trim())       errs.row         = "Row is required.";
     if (!form.seat.trim())      errs.seat        = "Seat number is required.";
+    if (podType === "group_buy" && !organizerConsent)
+      errs.consent = "You must agree to the purchase commitment.";
     if (Object.keys(errs).length) { setFE(errs); return; }
 
     setBusy(true);
@@ -156,8 +161,10 @@ export default function CreatePodScreen({ dispatch }) {
         section:         form.section.trim() || null,
         row:             form.row.trim() || null,
         seat:            form.seat.trim() || null,
-        seat_map_url:    seatMapUrl,
-        status:          "recruiting",
+        seat_map_url:       seatMapUrl,
+        pod_type:           podType,
+        organizer_consent:  podType === "group_buy" ? organizerConsent : false,
+        status:             "recruiting",
       });
 
       // 2. Upload receipt if provided, then store URL on the pod
@@ -211,6 +218,41 @@ export default function CreatePodScreen({ dispatch }) {
       </div>
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* ── Pod Type Toggle ───────────────────────────────────────────────── */}
+        <div style={{ background: "#0D1F12", borderRadius: 12,
+          border: "1px solid #1A4A2E", padding: 4, display: "flex", gap: 4 }}>
+          {[
+            { key: "standard",  label: "🎟️ Standard",  sub: "You already bought the tickets" },
+            { key: "group_buy", label: "🛒 Group Buy",  sub: "Pool funds, then buy together"  },
+          ].map(({ key, label, sub }) => (
+            <button key={key} onClick={() => { setPodType(key); setOrganizerConsent(false); }}
+              style={{ flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
+                background: podType === key ? T.lime : "transparent",
+                color: podType === key ? T.dark : T.mist,
+                cursor: "pointer", textAlign: "center", transition: "all 0.15s" }}>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
+              <div style={{ fontSize: 9, marginTop: 2, opacity: 0.75 }}>{sub}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Group buy info banner */}
+        {podType === "group_buy" && (
+          <div style={{ background: `${T.teal}10`, border: `1px solid ${T.teal}33`,
+            borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.teal, marginBottom: 4 }}>
+              🛒 How Group Buy works
+            </div>
+            <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+              Members fund their share into escrow. Once the pod is fully funded, you'll have
+              <strong style={{ color: T.chalk }}> 48 hours</strong> to purchase the tickets and
+              upload your receipt. HalfTime verifies the receipt and releases the escrow to
+              reimburse you. If you miss the window, the pod is cancelled and all members are
+              automatically refunded.
+            </div>
+          </div>
+        )}
 
         {/* ── Pod Details ───────────────────────────────────────────────────── */}
         <Card>
@@ -447,6 +489,29 @@ export default function CreatePodScreen({ dispatch }) {
             </div>
           </div>
         </Card>
+
+        {/* Group buy consent */}
+        {podType === "group_buy" && (
+          <Card style={{ border: fieldErr.consent ? `1px solid ${T.red}` : undefined }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 12,
+              cursor: "pointer" }}>
+              <input type="checkbox" checked={organizerConsent}
+                onChange={e => { setOrganizerConsent(e.target.checked); clearFE("consent"); }}
+                style={{ marginTop: 2, accentColor: T.lime, width: 18, height: 18,
+                  flexShrink: 0, cursor: "pointer" }} />
+              <span style={{ fontSize: 12, color: T.mist, lineHeight: 1.6 }}>
+                I agree to purchase the season tickets within{" "}
+                <strong style={{ color: T.white }}>48 hours</strong> of full funding,
+                under my own name, and to upload the purchase receipt for HalfTime verification.
+                I understand that failure to do so will result in the pod being cancelled and
+                all members being automatically refunded.
+              </span>
+            </label>
+            {fieldErr.consent && (
+              <div style={{ fontSize: 11, color: T.red, marginTop: 6 }}>{fieldErr.consent}</div>
+            )}
+          </Card>
+        )}
 
         {error && (
           <div style={{ background: "rgba(239,68,68,0.12)", border: `1px solid ${T.red}`,
