@@ -11,6 +11,7 @@ import { deletePod, leavePod } from "../../api/pods";
 import { getPodPerks, createPerk, placePerkBid, awardPerk, flagMissingPerk } from "../../api/perks";
 import { fileDispute, getPodDisputes, DISPUTE_TYPES } from "../../api/disputes";
 import { rateCaptain, getMyRating } from "../../api/ratings";
+import { getWaitlist } from "../../api/waitlist";
 import { useActivePod } from "../../context/ActivePodContext";
 import { usePodChat } from "../../hooks/usePodChat";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
@@ -54,6 +55,10 @@ export default function PodScreen({ state, dispatch }) {
   const [awardCreditsFor,  setAwardCreditsFor]  = useState(null); // member id
   const [awardAmount,      setAwardAmount]      = useState("10");
   const [awardBusy,        setAwardBusy]        = useState(false);
+
+  // Waitlist state (captain only)
+  const [waitlist,      setWaitlist]      = useState([]);
+  const [waitlistLoaded, setWaitlistLoaded] = useState(false);
 
   // Delete pod state (captain only)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -136,6 +141,7 @@ export default function PodScreen({ state, dispatch }) {
       .finally(() => setPerksLoading(false));
   }, [tab, activePodId]);
 
+
   // Current user's membership info
   const myEscrowFunded = Boolean(myMemberRow?.escrow_funded);
   const myAmount       = parseFloat(myMemberRow?.cost) || 0;
@@ -192,6 +198,13 @@ export default function PodScreen({ state, dispatch }) {
 
   // ── Captain detection + payout info ─────────────────────────────────────────
   const isCaptain = fullPod?.captain_id === currentUserId;
+
+  // Captain loads waitlist once (after isCaptain is computed)
+  useEffect(() => {
+    if (!isCaptain || !activePodId || waitlistLoaded) return;
+    getWaitlist(activePodId).then(rows => { setWaitlist(rows); setWaitlistLoaded(true); }).catch(() => {});
+  }, [isCaptain, activePodId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const captainMember = (fullPod?.pod_members ?? []).find(m => m.user_id === fullPod?.captain_id);
   const captainProfile = captainMember?.profiles;
   const captainHasConnect   = Boolean(captainProfile?.connect_account_id);
@@ -697,6 +710,30 @@ export default function PodScreen({ state, dispatch }) {
                   fontWeight: 700, cursor: "pointer" }}>
                   + Invite a Member
                 </button>
+              </div>
+            )}
+
+            {/* Waitlist — captain only, when pod is full */}
+            {isCaptain && members.length >= maxMembers && waitlist.length > 0 && (
+              <div style={{ paddingTop: 16, borderTop: "1px solid #1A4A2E", marginTop: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.mist,
+                  letterSpacing: 1, marginBottom: 10 }}>
+                  WAITLIST ({waitlist.length})
+                </div>
+                {waitlist.map((entry, i) => (
+                  <div key={entry.id}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "8px 0",
+                      borderBottom: i < waitlist.length - 1 ? "1px solid #1A4A2E" : "none" }}>
+                    <div style={{ fontSize: 12, color: T.white }}>{entry.email}</div>
+                    <div style={{ fontSize: 10, color: T.mist }}>
+                      {new Date(entry.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontSize: 10, color: T.mist, marginTop: 8, lineHeight: 1.6 }}>
+                  If a spot opens, reach out to these members directly — they signed up in order.
+                </div>
               </div>
             )}
 

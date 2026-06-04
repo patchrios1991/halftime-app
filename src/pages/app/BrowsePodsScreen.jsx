@@ -7,6 +7,7 @@ import { SkeletonCard } from "../../components/Skeleton";
 import { useRecruitingPods } from "../../hooks/usePod";
 import { joinPod, verifyTickets } from "../../api/pods";
 import { getCaptainRating } from "../../api/ratings";
+import { joinWaitlist } from "../../api/waitlist";
 import { friendlyError } from "../../lib/friendlyError";
 import { notify } from "../../lib/notify";
 import { useActivePod } from "../../context/ActivePodContext";
@@ -35,6 +36,12 @@ export default function BrowsePodsScreen({ dispatch }) {
   const [membershipReady,  setMembershipReady]  = useState(false);  // check complete
   const [recheckBusy,      setRecheckBusy]      = useState(false);  // URL re-check in flight
   const [captainRating,    setCaptainRating]    = useState(null);  // { avg_score, rating_count }
+
+  // Waitlist state
+  const [waitlistEmail,  setWaitlistEmail]  = useState("");
+  const [waitlistBusy,   setWaitlistBusy]   = useState(false);
+  const [waitlistDone,   setWaitlistDone]   = useState(false);
+  const [waitlistErr,    setWaitlistErr]    = useState(null);
 
   // Filter state
   const [search,      setSearch]      = useState("");
@@ -165,6 +172,27 @@ export default function BrowsePodsScreen({ dispatch }) {
       } : prev);
     } catch { /* non-fatal */ }
     finally { setRecheckBusy(false); }
+  }
+
+  // Pre-fill waitlist email from auth when sheet opens
+  useEffect(() => {
+    if (!selectedPod) { setWaitlistEmail(""); setWaitlistDone(false); setWaitlistErr(null); return; }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) setWaitlistEmail(session.user.email);
+    });
+  }, [selectedPod?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleJoinWaitlist() {
+    setWaitlistErr(null);
+    setWaitlistBusy(true);
+    try {
+      await joinWaitlist(selectedPod.id, waitlistEmail);
+      setWaitlistDone(true);
+    } catch (e) {
+      setWaitlistErr(e.message);
+    } finally {
+      setWaitlistBusy(false);
+    }
   }
 
   return (
@@ -357,7 +385,7 @@ export default function BrowsePodsScreen({ dispatch }) {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
                     <Badge color={spotsLeft > 0 ? T.lime : T.amber}>
-                      {spotsLeft > 0 ? `${spotsLeft} spots` : "Full"}
+                      {spotsLeft > 0 ? `${spotsLeft} spots` : "Waitlist"}
                     </Badge>
                     {pod.pod_type === "group_buy" && (
                       <Badge color={T.teal}>🛒 Group Buy</Badge>
@@ -796,19 +824,69 @@ export default function BrowsePodsScreen({ dispatch }) {
                   color: T.lime, fontWeight: 700, fontSize: 14 }}>
                   ✅ Joined! Taking you to your pod…
                 </div>
+              ) : isFull ? (
+                /* ── Waitlist form ── */
+                <div style={{ background: "#0D1F12", border: "1px solid #1A4A2E",
+                  borderRadius: 12, padding: "16px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                    fontFamily: "Georgia,serif", marginBottom: 4 }}>
+                    🔔 This pod is full
+                  </div>
+                  <div style={{ fontSize: 11, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
+                    Join the waitlist and we'll notify the captain. If a spot opens, they can reach out to you first.
+                  </div>
+
+                  {waitlistDone ? (
+                    <div style={{ background: `${T.lime}14`, border: `1px solid ${T.lime}33`,
+                      borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.lime }}>✓ You're on the waitlist</div>
+                      <div style={{ fontSize: 11, color: T.mist, marginTop: 4 }}>
+                        The captain has been notified. We'll keep your spot in line.
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="email"
+                        value={waitlistEmail}
+                        onChange={e => setWaitlistEmail(e.target.value)}
+                        placeholder="your@email.com"
+                        style={{ width: "100%", boxSizing: "border-box",
+                          padding: "11px 14px", marginBottom: 8,
+                          background: "#060F08", border: `1px solid #1A4A2E`,
+                          borderRadius: 10, color: T.white, fontSize: 13,
+                          outline: "none", fontFamily: "inherit" }}
+                      />
+                      {waitlistErr && (
+                        <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{waitlistErr}</div>
+                      )}
+                      <button
+                        onClick={handleJoinWaitlist}
+                        disabled={waitlistBusy || !waitlistEmail.trim()}
+                        style={{ width: "100%", padding: "13px 0",
+                          background: waitlistBusy || !waitlistEmail.trim() ? "transparent" : T.teal,
+                          color: waitlistBusy || !waitlistEmail.trim() ? T.mist : T.dark,
+                          border: waitlistBusy || !waitlistEmail.trim() ? `1px solid #1A4A2E` : "none",
+                          borderRadius: 10, fontSize: 14, fontWeight: 700,
+                          fontFamily: "Georgia,serif",
+                          cursor: waitlistBusy || !waitlistEmail.trim() ? "not-allowed" : "pointer" }}>
+                        {waitlistBusy ? "Joining waitlist…" : "Join Waitlist →"}
+                      </button>
+                    </>
+                  )}
+                </div>
               ) : (
                 <button
                   onClick={() => handleJoin(pod)}
-                  disabled={isJoining || isFull}
+                  disabled={isJoining}
                   style={{ width: "100%", padding: "15px 0",
-                    background: isFull ? "transparent" : T.lime,
-                    color: isFull ? T.mist : T.dark,
-                    border: isFull ? `1px solid ${T.mist}44` : "none",
+                    background: T.lime, color: T.dark,
+                    border: "none",
                     borderRadius: 12, fontSize: 16, fontWeight: 700,
                     fontFamily: "Georgia,serif",
-                    cursor: isFull || isJoining ? "not-allowed" : "pointer",
+                    cursor: isJoining ? "not-allowed" : "pointer",
                     opacity: isJoining ? 0.6 : 1 }}>
-                  {isJoining ? "Joining…" : isFull ? "Pod Full" : "Join Pod →"}
+                  {isJoining ? "Joining…" : "Join Pod →"}
                 </button>
               )}
             </div>
