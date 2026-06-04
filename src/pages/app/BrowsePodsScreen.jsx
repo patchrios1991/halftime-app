@@ -546,6 +546,27 @@ export default function BrowsePodsScreen({ dispatch }) {
                 </div>
               ) : null}
 
+              {/* Perk disclosure */}
+              <div style={{ background: "rgba(148,163,184,0.05)",
+                border: "1px solid rgba(148,163,184,0.12)", borderRadius: 10,
+                padding: "11px 14px", marginBottom: 14 }}>
+                {pod.perk_commitment ? (
+                  <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                    <span style={{ color: T.lime, fontWeight: 700 }}>✓ Captain committed</span>
+                    {" "}to posting all team member perks (events, meet-and-greets,
+                    postseason seat opportunities) within 48 hours of notice, for members to bid on.
+                    Members can flag any perk they believe wasn't disclosed.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                    🎟️ <strong style={{ color: T.chalk }}>Note on member perks:</strong>{" "}
+                    Season ticket holders receive team perks (events, postseason seats, etc.).
+                    The captain is named on the account — ask them how they plan to share
+                    perks with the pod before joining.
+                  </div>
+                )}
+              </div>
+
               {/* Error */}
               {error && (
                 <div style={{ background: "rgba(239,68,68,0.12)", border: `1px solid ${T.red}`,

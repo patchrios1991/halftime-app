@@ -50,7 +50,7 @@ serve(async (req: Request) => {
 
     const { data: pod, error: podErr } = await supabase
       .from("pods")
-      .select("id, ticket_url, receipt_url, pod_type")
+      .select("id, ticket_url, receipt_url, pod_type, venue, section, row, seat")
       .eq("id", podId)
       .single();
 
@@ -131,7 +131,19 @@ serve(async (req: Request) => {
                     },
                     {
                       type: "text",
-                      text: 'This image was uploaded by someone creating a group season ticket pod on HalfTime (a ticket co-ownership app). They claim it shows available season tickets for purchase. Does this image clearly show EITHER: (a) an interactive arena or stadium seat map with available seats highlighted in color, OR (b) a page from an official ticketing platform (Ticketmaster, AXS, SeatGeek, NBA/NFL/MLB/NHL team site, etc.) showing season ticket packages or memberships currently available for purchase? Reply ONLY with valid JSON, no markdown: {"valid": true or false, "note": "one sentence explaining your assessment"}',
+                      text: (() => {
+                        const hasSeats = pod.section && pod.row && pod.seat;
+                        if (hasSeats) {
+                          const loc = [
+                            pod.venue ? `at ${pod.venue}` : "",
+                            `Section ${pod.section}`,
+                            `Row ${pod.row}`,
+                            `Seat(s) ${pod.seat}`,
+                          ].filter(Boolean).join(", ");
+                          return `The organizer of a group season ticket pod on HalfTime claims that ${loc} are available for purchase. Does this screenshot clearly show those specific seats highlighted as available on an arena seat map or official ticketing platform page (Ticketmaster, AXS, SeatGeek, NBA/NFL/MLB/NHL team site, etc.)? Reply ONLY with valid JSON, no markdown: {"valid": true or false, "note": "one sentence describing what you see — specifically state whether the claimed section, row, and seat appear available or not"}`;
+                        }
+                        return 'This image was uploaded by someone creating a group season ticket pod on HalfTime (a ticket co-ownership app). They claim it shows available season tickets for purchase. Does this image clearly show EITHER: (a) an interactive arena or stadium seat map with available seats highlighted in color, OR (b) a page from an official ticketing platform (Ticketmaster, AXS, SeatGeek, NBA/NFL/MLB/NHL team site, etc.) showing season ticket packages or memberships currently available for purchase? Reply ONLY with valid JSON, no markdown: {"valid": true or false, "note": "one sentence explaining your assessment"}';
+                      })(),
                     },
                   ],
                 }],

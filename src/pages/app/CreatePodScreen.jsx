@@ -76,12 +76,13 @@ export default function CreatePodScreen({ dispatch }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.team_name, form.sport]);
 
-  const [busy,        setBusy]        = useState(false);
-  const [error,       setError]       = useState(null);
-  const [fieldErr,    setFE]          = useState({});
-  const [receiptFile, setReceiptFile] = useState(null);   // File | null
-  const [uploadPct,   setUploadPct]   = useState(null);   // null | 0-100
+  const [busy,           setBusy]          = useState(false);
+  const [error,          setError]         = useState(null);
+  const [fieldErr,       setFE]            = useState({});
+  const [receiptFile,    setReceiptFile]   = useState(null);   // File | null
+  const [uploadPct,      setUploadPct]     = useState(null);   // null | 0-100
   const [availabilityUrl, setAvailabilityUrl] = useState(""); // ticket availability URL for group_buy
+  const [perkCommitment, setPerkCommitment] = useState(false); // required for all pod types
   const fileInputRef = useRef(null);
 
   function clearFE(key) { setFE(f => ({ ...f, [key]: null })); }
@@ -136,6 +137,8 @@ export default function CreatePodScreen({ dispatch }) {
     if (!form.seats.some(s => s.trim())) errs.seat = "At least one seat number is required.";
     if (podType === "group_buy" && !organizerConsent)
       errs.consent = "You must agree to the purchase commitment.";
+    if (!perkCommitment)
+      errs.perkCommitment = "You must commit to disclosing team perks to your members.";
     if (Object.keys(errs).length) { setFE(errs); return; }
 
     setBusy(true);
@@ -174,6 +177,7 @@ export default function CreatePodScreen({ dispatch }) {
         pod_type:           podType,
         organizer_consent:  podType === "group_buy" ? organizerConsent : false,
         ticket_url:         podType === "group_buy" && availabilityUrl.trim() ? availabilityUrl.trim() : null,
+        perk_commitment:    perkCommitment,
         status:             "recruiting",
       });
 
@@ -584,6 +588,28 @@ export default function CreatePodScreen({ dispatch }) {
             )}
           </Card>
         )}
+
+        {/* ── Perk Disclosure Commitment ────────────────────────────────────── */}
+        <Card style={{ border: fieldErr.perkCommitment ? `1px solid ${T.red}` : undefined }}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 12,
+            cursor: "pointer" }}>
+            <input type="checkbox" checked={perkCommitment}
+              onChange={e => { setPerkCommitment(e.target.checked); clearFE("perkCommitment"); }}
+              style={{ marginTop: 2, accentColor: T.lime, width: 18, height: 18,
+                flexShrink: 0, cursor: "pointer" }} />
+            <span style={{ fontSize: 12, color: T.mist, lineHeight: 1.6 }}>
+              I agree to post all team-communicated member perks — player events, meet-and-greets,
+              lounge access, postseason seat opportunities, and any other season ticket holder
+              benefits — to the pod within{" "}
+              <strong style={{ color: T.white }}>48 hours</strong> of receiving notice, so members
+              can bid on them fairly. I understand that failing to do so is a violation of
+              HalfTime's Terms of Service and may result in account suspension.
+            </span>
+          </label>
+          {fieldErr.perkCommitment && (
+            <div style={{ fontSize: 11, color: T.red, marginTop: 6 }}>{fieldErr.perkCommitment}</div>
+          )}
+        </Card>
 
         {error && (
           <div style={{ background: "rgba(239,68,68,0.12)", border: `1px solid ${T.red}`,

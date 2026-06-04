@@ -8,6 +8,7 @@ import Card from "../../components/Card";
 import EscrowPaymentScreen from "./EscrowPaymentScreen";
 import { useMyPods, usePod } from "../../hooks/usePod";
 import { deletePod, leavePod } from "../../api/pods";
+import { getPodPerks, createPerk, placePerkBid, awardPerk, flagMissingPerk } from "../../api/perks";
 import { useActivePod } from "../../context/ActivePodContext";
 import { usePodChat } from "../../hooks/usePodChat";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
@@ -62,6 +63,21 @@ export default function PodScreen({ state, dispatch }) {
   const [leaveBusy,        setLeaveBusy]        = useState(false);
   const [leaveErr,         setLeaveErr]         = useState(null);
 
+  // Perks tab state
+  const [perks,         setPerks]        = useState([]);
+  const [perksLoading,  setPerksLoading] = useState(false);
+  const [perksError,    setPerksError]   = useState(null);
+  const [showPerkForm,  setShowPerkForm] = useState(false);
+  const [perkForm,      setPerkForm]     = useState({ title: "", description: "", eventDate: "", spots: "1" });
+  const [postingPerk,   setPostingPerk]  = useState(false);
+  const [perkBidInput,  setPerkBidInput] = useState({});  // perkId → string
+  const [perkBidBusy,   setPerkBidBusy] = useState(null); // perkId in flight
+  const [awardingPerk,  setAwardingPerk] = useState(null);// perkId in flight
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flagNote,      setFlagNote]     = useState("");
+  const [flagBusy,      setFlagBusy]     = useState(false);
+  const [flagDone,      setFlagDone]     = useState(false);
+
   // Current user
   const currentUserId = useCurrentUserId();
 
@@ -82,6 +98,16 @@ export default function PodScreen({ state, dispatch }) {
       chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, tab]);
+
+  useEffect(() => {
+    if (tab !== "perks" || !activePodId) return;
+    setPerksLoading(true);
+    setPerksError(null);
+    getPodPerks(activePodId)
+      .then(setPerks)
+      .catch(() => setPerksError("Could not load perks."))
+      .finally(() => setPerksLoading(false));
+  }, [tab, activePodId]);
 
   // Current user's membership info
   const myEscrowFunded = Boolean(myMemberRow?.escrow_funded);
@@ -446,6 +472,7 @@ export default function PodScreen({ state, dispatch }) {
         {[
           ["members", "👥 Members"],
           ["chat",    "💬 Chat"   ],
+          ["perks",   "🎁 Perks"  ],
           ["escrow",  "💳 Escrow" ],
           ["rules",   "📋 Rules"  ],
           ...(isCaptain ? [["admin", "⚙️ Admin"]] : []),
@@ -664,6 +691,366 @@ export default function PodScreen({ state, dispatch }) {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Perks tab ── */}
+        {tab === "perks" && (
+          <div style={{ padding: "14px 14px 120px" }}>
+
+            {/* Perk commitment banner */}
+            {fullPod?.perk_commitment ? (
+              <div style={{ background: `${T.lime}08`, border: `1px solid ${T.lime}22`,
+                borderRadius: 10, padding: "10px 14px", marginBottom: 14,
+                fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                <span style={{ color: T.lime, fontWeight: 700 }}>✓ Perk commitment active</span>
+                {" "}— The captain is committed to posting all team member perks within 48 hours
+                of notice so members can bid fairly.
+              </div>
+            ) : (
+              <div style={{ background: "rgba(148,163,184,0.06)", border: "1px solid rgba(148,163,184,0.15)",
+                borderRadius: 10, padding: "10px 14px", marginBottom: 14,
+                fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                ℹ️ Ask your captain to post any team member perks (events, postseason seats, etc.)
+                here so everyone can bid on them fairly.
+              </div>
+            )}
+
+            {perksLoading && (
+              <div style={{ textAlign: "center", padding: "30px 0", color: T.mist, fontSize: 12 }}>
+                Loading perks…
+              </div>
+            )}
+            {perksError && (
+              <div style={{ color: T.red, fontSize: 12, marginBottom: 12 }}>{perksError}</div>
+            )}
+
+            {/* Captain: post perk form */}
+            {isCaptain && !showPerkForm && (
+              <button
+                onClick={() => setShowPerkForm(true)}
+                style={{ width: "100%", padding: "12px 0", background: T.lime,
+                  color: T.dark, border: "none", borderRadius: 10,
+                  fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
+                + Post a Perk
+              </button>
+            )}
+
+            {isCaptain && showPerkForm && (
+              <div style={{ background: T.forest, border: "1px solid #1A4A2E",
+                borderRadius: 12, padding: "16px", marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                  fontFamily: "Georgia,serif", marginBottom: 12 }}>🎁 New Perk</div>
+
+                {[
+                  { label: "PERK TITLE *", key: "title", placeholder: "e.g. Player Meet-and-Greet" },
+                  { label: "DESCRIPTION",  key: "description", placeholder: "Details about the event…" },
+                  { label: "EVENT DATE",   key: "eventDate", placeholder: "", type: "date" },
+                  { label: "SPOTS AVAILABLE", key: "spots", placeholder: "1", type: "number" },
+                ].map(({ label, key, placeholder, type }) => (
+                  <div key={key} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.mist,
+                      letterSpacing: 1, marginBottom: 4 }}>{label}</div>
+                    <input
+                      type={type || "text"}
+                      placeholder={placeholder}
+                      value={perkForm[key]}
+                      min={type === "number" ? 1 : undefined}
+                      onChange={e => setPerkForm(f => ({ ...f, [key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", background: "#0D1F12",
+                        border: "1px solid #1A4A2E", borderRadius: 8, color: T.white,
+                        fontSize: 13, fontFamily: "Calibri,sans-serif",
+                        outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                ))}
+
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <button
+                    onClick={() => { setShowPerkForm(false); setPerkForm({ title: "", description: "", eventDate: "", spots: "1" }); }}
+                    style={{ flex: 1, padding: "10px 0", background: "transparent",
+                      border: "1px solid #1A4A2E", borderRadius: 8,
+                      color: T.mist, fontSize: 12, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                  <button
+                    disabled={postingPerk || !perkForm.title.trim()}
+                    onClick={async () => {
+                      if (!perkForm.title.trim()) return;
+                      setPostingPerk(true);
+                      try {
+                        await createPerk(activePodId, perkForm);
+                        const updated = await getPodPerks(activePodId);
+                        setPerks(updated);
+                        setShowPerkForm(false);
+                        setPerkForm({ title: "", description: "", eventDate: "", spots: "1" });
+                        // Notify all members
+                        members.filter(m => !m.isMe).forEach(m => {
+                          notify({ userId: m.id, type: "bid_credits_awarded",
+                            title: "🎁 New perk posted!",
+                            body: `"${perkForm.title.trim()}" — open for bids in the ${podName} pod.`,
+                            url: "/app" });
+                        });
+                      } catch (e) { setPerksError(e.message); }
+                      finally { setPostingPerk(false); }
+                    }}
+                    style={{ flex: 2, padding: "10px 0", background: postingPerk ? T.mist : T.lime,
+                      color: T.dark, border: "none", borderRadius: 8,
+                      fontSize: 12, fontWeight: 700, cursor: postingPerk ? "not-allowed" : "pointer" }}>
+                    {postingPerk ? "Posting…" : "Post Perk →"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Perk list */}
+            {!perksLoading && perks.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>🎟️</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
+                  fontFamily: "Georgia,serif", marginBottom: 6 }}>No perks yet</div>
+                <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6 }}>
+                  {isCaptain
+                    ? "Post a perk when your team announces an event — your members can bid on it."
+                    : "When your captain posts team perks here, you'll be able to bid on them using your credits."}
+                </div>
+              </div>
+            )}
+
+            {perks.map(perk => {
+              const bids      = (perk.perk_bids ?? []).sort((a, b) => b.credits - a.credits);
+              const myBid     = bids.find(b => b.user_id === currentUserId);
+              const isOpen    = perk.status === "open";
+              const winners   = bids.filter(b => b.won);
+              const myCredits = members.find(m => m.isMe)?.credits ?? 0;
+
+              return (
+                <div key={perk.id} style={{ background: T.forest,
+                  border: `1px solid ${isOpen ? "#1A4A2E" : T.lime + "33"}`,
+                  borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
+
+                  {/* Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    alignItems: "flex-start", marginBottom: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
+                        fontFamily: "Georgia,serif" }}>{perk.title}</div>
+                      {perk.event_date && (
+                        <div style={{ fontSize: 11, color: T.mist, marginTop: 2 }}>
+                          📅 {new Date(perk.event_date + "T12:00:00").toLocaleDateString("en-US",
+                            { month: "short", day: "numeric", year: "numeric" })}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ background: isOpen ? `${T.lime}22` : `${T.teal}22`,
+                      border: `1px solid ${isOpen ? T.lime : T.teal}44`,
+                      borderRadius: 20, padding: "2px 10px",
+                      fontSize: 10, fontWeight: 700,
+                      color: isOpen ? T.lime : T.teal, flexShrink: 0, marginLeft: 8 }}>
+                      {isOpen ? "Open" : "Awarded"}
+                    </div>
+                  </div>
+
+                  {perk.description && (
+                    <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6, marginBottom: 10 }}>
+                      {perk.description}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: 11, color: T.mist, marginBottom: 10 }}>
+                    {perk.spots} spot{perk.spots > 1 ? "s" : ""} · {bids.length} bid{bids.length !== 1 ? "s" : ""}
+                    {isOpen && bids.length > 0 && (
+                      <> · Top bid: <span style={{ color: T.lime, fontWeight: 700 }}>{bids[0].credits} credits</span></>
+                    )}
+                  </div>
+
+                  {/* Awarded: show winners */}
+                  {!isOpen && winners.length > 0 && (
+                    <div style={{ background: `${T.lime}08`, border: `1px solid ${T.lime}22`,
+                      borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: T.lime,
+                        letterSpacing: 1, marginBottom: 6 }}>WINNERS</div>
+                      {winners.map(w => (
+                        <div key={w.id} style={{ display: "flex", justifyContent: "space-between",
+                          fontSize: 12, color: T.white, marginBottom: 4 }}>
+                          <span>{w.profiles?.display_name ?? "Member"}{w.user_id === currentUserId ? " (you)" : ""}</span>
+                          <span style={{ color: T.lime }}>{w.credits} credits</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Open: captain sees all bids + award button */}
+                  {isOpen && isCaptain && bids.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: T.mist,
+                        letterSpacing: 1, marginBottom: 6 }}>ALL BIDS</div>
+                      {bids.map((b, i) => (
+                        <div key={b.id} style={{ display: "flex", justifyContent: "space-between",
+                          fontSize: 12, marginBottom: 4,
+                          color: i < perk.spots ? T.lime : T.mist }}>
+                          <span>{b.profiles?.display_name ?? "Member"}{i < perk.spots ? " ✓" : ""}</span>
+                          <span style={{ fontWeight: 700 }}>{b.credits} credits</span>
+                        </div>
+                      ))}
+                      <button
+                        disabled={!!awardingPerk}
+                        onClick={async () => {
+                          setAwardingPerk(perk.id);
+                          try {
+                            await awardPerk(perk.id, activePodId);
+                            const updated = await getPodPerks(activePodId);
+                            setPerks(updated);
+                          } catch (e) { setPerksError(e.message); }
+                          finally { setAwardingPerk(null); }
+                        }}
+                        style={{ width: "100%", marginTop: 8, padding: "9px 0",
+                          background: awardingPerk === perk.id ? T.mist : T.teal,
+                          color: T.dark, border: "none", borderRadius: 8,
+                          fontSize: 12, fontWeight: 700,
+                          cursor: awardingPerk ? "not-allowed" : "pointer" }}>
+                        {awardingPerk === perk.id ? "Awarding…" : `Close Bids & Award Top ${perk.spots} →`}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Open: member bid input */}
+                  {isOpen && !isCaptain && (
+                    <div>
+                      <div style={{ fontSize: 10, color: T.mist, marginBottom: 6 }}>
+                        You have <span style={{ color: T.lime, fontWeight: 700 }}>{myCredits} credits</span>
+                        {myBid && <> · Your current bid: <span style={{ color: T.lime, fontWeight: 700 }}>{myBid.credits}</span></>}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          type="number" min="1" max={myCredits}
+                          placeholder={myBid ? `${myBid.credits}` : "Credits"}
+                          value={perkBidInput[perk.id] ?? ""}
+                          onChange={e => setPerkBidInput(v => ({ ...v, [perk.id]: e.target.value }))}
+                          style={{ flex: 1, padding: "9px 12px", background: "#0D1F12",
+                            border: "1px solid #1A4A2E", borderRadius: 8, color: T.white,
+                            fontSize: 13, fontFamily: "Calibri,sans-serif",
+                            outline: "none", boxSizing: "border-box" }}
+                        />
+                        <button
+                          disabled={perkBidBusy === perk.id || !perkBidInput[perk.id]}
+                          onClick={async () => {
+                            const credits = parseInt(perkBidInput[perk.id]);
+                            if (!credits || credits < 1) return;
+                            setPerkBidBusy(perk.id);
+                            try {
+                              await placePerkBid(perk.id, activePodId, credits);
+                              const updated = await getPodPerks(activePodId);
+                              setPerks(updated);
+                              setPerkBidInput(v => ({ ...v, [perk.id]: "" }));
+                            } catch (e) { setPerksError(e.message); }
+                            finally { setPerkBidBusy(null); }
+                          }}
+                          style={{ padding: "9px 16px", background: perkBidBusy === perk.id ? T.mist : T.lime,
+                            color: T.dark, border: "none", borderRadius: 8,
+                            fontSize: 12, fontWeight: 700,
+                            cursor: perkBidBusy === perk.id ? "not-allowed" : "pointer" }}>
+                          {perkBidBusy === perk.id ? "…" : myBid ? "Update" : "Bid →"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Flag undisclosed perk — non-captain members only */}
+            {!isCaptain && (
+              <div style={{ marginTop: 8, textAlign: "center" }}>
+                {flagDone ? (
+                  <div style={{ fontSize: 12, color: T.lime }}>
+                    ✓ Flag submitted — the captain has been notified.
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowFlagModal(true)}
+                    style={{ background: "none", border: `1px solid ${T.red}33`,
+                      borderRadius: 8, color: T.red, fontSize: 11, fontWeight: 700,
+                      cursor: "pointer", padding: "8px 18px" }}>
+                    ⚠️ Flag Undisclosed Perk
+                  </button>
+                )}
+                <div style={{ fontSize: 10, color: T.mist, marginTop: 6, lineHeight: 1.5 }}>
+                  Believe a team perk wasn't posted? Flag it — the captain is notified
+                  and HalfTime will review.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Flag perk modal */}
+        {showFlagModal && (
+          <div onClick={() => setShowFlagModal(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
+              zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={e => e.stopPropagation()}
+              style={{ width: "100%", maxWidth: 430, background: T.dark,
+                borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
+                borderBottom: "none",
+                padding: "24px 20px calc(env(safe-area-inset-bottom,0px) + 32px)" }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2,
+                background: T.green, margin: "0 auto 20px" }} />
+              <div style={{ fontSize: 22, textAlign: "center", marginBottom: 8 }}>⚠️</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif", textAlign: "center", marginBottom: 6 }}>
+                Flag an Undisclosed Perk
+              </div>
+              <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6,
+                textAlign: "center", marginBottom: 16 }}>
+                Your captain will receive a formal warning. Only flag if you have reason
+                to believe a team perk wasn't disclosed. False flags may affect your account.
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T.mist,
+                letterSpacing: 1, marginBottom: 6 }}>
+                WHAT PERK DO YOU BELIEVE WASN'T POSTED? (optional)
+              </div>
+              <textarea
+                value={flagNote}
+                onChange={e => setFlagNote(e.target.value)}
+                placeholder="e.g. Player meet-and-greet announced on the team's Instagram on June 3rd…"
+                rows={3}
+                style={{ width: "100%", padding: "10px 12px", background: "#0D1F12",
+                  border: "1px solid #1A4A2E", borderRadius: 8, color: T.white,
+                  fontSize: 12, fontFamily: "Calibri,sans-serif",
+                  outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 14 }}
+              />
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => { setShowFlagModal(false); setFlagNote(""); }}
+                  style={{ flex: 1, padding: "12px 0", background: "transparent",
+                    border: "1px solid #1A4A2E", borderRadius: 10,
+                    color: T.mist, fontSize: 13, cursor: "pointer" }}>
+                  Cancel
+                </button>
+                <button
+                  disabled={flagBusy}
+                  onClick={async () => {
+                    setFlagBusy(true);
+                    try {
+                      await flagMissingPerk(
+                        activePodId, podName,
+                        fullPod?.captain_id,
+                        flagNote.trim()
+                      );
+                      setShowFlagModal(false);
+                      setFlagNote("");
+                      setFlagDone(true);
+                    } catch { /* non-fatal */ }
+                    finally { setFlagBusy(false); }
+                  }}
+                  style={{ flex: 2, padding: "12px 0",
+                    background: flagBusy ? T.mist : T.red,
+                    color: T.white, border: "none", borderRadius: 10,
+                    fontSize: 13, fontWeight: 700, cursor: flagBusy ? "not-allowed" : "pointer" }}>
+                  {flagBusy ? "Submitting…" : "Submit Flag →"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
