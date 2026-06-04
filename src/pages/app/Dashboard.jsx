@@ -69,18 +69,6 @@ export default function Dashboard({ state, dispatch, profile }) {
     [allMyGames]
   );
 
-  // End-of-season stats
-  const costPerGame    = attendedCount > 0 && myCost > 0
-    ? Math.round(myCost / attendedCount)
-    : null;
-  const savingsVsRetail = myCost > 0 && totalFaceValue > 0
-    ? Math.round(totalFaceValue - myCost)
-    : null;
-  const savingsPct     = savingsVsRetail !== null && totalFaceValue > 0
-    ? Math.round((savingsVsRetail / totalFaceValue) * 100)
-    : null;
-  const seasonWrapped  = allocationDone && myGames.length === 0 && allMyGames.length > 0;
-
   // Fetch resale earnings once user + pod are known
   useEffect(() => {
     if (!currentUserId || !isSupabaseConfigured) return;
@@ -104,6 +92,18 @@ export default function Dashboard({ state, dispatch, profile }) {
   const unfundedCount = members.filter(m => !m.escrow_funded).length;
   const allocationDone = fullPod?.allocation_done || false;
   const myEscrowFunded = myMember?.escrow_funded ?? true;
+
+  // End-of-season stats (must be after myCost + allocationDone)
+  const costPerGame     = attendedCount > 0 && myCost > 0
+    ? Math.round(myCost / attendedCount)
+    : null;
+  const savingsVsRetail = myCost > 0 && totalFaceValue > 0
+    ? Math.round(totalFaceValue - myCost)
+    : null;
+  const savingsPct      = savingsVsRetail !== null && totalFaceValue > 0
+    ? Math.round((savingsVsRetail / totalFaceValue) * 100)
+    : null;
+  const seasonWrapped   = allocationDone && myGames.length === 0 && allMyGames.length > 0;
 
   // Unconfirmed upcoming mine games
   const unconfirmedGames = myGames.filter(g => !g.assignments?.[0]?.confirmed);
