@@ -1483,6 +1483,122 @@ export default function PodScreen({ state, dispatch }) {
         {/* ── Captain Admin tab ── */}
         {tab === "admin" && isCaptain && (
           <div>
+
+            {/* ── Pod Health Dashboard ── */}
+            {(() => {
+              const totalGames      = state.games.length;
+              const assignedGames   = Object.keys(state.assignments).length;
+              const unassignedGames = totalGames - assignedGames;
+              const fillPct         = maxMembers > 0 ? Math.round((members.length / maxMembers) * 100) : 0;
+              const allocPct        = totalGames > 0 ? Math.round((assignedGames / totalGames) * 100) : (state.allocationDone ? 100 : 0);
+              const unverifiedCount = members.filter(m => !m.verified).length;
+              const unfundedMembers = members.filter(m => !m.escrowFunded);
+              const highChurnCount  = (fullPod?.pod_members ?? []).filter(m => m.churn_risk === "high").length;
+
+              // Simple health score 0–100
+              const healthScore = Math.round(
+                (escrowPct * 0.4) +
+                (fillPct   * 0.25) +
+                (allocPct  * 0.25) +
+                (highChurnCount === 0 ? 10 : 0)
+              );
+              const healthColor = healthScore >= 80 ? T.lime : healthScore >= 50 ? T.amber : T.red;
+              const healthLabel = healthScore >= 80 ? "Healthy" : healthScore >= 50 ? "Needs attention" : "At risk";
+
+              return (
+                <Card style={{ marginBottom: 12, border: `1px solid ${healthColor}33` }}>
+                  {/* Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    alignItems: "center", marginBottom: 14 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                      fontFamily: "Georgia,serif" }}>📊 Pod Health</div>
+                    <div style={{ background: `${healthColor}18`, border: `1px solid ${healthColor}44`,
+                      borderRadius: 20, padding: "3px 12px",
+                      fontSize: 11, fontWeight: 700, color: healthColor }}>
+                      {healthScore}/100 · {healthLabel}
+                    </div>
+                  </div>
+
+                  {/* Metric rows */}
+                  {[
+                    {
+                      label: "Escrow funded",
+                      value: `${escrowPct}%`,
+                      sub:   `${escrowFundedCount}/${members.length} members`,
+                      pct:   escrowPct,
+                      color: escrowPct >= 100 ? T.lime : escrowPct >= 50 ? T.amber : T.red,
+                    },
+                    {
+                      label: "Pod fill rate",
+                      value: `${members.length}/${maxMembers}`,
+                      sub:   fillPct >= 100 ? (waitlist.length > 0 ? `${waitlist.length} on waitlist` : "Full") : `${maxMembers - members.length} spots open`,
+                      pct:   fillPct,
+                      color: fillPct >= 100 ? T.lime : fillPct >= 50 ? T.amber : T.mist,
+                    },
+                    {
+                      label: "Games allocated",
+                      value: totalGames > 0 ? `${assignedGames}/${totalGames}` : state.allocationDone ? "Done" : "Pending",
+                      sub:   unassignedGames > 0 ? `${unassignedGames} unassigned` : "All games assigned",
+                      pct:   allocPct,
+                      color: allocPct >= 100 ? T.lime : allocPct >= 50 ? T.amber : T.mist,
+                    },
+                  ].map(({ label, value, sub, pct, color }) => (
+                    <div key={label} style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between",
+                        alignItems: "baseline", marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, color: T.mist }}>{label}</span>
+                        <div style={{ textAlign: "right" }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: "Georgia,serif" }}>
+                            {value}
+                          </span>
+                          <span style={{ fontSize: 10, color: T.mist, marginLeft: 6 }}>{sub}</span>
+                        </div>
+                      </div>
+                      <div style={{ height: 4, background: "#1A4A2E", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${Math.min(100, pct)}%`,
+                          background: color, borderRadius: 2,
+                          transition: "width 0.4s ease" }} />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Alert rows */}
+                  {unfundedMembers.length > 0 && (
+                    <div style={{ background: `${T.amber}10`, border: `1px solid ${T.amber}33`,
+                      borderRadius: 8, padding: "8px 10px", marginTop: 4, marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, color: T.amber, fontWeight: 700 }}>
+                        ⚠ {unfundedMembers.length} member{unfundedMembers.length > 1 ? "s" : ""} haven't funded escrow
+                      </div>
+                      <div style={{ fontSize: 10, color: T.mist, marginTop: 2 }}>
+                        {unfundedMembers.map(m => m.name).join(", ")}
+                      </div>
+                    </div>
+                  )}
+
+                  {highChurnCount > 0 && (
+                    <div style={{ background: `${T.red}10`, border: `1px solid ${T.red}33`,
+                      borderRadius: 8, padding: "8px 10px", marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, color: T.red, fontWeight: 700 }}>
+                        🚨 {highChurnCount} member{highChurnCount > 1 ? "s" : ""} flagged as high churn risk
+                      </div>
+                      <div style={{ fontSize: 10, color: T.mist, marginTop: 2 }}>
+                        Check engagement — they may be inactive or considering leaving.
+                      </div>
+                    </div>
+                  )}
+
+                  {unverifiedCount > 0 && (
+                    <div style={{ background: "#ffffff08", border: "1px solid #1A4A2E",
+                      borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 11, color: T.mist }}>
+                        ⏳ {unverifiedCount} member{unverifiedCount > 1 ? "s" : ""} not yet identity-verified
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })()}
+
             {/* ── Pod Settings ── */}
             <Card style={{ marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
