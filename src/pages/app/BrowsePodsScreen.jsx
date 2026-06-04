@@ -1,5 +1,5 @@
 // ─── BrowsePodsScreen ─────────────────────────────────────────────────────────
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { T } from "../../tokens";
 import Card from "../../components/Card";
 import Badge from "../../components/Badge";
@@ -11,6 +11,14 @@ import { friendlyError } from "../../lib/friendlyError";
 import { notify } from "../../lib/notify";
 import { useActivePod } from "../../context/ActivePodContext";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+
+const MAX_COST_OPTIONS = [
+  { label: "Any price",   value: "" },
+  { label: "Under $500",  value: 500 },
+  { label: "Under $1k",   value: 1000 },
+  { label: "Under $2k",   value: 2000 },
+  { label: "Under $5k",   value: 5000 },
+];
 
 export default function BrowsePodsScreen({ dispatch }) {
   const { pods, loading, refresh } = useRecruitingPods();
@@ -27,6 +35,51 @@ export default function BrowsePodsScreen({ dispatch }) {
   const [membershipReady,  setMembershipReady]  = useState(false);  // check complete
   const [recheckBusy,      setRecheckBusy]      = useState(false);  // URL re-check in flight
   const [captainRating,    setCaptainRating]    = useState(null);  // { avg_score, rating_count }
+
+  // Filter state
+  const [search,      setSearch]      = useState("");
+  const [sportFilter, setSportFilter] = useState("");
+  const [maxCost,     setMaxCost]     = useState("");
+  const [spotsOnly,   setSpotsOnly]   = useState(false);
+
+  // Unique sports present in the pod list (for pills)
+  const availableSports = useMemo(() => {
+    const seen = new Set();
+    pods.forEach(p => { if (p.sport) seen.add(p.sport); });
+    return Array.from(seen).sort();
+  }, [pods]);
+
+  // Client-side filtered list
+  const filteredPods = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pods.filter(pod => {
+      if (q) {
+        const haystack = `${pod.name} ${pod.team_name} ${pod.sport} ${pod.venue || ""}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (sportFilter && pod.sport !== sportFilter) return false;
+      if (maxCost !== "") {
+        const memberCount = pod.pod_members?.[0]?.count ?? 0;
+        const share = Math.round(100 / pod.max_members);
+        const cost = (parseFloat(pod.season_cost) * share) / 100;
+        if (cost > maxCost) return false;
+      }
+      if (spotsOnly) {
+        const memberCount = pod.pod_members?.[0]?.count ?? 0;
+        if (memberCount >= (pod.max_members || 6)) return false;
+      }
+      return true;
+    });
+  }, [pods, search, sportFilter, maxCost, spotsOnly]);
+
+  const filtersActive = search || sportFilter || maxCost !== "" || spotsOnly;
+
+  function clearFilters() {
+    setSearch("");
+    setSportFilter("");
+    setMaxCost("");
+    setSpotsOnly(false);
+  }
 
   // Fetch captain rating when detail sheet opens
   useEffect(() => {
@@ -133,7 +186,105 @@ export default function BrowsePodsScreen({ dispatch }) {
         </div>
       </div>
 
+      {/* ── Filter bar ─────────────────────────────────────────────────────── */}
+      <div style={{ padding: "10px 14px 0", borderBottom: `1px solid #1A4A2E` }}>
+        {/* Search input */}
+        <div style={{ position: "relative", marginBottom: 10 }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+            fontSize: 14, color: T.mist, pointerEvents: "none" }}>🔍</span>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search team, sport, venue…"
+            style={{ width: "100%", boxSizing: "border-box",
+              padding: "10px 36px 10px 34px",
+              background: "#0D1F12", border: `1px solid #1A4A2E`,
+              borderRadius: 10, color: T.white, fontSize: 13,
+              outline: "none", fontFamily: "inherit" }}
+          />
+          {search && (
+            <button onClick={() => setSearch("")}
+              style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", color: T.mist, fontSize: 16,
+                cursor: "pointer", lineHeight: 1, padding: 2 }}>
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Sport pills */}
+        {availableSports.length > 0 && (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 10,
+            scrollbarWidth: "none" }}>
+            {["", ...availableSports].map(s => (
+              <button key={s || "all"}
+                onClick={() => setSportFilter(s)}
+                style={{ flexShrink: 0,
+                  padding: "5px 14px",
+                  background: sportFilter === s ? T.lime : "#0D1F12",
+                  color:      sportFilter === s ? T.dark : T.mist,
+                  border: sportFilter === s ? "none" : `1px solid #1A4A2E`,
+                  borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  cursor: "pointer", whiteSpace: "nowrap" }}>
+                {s || "All sports"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Second filter row: spots toggle + max cost */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center",
+          paddingBottom: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={() => setSpotsOnly(v => !v)}
+            style={{ padding: "5px 14px",
+              background: spotsOnly ? T.teal : "#0D1F12",
+              color:      spotsOnly ? T.dark : T.mist,
+              border: spotsOnly ? "none" : `1px solid #1A4A2E`,
+              borderRadius: 20, fontSize: 11, fontWeight: 700,
+              cursor: "pointer", whiteSpace: "nowrap" }}>
+            Has spots
+          </button>
+
+          <select
+            value={maxCost}
+            onChange={e => setMaxCost(e.target.value === "" ? "" : Number(e.target.value))}
+            style={{ flex: 1, minWidth: 110,
+              padding: "6px 10px",
+              background: maxCost !== "" ? `${T.teal}22` : "#0D1F12",
+              color:      maxCost !== "" ? T.teal : T.mist,
+              border: maxCost !== "" ? `1px solid ${T.teal}55` : `1px solid #1A4A2E`,
+              borderRadius: 20, fontSize: 11, fontWeight: 700,
+              cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
+            {MAX_COST_OPTIONS.map(o => (
+              <option key={o.label} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          {filtersActive && (
+            <button onClick={clearFilters}
+              style={{ padding: "5px 12px",
+                background: "rgba(239,68,68,0.12)",
+                color: T.red, border: `1px solid rgba(239,68,68,0.25)`,
+                borderRadius: 20, fontSize: 11, fontWeight: 700,
+                cursor: "pointer", whiteSpace: "nowrap" }}>
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
       <div style={{ padding: 14 }}>
+        {/* Result count when filters active */}
+        {filtersActive && !loading && (
+          <div style={{ fontSize: 11, color: T.mist, marginBottom: 10 }}>
+            {filteredPods.length === 0
+              ? "No pods match your filters"
+              : `${filteredPods.length} pod${filteredPods.length !== 1 ? "s" : ""} found`}
+          </div>
+        )}
+
         {error && (
           <div style={{ background: "rgba(239,68,68,0.12)", border: `1px solid ${T.red}`,
             borderRadius: 10, padding: "10px 14px", color: T.red, fontSize: 13, marginBottom: 12 }}>
@@ -162,8 +313,22 @@ export default function BrowsePodsScreen({ dispatch }) {
               Create a Pod →
             </button>
           </div>
+        ) : filteredPods.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 0" }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 6 }}>No matches</div>
+            <div style={{ fontSize: 12, color: T.mist, marginBottom: 16, lineHeight: 1.6 }}>
+              Try adjusting your filters or search term.
+            </div>
+            <button onClick={clearFilters}
+              style={{ padding: "10px 20px", background: T.lime, color: T.dark,
+                border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              Clear filters
+            </button>
+          </div>
         ) : (
-          pods.map(pod => {
+          filteredPods.map(pod => {
             const memberCount = pod.pod_members?.[0]?.count ?? 0;
             const spotsLeft   = (pod.max_members || 6) - memberCount;
             const isJoined    = joined === pod.id;
