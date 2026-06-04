@@ -182,6 +182,20 @@ export default function BrowsePodsScreen({ dispatch }) {
     });
   }, [selectedPod?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  function handleCreateLikeThis(pod) {
+    localStorage.setItem("ht_pod_template", JSON.stringify({
+      sport:       pod.sport      || "",
+      team_name:   pod.team_name  || "",
+      venue:       pod.venue      || "",
+      section:     pod.section    || "",
+      row:         pod.row        || "",
+      max_members: pod.max_members || 4,
+      season:      pod.season     || "",
+    }));
+    setSelectedPod(null);
+    dispatch({ type: "SET_SCREEN", screen: "create_pod" });
+  }
+
   async function handleJoinWaitlist() {
     setWaitlistErr(null);
     setWaitlistBusy(true);
@@ -889,6 +903,16 @@ export default function BrowsePodsScreen({ dispatch }) {
                   {isJoining ? "Joining…" : "Join Pod →"}
                 </button>
               )}
+              {/* Create a pod like this one */}
+              <button
+                onClick={() => handleCreateLikeThis(pod)}
+                style={{ width: "100%", marginTop: 10, padding: "12px 0",
+                  background: "transparent",
+                  border: `1px solid #1A4A2E`,
+                  borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  color: T.mist, cursor: "pointer" }}>
+                + Create a pod like this one
+              </button>
             </div>
           </div>
         );

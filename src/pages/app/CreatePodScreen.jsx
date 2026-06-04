@@ -55,10 +55,21 @@ export default function CreatePodScreen({ dispatch }) {
   const [podType, setPodType] = useState("standard"); // "standard" | "group_buy"
   const [organizerConsent, setOrganizerConsent] = useState(false);
 
+  // Read pod template from localStorage (set by Browse Pods "Create like this")
+  const podTemplate = (() => {
+    try {
+      const raw = localStorage.getItem("ht_pod_template");
+      if (raw) { localStorage.removeItem("ht_pod_template"); return JSON.parse(raw); }
+    } catch { /* ignore */ }
+    return null;
+  })();
+
   const [form, setForm] = useState({
-    name: "", team_name: "", sport: "NBA", season: "2025-26",
-    season_cost: "", max_members: "4", captainShare: "25",
-    venue: "", section: "", row: "", seats: [""],
+    name: "", team_name: podTemplate?.team_name || "", sport: podTemplate?.sport || "NBA",
+    season: podTemplate?.season || "2025-26",
+    season_cost: "", max_members: String(podTemplate?.max_members || "4"), captainShare: "25",
+    venue: podTemplate?.venue || "", section: podTemplate?.section || "",
+    row: podTemplate?.row || "", seats: [""],
   });
   const ticketUrl = useMemo(
     () => findTeamTicketUrl(form.team_name, form.sport),
