@@ -38,7 +38,7 @@
         box-sizing: border-box;
       }
       html {
-        overscroll-behavior: none;
+        overscroll-behavior-y: none;
         -webkit-text-size-adjust: 100%;
       }
       body {
@@ -46,13 +46,10 @@
         background: #060F08;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        overscroll-behavior: none;
-        overflow: hidden;
+        overscroll-behavior-y: none;
       }
       #root {
         padding-top: env(safe-area-inset-top);
-        height: 100dvh;
-        overflow: hidden;
       }
       /* Suppress scrollbars everywhere */
       ::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
