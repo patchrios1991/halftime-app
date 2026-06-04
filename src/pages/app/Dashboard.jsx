@@ -69,6 +69,18 @@ export default function Dashboard({ state, dispatch, profile }) {
     [allMyGames]
   );
 
+  // End-of-season stats
+  const costPerGame    = attendedCount > 0 && myCost > 0
+    ? Math.round(myCost / attendedCount)
+    : null;
+  const savingsVsRetail = myCost > 0 && totalFaceValue > 0
+    ? Math.round(totalFaceValue - myCost)
+    : null;
+  const savingsPct     = savingsVsRetail !== null && totalFaceValue > 0
+    ? Math.round((savingsVsRetail / totalFaceValue) * 100)
+    : null;
+  const seasonWrapped  = allocationDone && myGames.length === 0 && allMyGames.length > 0;
+
   // Fetch resale earnings once user + pod are known
   useEffect(() => {
     if (!currentUserId || !isSupabaseConfigured) return;
@@ -534,8 +546,65 @@ export default function Dashboard({ state, dispatch, profile }) {
           </Card>
         )}
 
+        {/* ── End-of-season wrap banner ─────────────────────────────────────── */}
+        {isSupabaseConfigured && seasonWrapped && (
+          <div style={{
+            background: `linear-gradient(135deg,${T.lime}18,${T.teal}12)`,
+            border: `1px solid ${T.lime}44`, borderRadius: 14,
+            padding: "18px 16px", marginBottom: 14, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🏁</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 4 }}>
+              Season Wrapped!
+            </div>
+            <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6, marginBottom: 14 }}>
+              Another season in the books with {fullPod?.name || "your pod"}.
+              Here's how it went:
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[
+                {
+                  label: "Games attended",
+                  value: `${attendedCount} / ${allMyGames.length}`,
+                  color: T.lime,
+                },
+                {
+                  label: "Cost per game",
+                  value: costPerGame ? `$${costPerGame}` : "—",
+                  color: T.lime,
+                },
+                {
+                  label: "Saved vs. retail",
+                  value: savingsVsRetail !== null && savingsVsRetail > 0
+                    ? `$${savingsVsRetail.toLocaleString()}`
+                    : "—",
+                  color: T.teal,
+                },
+                {
+                  label: "Savings %",
+                  value: savingsPct !== null && savingsPct > 0 ? `${savingsPct}%` : "—",
+                  color: T.teal,
+                },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ background: "#ffffff08", borderRadius: 10,
+                  padding: "10px 8px", border: "1px solid #1A4A2E" }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color,
+                    fontFamily: "Georgia,serif" }}>{value}</div>
+                  <div style={{ fontSize: 9, color: T.mist, marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {resaleEarnings > 0 && (
+              <div style={{ marginTop: 10, fontSize: 11, color: T.teal, fontWeight: 700 }}>
+                ♻️ +${resaleEarnings.toFixed(0)} earned from resale
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Season Stats ─────────────────────────────────────────────────── */}
-        {isSupabaseConfigured && activePodId && allocationDone && allMyGames.length > 0 && (
+        {isSupabaseConfigured && activePodId && allocationDone && allMyGames.length > 0 && !seasonWrapped && (
           <Card style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between",
               alignItems: "center", marginBottom: 12 }}>
@@ -558,10 +627,10 @@ export default function Dashboard({ state, dispatch, profile }) {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {[
-                { l: "Face Value",    v: totalFaceValue > 0 ? `$${Math.round(totalFaceValue).toLocaleString()}` : "—", emoji: "🎟️", color: T.lime },
-                { l: "Resale Earned", v: resaleEarnings > 0 ? `+$${resaleEarnings.toFixed(0)}` : "—", emoji: "♻️", color: T.teal },
-                { l: "Bid Credits",   v: `${bidCredits} pts`, emoji: "🎯", color: T.lime },
-                { l: "My Cost",       v: myCost > 0 ? `$${myCost.toLocaleString()}` : "—", emoji: "💰", color: T.lime },
+                { l: "Face Value",     v: totalFaceValue > 0 ? `$${Math.round(totalFaceValue).toLocaleString()}` : "—", emoji: "🎟️", color: T.lime },
+                { l: "Resale Earned",  v: resaleEarnings > 0 ? `+$${resaleEarnings.toFixed(0)}` : "—",                  emoji: "♻️", color: T.teal },
+                { l: "Cost per Game",  v: costPerGame ? `$${costPerGame}` : "—",                                         emoji: "📉", color: T.lime },
+                { l: "Saved vs Retail",v: savingsVsRetail !== null && savingsVsRetail > 0 ? `$${savingsVsRetail.toLocaleString()}` : "—", emoji: "💚", color: T.teal },
               ].map(({ l, v, emoji, color }) => (
                 <div key={l} style={{ background: "#ffffff06", borderRadius: 8,
                   padding: "9px 10px", display: "flex", alignItems: "center", gap: 8 }}>
