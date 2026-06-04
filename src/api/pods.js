@@ -177,6 +177,27 @@ export async function getPodByInviteCode(code) {
 }
 
 /**
+ * Leave a pod as a member.
+ * Calls the leave-pod edge function which handles Stripe refund (if funded),
+ * removes the member row, and notifies the captain.
+ */
+export async function leavePod(podId) {
+  const { data, error } = await supabase.functions.invoke("leave-pod", {
+    body: { podId },
+  });
+  if (error) {
+    let msg = error.message;
+    try {
+      const body = await error.context?.json();
+      if (body?.error) msg = body.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+/**
  * Delete a pod entirely (captain only, pod must not be fully funded/active).
  * Cascades to pod_members, games, assignments, etc. via DB constraints.
  */

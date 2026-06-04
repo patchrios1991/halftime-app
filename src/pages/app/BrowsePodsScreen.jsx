@@ -1,26 +1,65 @@
 // ─── BrowsePodsScreen ─────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T } from "../../tokens";
 import Card from "../../components/Card";
 import Badge from "../../components/Badge";
 import { SkeletonCard } from "../../components/Skeleton";
-import { useRecruitingPods, useMyPods } from "../../hooks/usePod";
+import { useRecruitingPods } from "../../hooks/usePod";
 import { joinPod } from "../../api/pods";
 import { friendlyError } from "../../lib/friendlyError";
 import { notify } from "../../lib/notify";
 import { useActivePod } from "../../context/ActivePodContext";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 
 export default function BrowsePodsScreen({ dispatch }) {
   const { pods, loading, refresh } = useRecruitingPods();
-  const { pods: myPods } = useMyPods();
-  const { setActivePodId, refresh: refreshMyPods } = useActivePod();
+  // Use pods from ActivePodContext — already loaded at the app level, no extra request
+  const { pods: myPods, setActivePodId, refresh: refreshMyPods } = useActivePod();
   const returnScreen = myPods.length > 0 ? "pod" : "onboarding";
 
-  const [joining,     setJoining]     = useState(null);  // podId being joined
-  const [error,       setError]       = useState(null);
-  const [joined,      setJoined]      = useState(null);  // podId just joined
-  const [selectedPod, setSelectedPod] = useState(null);  // pod detail sheet
-  const [showSeatMap, setShowSeatMap] = useState(false); // seat map sub-modal
+  const [joining,          setJoining]          = useState(null);   // podId being joined
+  const [error,            setError]            = useState(null);
+  const [joined,           setJoined]           = useState(null);   // podId just joined
+  const [selectedPod,      setSelectedPod]      = useState(null);   // pod detail sheet
+  const [showSeatMap,      setShowSeatMap]      = useState(false);  // seat map sub-modal
+  const [isMember,         setIsMember]         = useState(false);  // current user already in selectedPod
+  const [membershipReady,  setMembershipReady]  = useState(false);  // check complete
+
+  // Membership check: first try myPods (instant), then fall back to direct DB query
+  useEffect(() => {
+    if (!selectedPod) {
+      setIsMember(false);
+      setMembershipReady(false);
+      return;
+    }
+
+    // Immediate hit from already-loaded myPods list
+    if (myPods.some(p => p.id === selectedPod.id)) {
+      setIsMember(true);
+      setMembershipReady(true);
+      return;
+    }
+
+    // myPods not loaded yet or user not found — ask the DB directly
+    setIsMember(false);
+    setMembershipReady(false);
+    if (!isSupabaseConfigured) { setMembershipReady(true); return; }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user?.id) { setMembershipReady(true); return; }
+      supabase
+        .from("pod_members")
+        .select("pod_id")
+        .eq("pod_id", selectedPod.id)
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          setIsMember(!!data);
+          setMembershipReady(true);
+        });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPod, myPods]);
 
   async function handleJoin(pod) {
     setError(null);
@@ -398,8 +437,22 @@ export default function BrowsePodsScreen({ dispatch }) {
                 </div>
               )}
 
-              {/* Join button */}
-              {isJoined ? (
+              {/* Join / member status — wait for check before showing Join button */}
+              {!membershipReady ? (
+                <div style={{ padding: "15px 0", textAlign: "center" }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", margin: "0 auto",
+                    border: `2px solid ${T.green}`, borderTopColor: T.lime,
+                    animation: "spin 0.8s linear infinite" }} />
+                </div>
+              ) : isMember ? (
+                <div style={{ background: `${T.lime}12`, border: `1px solid ${T.lime}33`,
+                  borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+                  <div style={{ color: T.lime, fontWeight: 700, fontSize: 14 }}>✓ You're a member</div>
+                  <div style={{ color: T.mist, fontSize: 11, marginTop: 4 }}>
+                    Visit the Pod tab to manage your membership.
+                  </div>
+                </div>
+              ) : isJoined ? (
                 <div style={{ background: `${T.lime}18`, border: `1px solid ${T.lime}44`,
                   borderRadius: 12, padding: "14px 0", textAlign: "center",
                   color: T.lime, fontWeight: 700, fontSize: 14 }}>

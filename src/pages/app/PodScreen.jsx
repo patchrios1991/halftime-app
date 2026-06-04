@@ -7,7 +7,7 @@ import Bar from "../../components/Bar";
 import Card from "../../components/Card";
 import EscrowPaymentScreen from "./EscrowPaymentScreen";
 import { useMyPods, usePod } from "../../hooks/usePod";
-import { deletePod } from "../../api/pods";
+import { deletePod, leavePod } from "../../api/pods";
 import { useActivePod } from "../../context/ActivePodContext";
 import { usePodChat } from "../../hooks/usePodChat";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
@@ -56,6 +56,11 @@ export default function PodScreen({ state, dispatch }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteBusy,        setDeleteBusy]        = useState(false);
   const [deleteErr,         setDeleteErr]         = useState(null);
+
+  // Leave pod state (members only)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leaveBusy,        setLeaveBusy]        = useState(false);
+  const [leaveErr,         setLeaveErr]         = useState(null);
 
   // Current user
   const currentUserId = useCurrentUserId();
@@ -182,6 +187,32 @@ export default function PodScreen({ state, dispatch }) {
       setTimeout(() => setAnnounceOk(false), 2000);
     } catch (e) { console.error(e); }
     finally { setAnnounceBusy(false); }
+  }
+
+  async function handleLeavePod() {
+    if (!activePodId) return;
+    setLeaveErr(null);
+    setLeaveBusy(true);
+    try {
+      await leavePod(activePodId);
+      setShowLeaveConfirm(false);
+      // Switch to another pod or return to onboarding
+      await refreshPodContext();
+      const { getMyPods } = await import("../../api/pods");
+      const remaining = await getMyPods();
+      if (remaining.length > 0) {
+        setActivePodId(remaining[0].id);
+        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
+      } else {
+        localStorage.removeItem("ht_active_pod");
+        localStorage.removeItem("ht_onboarded");
+        dispatch({ type: "SET_SCREEN", screen: "onboarding" });
+      }
+    } catch (e) {
+      setLeaveErr(e?.message || "Failed to leave pod. Please try again.");
+    } finally {
+      setLeaveBusy(false);
+    }
   }
 
   async function handleDeletePod() {
@@ -612,6 +643,25 @@ export default function PodScreen({ state, dispatch }) {
                   fontWeight: 700, cursor: "pointer" }}>
                   + Invite a Member
                 </button>
+              </div>
+            )}
+
+            {/* Leave pod — non-captains only, while pod isn't fully funded */}
+            {!isCaptain && fullPod && escrowFundedCount < members.length && (
+              <div style={{ paddingTop: 20, textAlign: "center",
+                borderTop: "1px solid #1A4A2E", marginTop: 8 }}>
+                <button
+                  onClick={() => { setLeaveErr(null); setShowLeaveConfirm(true); }}
+                  style={{ padding: "9px 20px", background: "transparent",
+                    color: T.red, border: `1px solid ${T.red}44`,
+                    borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  Leave Pod
+                </button>
+                {myEscrowFunded && (
+                  <div style={{ fontSize: 10, color: T.mist, marginTop: 5 }}>
+                    Your escrow will be refunded if you leave
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1324,6 +1374,87 @@ export default function PodScreen({ state, dispatch }) {
         )}
       </div>
     </div>
+
+    {/* ── Leave pod confirmation modal ── */}
+    {showLeaveConfirm && (
+      <div
+        onClick={() => setShowLeaveConfirm(false)}
+        style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
+          zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ width: "100%", maxWidth: 430, background: T.dark,
+            borderRadius: "20px 20px 0 0", border: `1px solid ${T.red}44`,
+            borderBottom: "none",
+            padding: "24px 20px calc(env(safe-area-inset-bottom, 0px) + 32px)" }}
+        >
+          <div style={{ width: 40, height: 4, borderRadius: 2,
+            background: "#1A4A2E", margin: "0 auto 20px" }} />
+
+          <div style={{ fontSize: 24, textAlign: "center", marginBottom: 8 }}>🚪</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", textAlign: "center", marginBottom: 8 }}>
+            Leave "{podName}"?
+          </div>
+          <div style={{ fontSize: 12, color: T.mist, textAlign: "center",
+            lineHeight: 1.6, marginBottom: 20 }}>
+            You'll be removed from the pod and lose your seat allocation.
+            {myEscrowFunded ? (
+              <div style={{ marginTop: 10, background: `${T.teal}12`,
+                border: `1px solid ${T.teal}33`, borderRadius: 8,
+                padding: "10px 14px", textAlign: "left" }}>
+                <div style={{ fontSize: 11, color: T.teal, fontWeight: 700, marginBottom: 4 }}>
+                  💰 Escrow refund
+                </div>
+                <div style={{ fontSize: 11, color: T.teal, opacity: 0.85, lineHeight: 1.5 }}>
+                  Your escrow payment of ${myAmount.toFixed(2)} will be refunded to your
+                  original payment method via Stripe within 5–10 business days.
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: 10, background: "#ffffff06",
+                border: "1px solid #1A4A2E", borderRadius: 8,
+                padding: "10px 14px", textAlign: "left" }}>
+                <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.5 }}>
+                  You haven't funded your escrow yet, so there's nothing to refund.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {leaveErr && (
+            <div style={{ background: "rgba(239,68,68,0.12)", border: `1px solid ${T.red}`,
+              borderRadius: 8, padding: "10px 14px", color: T.red,
+              fontSize: 12, textAlign: "center", marginBottom: 14 }}>
+              {leaveErr}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => setShowLeaveConfirm(false)}
+              style={{ flex: 1, padding: "13px", background: "transparent",
+                border: `1px solid #1A4A2E`, borderRadius: 10, color: T.mist,
+                fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              Stay
+            </button>
+            <button
+              onClick={handleLeavePod}
+              disabled={leaveBusy}
+              style={{ flex: 1, padding: "13px", background: T.red,
+                border: "none", borderRadius: 10, color: T.white,
+                fontSize: 13, fontWeight: 700,
+                cursor: leaveBusy ? "not-allowed" : "pointer",
+                opacity: leaveBusy ? 0.6 : 1 }}>
+              {leaveBusy
+                ? (myEscrowFunded ? "Refunding…" : "Leaving…")
+                : "Yes, Leave Pod"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* ── Delete pod confirmation modal ── */}
     {showDeleteConfirm && (
