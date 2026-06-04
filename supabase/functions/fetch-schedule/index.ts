@@ -8,45 +8,67 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports";
 
 const SPORT_PATHS: Record<string, string> = {
-  // ── Pro leagues ─────────────────────────────────────────────────────────────
-  basketball:       "basketball/nba",
-  football:         "football/nfl",
-  baseball:         "baseball/mlb",
-  hockey:           "hockey/nhl",
-  soccer:           "soccer/usa.1",
+  // ── Pro leagues — current UI values (lowercase) ──────────────────────────────
+  "nba":              "basketball/nba",
+  "nfl":              "football/nfl",
+  "mlb":              "baseball/mlb",
+  "nhl":              "hockey/nhl",
+  "mls":              "soccer/usa.1",
+  "wnba":             "basketball/wnba",
+  // ── Pro leagues — legacy string values (kept for backward compat) ────────────
+  "basketball":       "basketball/nba",
+  "football":         "football/nfl",
+  "baseball":         "baseball/mlb",
+  "hockey":           "hockey/nhl",
+  "soccer":           "soccer/usa.1",
   // ── NCAA ────────────────────────────────────────────────────────────────────
-  "ncaa-football":   "football/college-football",
-  "ncaa-basketball": "basketball/mens-college-basketball",
-  "ncaa-wbasketball":"basketball/womens-college-basketball",
-  "ncaa-baseball":   "baseball/college-baseball",
-  "ncaa-hockey":     "hockey/college-hockey",
+  "ncaa-football":    "football/college-football",
+  "ncaa-basketball":  "basketball/mens-college-basketball",
+  "ncaa-wbasketball": "basketball/womens-college-basketball",
+  "ncaa-baseball":    "baseball/college-baseball",
+  "ncaa-hockey":      "hockey/college-hockey",
 };
 
+// Map UI sport values → MARQUEE/PREMIUM key
+function toMarqueeKey(sport: string): string {
+  switch (sport) {
+    case "nba":  return "basketball";
+    case "nfl":  return "football";
+    case "mlb":  return "baseball";
+    case "nhl":  return "hockey";
+    case "mls":  return "soccer";
+    case "wnba": return "wnba";
+    default:     return sport; // ncaa-* and legacy values pass through
+  }
+}
+
 const MARQUEE: Record<string, string[]> = {
-  basketball:        ["Lakers","Celtics","Warriors","Heat","Bucks","76ers","Knicks","Suns","Nuggets","Clippers"],
-  football:          ["Cowboys","Patriots","Chiefs","Eagles","49ers","Packers","Rams","Ravens","Bills"],
-  baseball:          ["Yankees","Red Sox","Dodgers","Cubs","Giants","Mets","Astros","Braves"],
-  hockey:            ["Blackhawks","Maple Leafs","Rangers","Canadiens","Bruins","Penguins","Capitals"],
-  soccer:            ["Galaxy","LAFC","Atlanta","Seattle"],
+  basketball:         ["Lakers","Celtics","Warriors","Heat","Bucks","76ers","Knicks","Suns","Nuggets","Clippers"],
+  football:           ["Cowboys","Patriots","Chiefs","Eagles","49ers","Packers","Rams","Ravens","Bills"],
+  baseball:           ["Yankees","Red Sox","Dodgers","Cubs","Giants","Mets","Astros","Braves"],
+  hockey:             ["Blackhawks","Maple Leafs","Rangers","Canadiens","Bruins","Penguins","Capitals"],
+  soccer:             ["Galaxy","LAFC","Atlanta","Seattle"],
+  wnba:               ["Fever","Liberty","Sky","Aces","Lynx","Storm"],
   // NCAA marquee = nationally recognizable blue-blood programs
-  "ncaa-football":   ["Alabama","Ohio State","Michigan","Georgia","Clemson","Notre Dame","Texas","Oklahoma","LSU","USC"],
-  "ncaa-basketball": ["Duke","Kentucky","Kansas","North Carolina","UConn","Villanova","Gonzaga","Louisville"],
-  "ncaa-wbasketball":["UConn","South Carolina","Iowa","LSU","Stanford","Tennessee","Notre Dame","Baylor"],
-  "ncaa-baseball":   ["LSU","Vanderbilt","Florida","Texas","Arkansas","Arizona","Stanford","Miami"],
-  "ncaa-hockey":     ["Minnesota","North Dakota","Boston University","Michigan","Wisconsin","Denver"],
+  "ncaa-football":    ["Alabama","Ohio State","Michigan","Georgia","Clemson","Notre Dame","Texas","Oklahoma","LSU","USC"],
+  "ncaa-basketball":  ["Duke","Kentucky","Kansas","North Carolina","UConn","Villanova","Gonzaga","Louisville"],
+  "ncaa-wbasketball": ["UConn","South Carolina","Iowa","LSU","Stanford","Tennessee","Notre Dame","Baylor"],
+  "ncaa-baseball":    ["LSU","Vanderbilt","Florida","Texas","Arkansas","Arizona","Stanford","Miami"],
+  "ncaa-hockey":      ["Minnesota","North Dakota","Boston University","Michigan","Wisconsin","Denver"],
 };
 
 const PREMIUM: Record<string, string[]> = {
-  basketball:        ["Cavaliers","Rockets","Thunder","Spurs","Nets","Magic","Pelicans","Kings"],
-  football:          ["Giants","Steelers","Seahawks","Broncos","Chargers","Raiders","Bears"],
-  baseball:          ["Cardinals","Phillies","Blue Jays","Twins","Tigers","Mariners"],
-  hockey:            ["Flyers","Sabres","Senators","Sharks","Kings","Jets"],
-  soccer:            [],
-  "ncaa-football":   ["Oregon","Penn State","Tennessee","Miami","Auburn","Florida","Wisconsin","Iowa","Utah","Michigan State"],
-  "ncaa-basketball": ["Michigan State","UCLA","Arizona","Purdue","Indiana","Marquette","Houston","Creighton"],
-  "ncaa-wbasketball":["Texas","Virginia Tech","Ohio State","NC State","Oklahoma","Maryland","Indiana","Colorado"],
-  "ncaa-baseball":   ["Texas A&M","Ole Miss","Oklahoma State","Georgia","North Carolina","TCU","Oregon State"],
-  "ncaa-hockey":     ["Minnesota State","Quinnipiac","Boston College","Cornell","Maine","Northeastern"],
+  basketball:         ["Cavaliers","Rockets","Thunder","Spurs","Nets","Magic","Pelicans","Kings"],
+  football:           ["Giants","Steelers","Seahawks","Broncos","Chargers","Raiders","Bears"],
+  baseball:           ["Cardinals","Phillies","Blue Jays","Twins","Tigers","Mariners"],
+  hockey:             ["Flyers","Sabres","Senators","Sharks","Kings","Jets"],
+  soccer:             [],
+  wnba:               ["Sun","Dream","Wings","Mercury","Mystics","Sparks"],
+  "ncaa-football":    ["Oregon","Penn State","Tennessee","Miami","Auburn","Florida","Wisconsin","Iowa","Utah","Michigan State"],
+  "ncaa-basketball":  ["Michigan State","UCLA","Arizona","Purdue","Indiana","Marquette","Houston","Creighton"],
+  "ncaa-wbasketball": ["Texas","Virginia Tech","Ohio State","NC State","Oklahoma","Maryland","Indiana","Colorado"],
+  "ncaa-baseball":    ["Texas A&M","Ole Miss","Oklahoma State","Georgia","North Carolina","TCU","Oregon State"],
+  "ncaa-hockey":      ["Minnesota State","Quinnipiac","Boston College","Cornell","Maine","Northeastern"],
 };
 
 const cors = {
@@ -70,7 +92,7 @@ serve(async (req: Request) => {
   try {
     const { action, sport, query, teamId } = await req.json() as AnyObj;
     const path    = SPORT_PATHS[String(sport ?? "basketball").toLowerCase()] ?? "basketball/nba";
-    const sportKey = String(sport ?? "basketball").toLowerCase();
+    const sportKey = toMarqueeKey(String(sport ?? "basketball").toLowerCase());
 
     // ── Search teams ─────────────────────────────────────────────────────────
     if (action === "search") {
