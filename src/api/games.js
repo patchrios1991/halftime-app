@@ -29,7 +29,7 @@ export async function addGame(podId, gameData) {
 
 /** Bulk-insert games for a pod (e.g. full season schedule) */
 export async function addGames(podId, gamesArray) {
-  const rows = gamesArray.map(g => ({ pod_id: podId, ...g }));
+  const rows = gamesArray.map(({ _venue, ...g }) => ({ pod_id: podId, ...g }));
   const { data, error } = await supabase
     .from("games")
     .insert(rows)
