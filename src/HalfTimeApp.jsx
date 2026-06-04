@@ -267,17 +267,16 @@ function AppShell({ state, dispatch, profile, signOut }) {
   return (
     <div style={{
       maxWidth: 430, margin: "0 auto",
-      background: T.dark, height: "100dvh",
+      background: T.dark, minHeight: "100dvh",
       fontFamily: "Calibri,sans-serif", color: T.white,
-      overflow: "hidden", position: "relative",
+      overflowX: "hidden", position: "relative",
     }}>
       {/* Sticky top bar */}
       {!noNav.includes(state.screen) && (
         <div style={{
-          background: "rgba(6,15,8,0.92)",
-          backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+          background: "#060F08",
           padding: "11px 14px 9px",
-          borderBottom: "1px solid rgba(26,74,46,0.6)",
+          borderBottom: "1px solid #1A4A2E",
           display: "flex", justifyContent: "space-between", alignItems: "center",
           position: "sticky", top: 0, zIndex: 50,
         }}>
@@ -452,7 +451,7 @@ function AppShell({ state, dispatch, profile, signOut }) {
 
       {/* Screen content */}
       <div style={{
-        height: noNav.includes(state.screen) ? "100dvh" : "calc(100dvh - 110px)",
+        minHeight: noNav.includes(state.screen) ? "100dvh" : "calc(100dvh - 112px)",
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
         overscrollBehavior: "contain",
