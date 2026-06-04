@@ -6,6 +6,7 @@ import Badge from "../../components/Badge";
 import { SkeletonCard } from "../../components/Skeleton";
 import { useRecruitingPods } from "../../hooks/usePod";
 import { joinPod, verifyTickets } from "../../api/pods";
+import { getCaptainRating } from "../../api/ratings";
 import { friendlyError } from "../../lib/friendlyError";
 import { notify } from "../../lib/notify";
 import { useActivePod } from "../../context/ActivePodContext";
@@ -25,6 +26,13 @@ export default function BrowsePodsScreen({ dispatch }) {
   const [isMember,         setIsMember]         = useState(false);  // current user already in selectedPod
   const [membershipReady,  setMembershipReady]  = useState(false);  // check complete
   const [recheckBusy,      setRecheckBusy]      = useState(false);  // URL re-check in flight
+  const [captainRating,    setCaptainRating]    = useState(null);  // { avg_score, rating_count }
+
+  // Fetch captain rating when detail sheet opens
+  useEffect(() => {
+    if (!selectedPod?.captain_id) { setCaptainRating(null); return; }
+    getCaptainRating(selectedPod.captain_id).then(setCaptainRating).catch(() => setCaptainRating(null));
+  }, [selectedPod?.captain_id]);
 
   // Membership check: first try myPods (instant), then fall back to direct DB query
   useEffect(() => {
@@ -281,11 +289,21 @@ export default function BrowsePodsScreen({ dispatch }) {
                     <div style={{ fontSize: 11, color: T.mist }}>
                       {pod.team_name} · Season {pod.season}
                     </div>
-                    <div style={{ marginTop: 5, display: "inline-block",
-                      background: `${T.lime}22`, border: `1px solid ${T.lime}44`,
-                      borderRadius: 20, padding: "2px 10px",
-                      fontSize: 10, fontWeight: 700, color: T.lime }}>
-                      Open for members
+                    <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+                      <div style={{ background: `${T.lime}22`, border: `1px solid ${T.lime}44`,
+                        borderRadius: 20, padding: "2px 10px",
+                        fontSize: 10, fontWeight: 700, color: T.lime }}>
+                        Open for members
+                      </div>
+                      {captainRating?.rating_count > 0 && (
+                        <div style={{ background: "rgba(251,191,36,0.12)",
+                          border: "1px solid rgba(251,191,36,0.3)",
+                          borderRadius: 20, padding: "2px 10px",
+                          fontSize: 10, fontWeight: 700, color: "#FCD34D" }}>
+                          {"★".repeat(Math.round(captainRating.avg_score))}
+                          {" "}{captainRating.avg_score} · {captainRating.rating_count} rating{captainRating.rating_count !== 1 ? "s" : ""}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -10,6 +10,7 @@ import { useMyPods, usePod } from "../../hooks/usePod";
 import { deletePod, leavePod } from "../../api/pods";
 import { getPodPerks, createPerk, placePerkBid, awardPerk, flagMissingPerk } from "../../api/perks";
 import { fileDispute, getPodDisputes, DISPUTE_TYPES } from "../../api/disputes";
+import { rateCaptain, getMyRating } from "../../api/ratings";
 import { useActivePod } from "../../context/ActivePodContext";
 import { usePodChat } from "../../hooks/usePodChat";
 import { findTeamTicketUrl } from "../../lib/teamTicketUrls";
@@ -64,6 +65,13 @@ export default function PodScreen({ state, dispatch }) {
   const [leaveBusy,        setLeaveBusy]        = useState(false);
   const [leaveErr,         setLeaveErr]         = useState(null);
 
+  // Captain rating state
+  const [myRating,     setMyRating]     = useState(null);  // { score, note } or null
+  const [ratingScore,  setRatingScore]  = useState(0);
+  const [ratingNote,   setRatingNote]   = useState("");
+  const [ratingBusy,   setRatingBusy]   = useState(false);
+  const [ratingDone,   setRatingDone]   = useState(false);
+
   // Dispute state
   const [showDisputeModal,  setShowDisputeModal]  = useState(false);
   const [disputeType,       setDisputeType]       = useState("ticket_not_delivered");
@@ -108,6 +116,15 @@ export default function PodScreen({ state, dispatch }) {
       chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, tab]);
+
+  // Load existing rating when pod loads
+  useEffect(() => {
+    if (!activePodId || !currentUserId || isCaptain) return;
+    getMyRating(activePodId).then(r => {
+      if (r) { setMyRating(r); setRatingScore(r.score); setRatingNote(r.note || ""); setRatingDone(true); }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePodId, currentUserId]);
 
   useEffect(() => {
     if (tab !== "perks" || !activePodId) return;
@@ -698,6 +715,75 @@ export default function PodScreen({ state, dispatch }) {
                   <div style={{ fontSize: 10, color: T.mist, marginTop: 5 }}>
                     Your escrow will be refunded if you leave
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Captain rating — non-captains, pod active or completed */}
+            {!isCaptain && fullPod && ["active","completed"].includes(fullPod.status) && (
+              <div style={{ paddingTop: 20, borderTop: "1px solid #1A4A2E", marginTop: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.mist,
+                  letterSpacing: 1, marginBottom: 10 }}>RATE YOUR CAPTAIN</div>
+
+                {ratingDone && myRating ? (
+                  <div style={{ background: `${T.lime}08`, border: `1px solid ${T.lime}22`,
+                    borderRadius: 10, padding: "10px 14px" }}>
+                    <div style={{ fontSize: 12, color: T.lime, fontWeight: 700, marginBottom: 4 }}>
+                      {"★".repeat(myRating.score)}{"☆".repeat(5 - myRating.score)} Your rating submitted
+                    </div>
+                    {myRating.note && (
+                      <div style={{ fontSize: 11, color: T.mist }}>"{myRating.note}"</div>
+                    )}
+                    <button onClick={() => setRatingDone(false)}
+                      style={{ marginTop: 8, background: "none", border: "none",
+                        color: T.mist, fontSize: 10, cursor: "pointer", padding: 0 }}>
+                      Edit rating
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Star selector */}
+                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                      {[1,2,3,4,5].map(n => (
+                        <button key={n} onClick={() => setRatingScore(n)}
+                          style={{ fontSize: 28, background: "none", border: "none",
+                            cursor: "pointer", padding: 0, lineHeight: 1,
+                            opacity: n <= ratingScore ? 1 : 0.25,
+                            transition: "opacity 0.1s" }}>
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={ratingNote}
+                      onChange={e => setRatingNote(e.target.value)}
+                      placeholder="Optional note — communication, ticket delivery, fairness…"
+                      rows={2}
+                      style={{ width: "100%", padding: "8px 12px", background: "#0D1F12",
+                        border: "1px solid #1A4A2E", borderRadius: 8, color: T.white,
+                        fontSize: 12, fontFamily: "Calibri,sans-serif",
+                        outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 8 }}
+                    />
+                    <button
+                      disabled={ratingBusy || ratingScore === 0}
+                      onClick={async () => {
+                        if (!ratingScore) return;
+                        setRatingBusy(true);
+                        try {
+                          const r = await rateCaptain(activePodId, fullPod.captain_id, ratingScore, ratingNote);
+                          setMyRating({ score: ratingScore, note: ratingNote });
+                          setRatingDone(true);
+                        } catch (e) { /* non-fatal */ }
+                        finally { setRatingBusy(false); }
+                      }}
+                      style={{ width: "100%", padding: "10px 0",
+                        background: ratingScore === 0 || ratingBusy ? "#1A4A2E" : T.lime,
+                        color: ratingScore === 0 ? T.mist : T.dark,
+                        border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                        cursor: ratingScore === 0 || ratingBusy ? "not-allowed" : "pointer" }}>
+                      {ratingBusy ? "Saving…" : ratingScore === 0 ? "Select a star rating" : "Submit Rating →"}
+                    </button>
+                  </>
                 )}
               </div>
             )}
