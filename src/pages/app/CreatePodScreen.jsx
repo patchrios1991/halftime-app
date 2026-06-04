@@ -58,7 +58,7 @@ export default function CreatePodScreen({ dispatch }) {
   const [form, setForm] = useState({
     name: "", team_name: "", sport: "NBA", season: "2025-26",
     season_cost: "", max_members: "4", captainShare: "25",
-    venue: "", section: "", row: "", seat: "",
+    venue: "", section: "", row: "", seats: [""],
   });
   const ticketUrl = useMemo(
     () => findTeamTicketUrl(form.team_name, form.sport),
@@ -132,7 +132,7 @@ export default function CreatePodScreen({ dispatch }) {
     if (!form.venue.trim())     errs.venue       = "Venue is required.";
     if (!form.section.trim())   errs.section     = "Section is required.";
     if (!form.row.trim())       errs.row         = "Row is required.";
-    if (!form.seat.trim())      errs.seat        = "Seat number is required.";
+    if (!form.seats.some(s => s.trim())) errs.seat = "At least one seat number is required.";
     if (podType === "group_buy" && !organizerConsent)
       errs.consent = "You must agree to the purchase commitment.";
     if (Object.keys(errs).length) { setFE(errs); return; }
@@ -160,7 +160,7 @@ export default function CreatePodScreen({ dispatch }) {
         venue:           form.venue.trim() || null,
         section:         form.section.trim() || null,
         row:             form.row.trim() || null,
-        seat:            form.seat.trim() || null,
+        seat:            form.seats.filter(s => s.trim()).join(", ") || null,
         seat_map_url:       seatMapUrl,
         pod_type:           podType,
         organizer_consent:  podType === "group_buy" ? organizerConsent : false,
@@ -449,19 +449,18 @@ export default function CreatePodScreen({ dispatch }) {
             <label style={{ ...labelStyle, color: fieldErr.venue ? T.red : T.mist }}>VENUE</label>
             <input
               style={{ ...inputStyle, borderColor: fieldErr.venue ? T.red : T.green }}
-              placeholder='e.g. "Kaseya Center"'
+              placeholder=""
               value={form.venue}
               onChange={e => { set("venue", e.target.value); setVenueAutoSet(false); clearFE("venue"); }}
             />
             {fieldErr.venue && <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>{fieldErr.venue}</div>}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
             <div>
               <label style={{ ...labelStyle, color: fieldErr.section ? T.red : T.mist }}>SECTION</label>
               <input
                 style={{ ...inputStyle, borderColor: fieldErr.section ? T.red : T.green }}
-                placeholder="114"
                 value={form.section}
                 onChange={e => { set("section", e.target.value); clearFE("section"); }}
               />
@@ -471,22 +470,50 @@ export default function CreatePodScreen({ dispatch }) {
               <label style={{ ...labelStyle, color: fieldErr.row ? T.red : T.mist }}>ROW</label>
               <input
                 style={{ ...inputStyle, borderColor: fieldErr.row ? T.red : T.green }}
-                placeholder="8"
                 value={form.row}
                 onChange={e => { set("row", e.target.value); clearFE("row"); }}
               />
               {fieldErr.row && <div style={{ fontSize: 10, color: T.red, marginTop: 3 }}>{fieldErr.row}</div>}
             </div>
-            <div>
-              <label style={{ ...labelStyle, color: fieldErr.seat ? T.red : T.mist }}>SEAT</label>
-              <input
-                style={{ ...inputStyle, borderColor: fieldErr.seat ? T.red : T.green }}
-                placeholder="4"
-                value={form.seat}
-                onChange={e => { set("seat", e.target.value); clearFE("seat"); }}
-              />
-              {fieldErr.seat && <div style={{ fontSize: 10, color: T.red, marginTop: 3 }}>{fieldErr.seat}</div>}
-            </div>
+          </div>
+
+          {/* Dynamic seat list */}
+          <div>
+            <label style={{ ...labelStyle, color: fieldErr.seat ? T.red : T.mist }}>
+              SEAT{form.seats.length > 1 ? "S" : ""}
+            </label>
+            {form.seats.map((seat, idx) => (
+              <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                <input
+                  style={{ ...inputStyle, borderColor: fieldErr.seat ? T.red : T.green, flex: 1 }}
+                  value={seat}
+                  onChange={e => {
+                    const updated = [...form.seats];
+                    updated[idx] = e.target.value;
+                    set("seats", updated);
+                    clearFE("seat");
+                  }}
+                />
+                {form.seats.length > 1 && (
+                  <button
+                    onClick={() => set("seats", form.seats.filter((_, i) => i !== idx))}
+                    style={{ background: "none", border: `1px solid ${T.red}55`,
+                      borderRadius: 8, color: T.red, fontSize: 16, cursor: "pointer",
+                      width: 36, height: 36, flexShrink: 0, display: "flex",
+                      alignItems: "center", justifyContent: "center" }}>
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            {fieldErr.seat && <div style={{ fontSize: 10, color: T.red, marginTop: 2 }}>{fieldErr.seat}</div>}
+            <button
+              onClick={() => set("seats", [...form.seats, ""])}
+              style={{ marginTop: 4, background: "none", border: `1px solid ${T.teal}44`,
+                borderRadius: 8, color: T.teal, fontSize: 11, fontWeight: 700,
+                cursor: "pointer", padding: "6px 14px" }}>
+              + Add Another Seat
+            </button>
           </div>
         </Card>
 

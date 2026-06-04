@@ -435,7 +435,6 @@ export default function PodScreen({ state, dispatch }) {
         const minsLeft   = Math.floor((msLeft % 3_600_000) / 60_000);
         const isPast     = msLeft === 0;
         const ticketUrl  = findTeamTicketUrl(fullPod.team_name, fullPod.sport);
-        const [autoCancel, setAutoCancel] = useState(false);
 
         return (
           <div style={{ margin: "0 14px 4px" }}>
@@ -468,13 +467,20 @@ export default function PodScreen({ state, dispatch }) {
                   )}
 
                   {!isPast && ticketUrl && (
-                    <a href={ticketUrl} target="_blank" rel="noopener noreferrer"
-                      style={{ display: "block", width: "100%", padding: "11px 0",
-                        background: T.teal, color: T.dark, borderRadius: 10,
-                        textAlign: "center", fontWeight: 700, fontSize: 13,
-                        textDecoration: "none", marginBottom: 8 }}>
-                      🎟️ Buy Season Tickets (Official Site) →
-                    </a>
+                    <>
+                      <a href={ticketUrl} target="_blank" rel="noopener noreferrer"
+                        style={{ display: "block", width: "100%", padding: "11px 0",
+                          background: T.teal, color: T.dark, borderRadius: 10,
+                          textAlign: "center", fontWeight: 700, fontSize: 13,
+                          textDecoration: "none", marginBottom: 4 }}>
+                        🎟️ {fullPod.team_name} Season Ticket Page →
+                      </a>
+                      <div style={{ fontSize: 10, color: T.mist, textAlign: "center",
+                        marginBottom: 10 }}>
+                        Availability depends on the team's schedule — if tickets aren't on sale
+                        yet, check back closer to the season.
+                      </div>
+                    </>
                   )}
                   {!isPast && (
                     <div style={{ fontSize: 10, color: T.mist, textAlign: "center",
