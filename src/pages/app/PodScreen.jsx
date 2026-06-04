@@ -698,8 +698,25 @@ export default function PodScreen({ state, dispatch }) {
         {tab === "perks" && (
           <div style={{ padding: "14px 14px 120px" }}>
 
-            {/* Perk commitment banner */}
-            {fullPod?.perk_commitment ? (
+            {/* Perks not included in this pod */}
+            {fullPod?.perks_included === false && (
+              <div style={{ background: `${T.teal}08`, border: `1px solid ${T.teal}33`,
+                borderRadius: 12, padding: "18px 16px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🎁</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.teal,
+                  fontFamily: "Georgia,serif", marginBottom: 6 }}>
+                  Perks not included in this pod
+                </div>
+                <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.7 }}>
+                  The captain retains all team member perks. In exchange, members
+                  pay <strong style={{ color: T.teal }}>5% less</strong> than their
+                  standard share — already reflected in your escrow amount.
+                </div>
+              </div>
+            )}
+
+            {/* Perk commitment banner — only when perks are included */}
+            {fullPod?.perks_included !== false && fullPod?.perk_commitment ? (
               <div style={{ background: `${T.lime}08`, border: `1px solid ${T.lime}22`,
                 borderRadius: 10, padding: "10px 14px", marginBottom: 14,
                 fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
@@ -716,17 +733,17 @@ export default function PodScreen({ state, dispatch }) {
               </div>
             )}
 
-            {perksLoading && (
+            {fullPod?.perks_included !== false && perksLoading && (
               <div style={{ textAlign: "center", padding: "30px 0", color: T.mist, fontSize: 12 }}>
                 Loading perks…
               </div>
             )}
-            {perksError && (
+            {fullPod?.perks_included !== false && perksError && (
               <div style={{ color: T.red, fontSize: 12, marginBottom: 12 }}>{perksError}</div>
             )}
 
             {/* Captain: post perk form */}
-            {isCaptain && !showPerkForm && (
+            {fullPod?.perks_included !== false && isCaptain && !showPerkForm && (
               <button
                 onClick={() => setShowPerkForm(true)}
                 style={{ width: "100%", padding: "12px 0", background: T.lime,
@@ -736,7 +753,7 @@ export default function PodScreen({ state, dispatch }) {
               </button>
             )}
 
-            {isCaptain && showPerkForm && (
+            {fullPod?.perks_included !== false && isCaptain && showPerkForm && (
               <div style={{ background: T.forest, border: "1px solid #1A4A2E",
                 borderRadius: 12, padding: "16px", marginBottom: 14 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
@@ -804,7 +821,7 @@ export default function PodScreen({ state, dispatch }) {
             )}
 
             {/* Perk list */}
-            {!perksLoading && perks.length === 0 && (
+            {fullPod?.perks_included !== false && !perksLoading && perks.length === 0 && (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
                 <div style={{ fontSize: 36, marginBottom: 10 }}>🎟️</div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
@@ -817,7 +834,7 @@ export default function PodScreen({ state, dispatch }) {
               </div>
             )}
 
-            {perks.map(perk => {
+            {fullPod?.perks_included !== false && perks.map(perk => {
               const bids      = (perk.perk_bids ?? []).sort((a, b) => b.credits - a.credits);
               const myBid     = bids.find(b => b.user_id === currentUserId);
               const isOpen    = perk.status === "open";
@@ -959,8 +976,8 @@ export default function PodScreen({ state, dispatch }) {
               );
             })}
 
-            {/* Flag undisclosed perk — non-captain members only */}
-            {!isCaptain && (
+            {/* Flag undisclosed perk — non-captain members only, only when perks included */}
+            {fullPod?.perks_included !== false && !isCaptain && (
               <div style={{ marginTop: 8, textAlign: "center" }}>
                 {flagDone ? (
                   <div style={{ fontSize: 12, color: T.lime }}>

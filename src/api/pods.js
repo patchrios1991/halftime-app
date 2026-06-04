@@ -93,15 +93,22 @@ export async function createPod(podData) {
 
   if (podError) throw podError;
 
-  // Auto-add captain as first member
+  // Auto-add captain as first member.
+  // If perks are not shared, captain pays slightly more to cover the 5% member discounts —
+  // total collected across all members still equals season_cost.
   const shareToUse = captainShare || 25;
+  const perksIncluded = podData.perks_included !== false;
+  const captainCost = perksIncluded
+    ? (pod.season_cost * shareToUse) / 100
+    : pod.season_cost * (1 - ((100 - shareToUse) / 100) * 0.95);
+
   const { error: memberError } = await supabase
     .from("pod_members")
     .insert({
       pod_id:    pod.id,
       user_id:   user.id,
       share_pct: shareToUse,
-      cost:      (pod.season_cost * shareToUse) / 100,
+      cost:      captainCost,
       tier:      "captain",
     });
 
@@ -155,7 +162,9 @@ export async function joinPod(podId) {
   if (remainingSpots <= 0) throw new Error("This pod is full");
 
   const sharePct = Math.round((100 - usedPct) / remainingSpots);
-  const cost     = (parseFloat(pod.season_cost) * sharePct) / 100;
+  const baseCost = (parseFloat(pod.season_cost) * sharePct) / 100;
+  // Members pay 5% less when perks are not shared — captain absorbs the difference
+  const cost = pod.perks_included === false ? baseCost * 0.95 : baseCost;
 
   const { error: joinErr } = await supabase
     .from("pod_members")

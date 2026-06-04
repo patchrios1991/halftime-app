@@ -161,7 +161,8 @@ export default function BrowsePodsScreen({ dispatch }) {
             const isJoined    = joined === pod.id;
 
             const estimatedShare = Math.round(100 / pod.max_members);
-            const estimatedCost  = (parseFloat(pod.season_cost) * estimatedShare) / 100;
+            const estimatedCost  = (parseFloat(pod.season_cost) * estimatedShare) / 100
+              * (pod.perks_included === false ? 0.95 : 1);
 
             return (
               <Card
@@ -246,7 +247,8 @@ export default function BrowsePodsScreen({ dispatch }) {
         const spotsLeft   = (pod.max_members || 6) - memberCount;
         const isFull      = spotsLeft <= 0;
         const estimatedShare = Math.round(100 / pod.max_members);
-        const estimatedCost  = (parseFloat(pod.season_cost) * estimatedShare) / 100;
+        const estimatedCost  = (parseFloat(pod.season_cost) * estimatedShare) / 100
+          * (pod.perks_included === false ? 0.95 : 1);
         const isJoining   = joining === pod.id;
         const isJoined    = joined  === pod.id;
 
@@ -547,25 +549,39 @@ export default function BrowsePodsScreen({ dispatch }) {
               ) : null}
 
               {/* Perk disclosure */}
-              <div style={{ background: "rgba(148,163,184,0.05)",
-                border: "1px solid rgba(148,163,184,0.12)", borderRadius: 10,
-                padding: "11px 14px", marginBottom: 14 }}>
-                {pod.perk_commitment ? (
-                  <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
-                    <span style={{ color: T.lime, fontWeight: 700 }}>✓ Captain committed</span>
-                    {" "}to posting all team member perks (events, meet-and-greets,
-                    postseason seat opportunities) within 48 hours of notice, for members to bid on.
-                    Members can flag any perk they believe wasn't disclosed.
+              {pod.perks_included === false ? (
+                <div style={{ background: `${T.teal}08`, border: `1px solid ${T.teal}33`,
+                  borderRadius: 10, padding: "11px 14px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.teal, marginBottom: 3 }}>
+                    🎁 Event perks not included — 5% cost reduction applied
                   </div>
-                ) : (
                   <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
-                    🎟️ <strong style={{ color: T.chalk }}>Note on member perks:</strong>{" "}
-                    Season ticket holders receive team perks (events, postseason seats, etc.).
-                    The captain is named on the account — ask them how they plan to share
-                    perks with the pod before joining.
+                    The captain retains all team member perks (events, meet-and-greets,
+                    postseason seats). Your share cost is reduced by 5% to reflect this.
+                    Est. share shown above already includes the discount.
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div style={{ background: "rgba(148,163,184,0.05)",
+                  border: "1px solid rgba(148,163,184,0.12)", borderRadius: 10,
+                  padding: "11px 14px", marginBottom: 14 }}>
+                  {pod.perk_commitment ? (
+                    <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                      <span style={{ color: T.lime, fontWeight: 700 }}>✓ Perks included & captain committed</span>
+                      {" "}— all team member perks (events, meet-and-greets, postseason seat
+                      opportunities) are posted to the pod within 48 hours for members to bid on.
+                      Members can flag any perk they believe wasn't disclosed.
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                      🎟️ <strong style={{ color: T.chalk }}>Note on member perks:</strong>{" "}
+                      Season ticket holders receive team perks (events, postseason seats, etc.).
+                      The captain is named on the account — ask them how they plan to share
+                      perks with the pod before joining.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Error */}
               {error && (

@@ -82,7 +82,8 @@ export default function CreatePodScreen({ dispatch }) {
   const [receiptFile,    setReceiptFile]   = useState(null);   // File | null
   const [uploadPct,      setUploadPct]     = useState(null);   // null | 0-100
   const [availabilityUrl, setAvailabilityUrl] = useState(""); // ticket availability URL for group_buy
-  const [perkCommitment, setPerkCommitment] = useState(false); // required for all pod types
+  const [perksIncluded,  setPerksIncluded]  = useState(true);  // whether event perks are shared
+  const [perkCommitment, setPerkCommitment] = useState(false); // required only when perks included
   const fileInputRef = useRef(null);
 
   function clearFE(key) { setFE(f => ({ ...f, [key]: null })); }
@@ -137,7 +138,7 @@ export default function CreatePodScreen({ dispatch }) {
     if (!form.seats.some(s => s.trim())) errs.seat = "At least one seat number is required.";
     if (podType === "group_buy" && !organizerConsent)
       errs.consent = "You must agree to the purchase commitment.";
-    if (!perkCommitment)
+    if (perksIncluded && !perkCommitment)
       errs.perkCommitment = "You must commit to disclosing team perks to your members.";
     if (Object.keys(errs).length) { setFE(errs); return; }
 
@@ -177,7 +178,8 @@ export default function CreatePodScreen({ dispatch }) {
         pod_type:           podType,
         organizer_consent:  podType === "group_buy" ? organizerConsent : false,
         ticket_url:         podType === "group_buy" && availabilityUrl.trim() ? availabilityUrl.trim() : null,
-        perk_commitment:    perkCommitment,
+        perks_included:     perksIncluded,
+        perk_commitment:    perksIncluded ? perkCommitment : false,
         status:             "recruiting",
       });
 
@@ -365,15 +367,76 @@ export default function CreatePodScreen({ dispatch }) {
           </div>
 
           {/* Captain cost preview */}
-          {form.season_cost && form.captainShare && (
-            <div style={{ background: `${T.lime}12`, border: `1px solid ${T.lime}33`,
-              borderRadius: 8, padding: "10px 12px", marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: T.mist }}>Your captain cost</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.lime, fontFamily: "Georgia,serif" }}>
-                ${((parseFloat(form.season_cost) || 0) * (parseFloat(form.captainShare) || 0) / 100).toFixed(2)}
+          {form.season_cost && form.captainShare && (() => {
+            const s = parseFloat(form.season_cost) || 0;
+            const c = parseFloat(form.captainShare) || 0;
+            const captainCost = perksIncluded
+              ? s * c / 100
+              : s * (1 - ((100 - c) / 100) * 0.95);
+            const memberCost  = perksIncluded
+              ? s * ((100 - c) / 100) / Math.max(1, (parseInt(form.max_members) || 4) - 1)
+              : s * ((100 - c) / 100) / Math.max(1, (parseInt(form.max_members) || 4) - 1) * 0.95;
+            return (
+              <div style={{ background: `${T.lime}12`, border: `1px solid ${T.lime}33`,
+                borderRadius: 8, padding: "10px 12px", marginTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.mist }}>Your captain cost</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: T.lime, fontFamily: "Georgia,serif" }}>
+                      ${captainCost.toFixed(2)}
+                    </div>
+                    {!perksIncluded && (
+                      <div style={{ fontSize: 9, color: T.mist, marginTop: 2 }}>
+                        (includes perk offset)
+                      </div>
+                    )}
+                  </div>
+                  {s > 0 && (
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 11, color: T.mist }}>Est. member cost</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: perksIncluded ? T.lime : T.teal,
+                        fontFamily: "Georgia,serif" }}>
+                        ${memberCost.toFixed(2)}
+                      </div>
+                      {!perksIncluded && (
+                        <div style={{ fontSize: 9, color: T.teal, marginTop: 2 }}>
+                          5% perk discount
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
+
+          {/* Perks included toggle */}
+          <div style={{ marginTop: 12, background: "#0D1F12", borderRadius: 10,
+            border: "1px solid #1A4A2E", padding: "12px 14px" }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={perksIncluded}
+                onChange={e => {
+                  setPerksIncluded(e.target.checked);
+                  if (!e.target.checked) setPerkCommitment(false);
+                }}
+                style={{ marginTop: 2, accentColor: T.lime, width: 18, height: 18,
+                  flexShrink: 0, cursor: "pointer" }}
+              />
+              <span>
+                <span style={{ fontSize: 13, fontWeight: 700,
+                  color: perksIncluded ? T.lime : T.mist, display: "block" }}>
+                  🎁 Event perks included in this pod
+                </span>
+                <span style={{ fontSize: 11, color: T.mist, lineHeight: 1.6, display: "block", marginTop: 3 }}>
+                  {perksIncluded
+                    ? "Members share in all team perks (events, meet-and-greets, postseason seats) via the pod's bidding system."
+                    : "You retain all team perks as captain. Members pay 5% less than their share to reflect this — you cover the difference."}
+                </span>
+              </span>
+            </label>
+          </div>
         </Card>
 
         {/* ── Proof of purchase / availability ─────────────────────────────── */}
@@ -589,8 +652,8 @@ export default function CreatePodScreen({ dispatch }) {
           </Card>
         )}
 
-        {/* ── Perk Disclosure Commitment ────────────────────────────────────── */}
-        <Card style={{ border: fieldErr.perkCommitment ? `1px solid ${T.red}` : undefined }}>
+        {/* ── Perk Disclosure Commitment (only when perks are included) ────── */}
+        {perksIncluded && <Card style={{ border: fieldErr.perkCommitment ? `1px solid ${T.red}` : undefined }}>
           <label style={{ display: "flex", alignItems: "flex-start", gap: 12,
             cursor: "pointer" }}>
             <input type="checkbox" checked={perkCommitment}
@@ -609,7 +672,7 @@ export default function CreatePodScreen({ dispatch }) {
           {fieldErr.perkCommitment && (
             <div style={{ fontSize: 11, color: T.red, marginTop: 6 }}>{fieldErr.perkCommitment}</div>
           )}
-        </Card>
+        </Card>}
 
         {error && (
           <div style={{ background: "rgba(239,68,68,0.12)", border: `1px solid ${T.red}`,
