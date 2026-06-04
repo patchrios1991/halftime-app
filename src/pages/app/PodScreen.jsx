@@ -101,6 +101,33 @@ export default function PodScreen({ state, dispatch }) {
   const [flagBusy,      setFlagBusy]     = useState(false);
   const [flagDone,      setFlagDone]     = useState(false);
 
+  // Member onboarding overlay — shown once to non-captains
+  const [onboardStep, setOnboardStep] = useState(() =>
+    localStorage.getItem("ht_member_onboarded") ? null : 0
+  );
+  const ONBOARD_STEPS = [
+    {
+      icon: "🏟️",
+      title: "Welcome to your pod!",
+      body: "A pod is a group of fans who co-own season tickets. Each member owns a percentage share and gets games allocated to them based on that share.",
+    },
+    {
+      icon: "🎯",
+      title: "Bid credits",
+      body: "You start with 100 bid credits. Use them to compete for marquee and playoff games through auctions — the highest bid wins the seat.",
+    },
+    {
+      icon: "🔒",
+      title: "Escrow & payments",
+      body: "Your share is held securely in Stripe escrow. Funds are only released once tickets are confirmed delivered. You can file a dispute anytime if something goes wrong.",
+    },
+  ];
+
+  function dismissOnboarding() {
+    localStorage.setItem("ht_member_onboarded", "1");
+    setOnboardStep(null);
+  }
+
   // Current user
   const currentUserId = useCurrentUserId();
 
@@ -2016,6 +2043,41 @@ export default function PodScreen({ state, dispatch }) {
                 </button>
               </Card>
             )}
+
+            {/* ── Season renewal ── */}
+            {isCaptain && fullPod && (
+              <Card style={{ marginBottom: 12, border: `1px solid ${T.lime}33` }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                  fontFamily: "Georgia,serif", marginBottom: 6 }}>🔄 Renew for Next Season</div>
+                <div style={{ fontSize: 11, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
+                  Start a new pod pre-filled with this season's settings — same team, venue,
+                  section, and member count. Invite your crew back in one tap.
+                </div>
+                <button
+                  onClick={() => {
+                    const season = fullPod.season || "2025-26";
+                    const parts = season.split("-");
+                    const nextStart = parseInt(parts[0], 10) + 1;
+                    const nextEnd   = parseInt(parts[1] || String(nextStart), 10) + 1;
+                    const nextSeason = `${nextStart}-${String(nextEnd).slice(-2)}`;
+                    localStorage.setItem("ht_pod_template", JSON.stringify({
+                      sport:       fullPod.sport      || "",
+                      team_name:   fullPod.team_name  || "",
+                      venue:       fullPod.venue       || "",
+                      section:     fullPod.section     || "",
+                      row:         fullPod.row         || "",
+                      max_members: fullPod.max_members || 4,
+                      season:      nextSeason,
+                    }));
+                    dispatch({ type: "SET_SCREEN", screen: "create_pod" });
+                  }}
+                  style={{ width: "100%", padding: "11px", background: T.lime,
+                    border: "none", borderRadius: 8,
+                    color: T.dark, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Renew Pod →
+                </button>
+              </Card>
+            )}
           </div>
         )}
 
@@ -2328,6 +2390,55 @@ export default function PodScreen({ state, dispatch }) {
         onClose={() => setShowInvite(false)}
       />
     )}
+
+    {/* ── Member onboarding overlay ── */}
+    {!isCaptain && onboardStep !== null && fullPod && (() => {
+      const step = ONBOARD_STEPS[onboardStep];
+      const isLast = onboardStep === ONBOARD_STEPS.length - 1;
+      return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.95)",
+          zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div style={{ width: "100%", maxWidth: 430, background: T.dark,
+            borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
+            borderBottom: "none", padding: "28px 24px 44px" }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2,
+              background: T.green, margin: "0 auto 24px" }} />
+
+            {/* Step dots */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24 }}>
+              {ONBOARD_STEPS.map((_, i) => (
+                <div key={i} style={{ width: i === onboardStep ? 20 : 8, height: 8,
+                  borderRadius: 4, background: i === onboardStep ? T.lime : "#1A4A2E",
+                  transition: "all 0.2s" }} />
+              ))}
+            </div>
+
+            <div style={{ fontSize: 40, textAlign: "center", marginBottom: 16 }}>{step.icon}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", textAlign: "center", marginBottom: 12 }}>
+              {step.title}
+            </div>
+            <div style={{ fontSize: 14, color: T.mist, lineHeight: 1.7,
+              textAlign: "center", marginBottom: 28 }}>
+              {step.body}
+            </div>
+
+            <button
+              onClick={() => isLast ? dismissOnboarding() : setOnboardStep(s => s + 1)}
+              style={{ width: "100%", padding: "15px", background: T.lime,
+                border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700,
+                color: T.dark, cursor: "pointer", fontFamily: "Georgia,serif" }}>
+              {isLast ? "Let's go →" : "Next →"}
+            </button>
+            <button onClick={dismissOnboarding}
+              style={{ width: "100%", marginTop: 10, background: "none", border: "none",
+                color: T.mist, fontSize: 12, cursor: "pointer", padding: "8px 0" }}>
+              Skip
+            </button>
+          </div>
+        </div>
+      );
+    })()}
     </>
   );
 }

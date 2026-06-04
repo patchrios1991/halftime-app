@@ -324,27 +324,39 @@ export default function Dashboard({ state, dispatch, profile }) {
 
         {/* ── No pod CTA ─────────────────────────────────────────────────── */}
         {isSupabaseConfigured && !activePodId && !dataLoading && (
-          <Card style={{ marginBottom: 14, textAlign: "center", padding: 24 }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🏟️</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
-              fontFamily: "Georgia,serif", marginBottom: 6 }}>No pod yet</div>
-            <div style={{ fontSize: 12, color: T.mist, marginBottom: 14 }}>
-              Create or join a pod to start sharing season tickets.
+          <div style={{ background: `linear-gradient(160deg,${T.dark},${T.forest})`,
+            border: `1px solid ${T.green}`, borderRadius: 16,
+            padding: "28px 20px", marginBottom: 14, textAlign: "center" }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🎟️</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 8 }}>
+              The cheapest seat in the house
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <div style={{ fontSize: 13, color: T.mist, marginBottom: 6, lineHeight: 1.7 }}>
+              Split a season ticket with friends. Pay only your share,
+              get your games allocated automatically, and sell the ones you can't make.
+            </div>
+            {[
+              "✅ No full-season commitment",
+              "🔒 Your money in Stripe escrow until confirmed",
+              "🎯 AI-powered fair game distribution",
+            ].map(line => (
+              <div key={line} style={{ fontSize: 12, color: T.mist, marginBottom: 4 }}>{line}</div>
+            ))}
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 20 }}>
               <button onClick={() => dispatch({ type: "SET_SCREEN", screen: "create_pod" })}
-                style={{ padding: "9px 16px", background: T.lime, color: T.dark,
-                  border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                Create Pod
+                style={{ padding: "12px 20px", background: T.lime, color: T.dark,
+                  border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Create a Pod
               </button>
               <button onClick={() => dispatch({ type: "SET_SCREEN", screen: "browse_pods" })}
-                style={{ padding: "9px 16px", background: "transparent",
-                  border: `1px solid ${T.lime}44`, color: T.lime,
-                  borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                Browse Pods
+                style={{ padding: "12px 20px", background: "transparent",
+                  border: `1px solid ${T.lime}55`, color: T.lime,
+                  borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Browse Open Pods
               </button>
             </div>
-          </Card>
+          </div>
         )}
 
         {/* ── Game day banner ─────────────────────────────────────────────── */}

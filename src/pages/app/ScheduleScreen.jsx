@@ -13,6 +13,7 @@ import { notify } from "../../lib/notify";
 import { fmtDate, fmtDay, fmtTime, getToday } from "../../lib/dateUtils";
 import { getMyTrades, proposeTrade, acceptTrade, rejectTrade, cancelTrade } from "../../api/trades";
 import { markTicketDelivered, confirmTicketReceipt, getPodDeliveryStatus } from "../../api/delivery";
+import { createGuestPass } from "../../api/guestPasses";
 
 export default function ScheduleScreen({ state, dispatch }) {
   const currentUserId = useCurrentUserId();
@@ -41,6 +42,12 @@ export default function ScheduleScreen({ state, dispatch }) {
   const [deliveryUrl,      setDeliveryUrl]       = useState("");
   const [deliveryBusy,     setDeliveryBusy]      = useState(false);
   const [confirmBusy,      setConfirmBusy]       = useState(null); // assignmentId being confirmed
+
+  // Guest pass state
+  const [guestPassGame,  setGuestPassGame]  = useState(null);  // game for which pass is being created
+  const [guestPassData,  setGuestPassData]  = useState(null);  // { code } after creation
+  const [guestPassBusy,  setGuestPassBusy]  = useState(false);
+  const [guestPassCopied,setGuestPassCopied]= useState(false);
 
   // Attendance state
   const [attendanceBusy,   setAttendanceBusy]   = useState(null); // gameId being confirmed
@@ -634,7 +641,16 @@ export default function ScheduleScreen({ state, dispatch }) {
                   <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #1A4A2E",
                     display: "flex", alignItems: "center", gap: 10 }}>
                     {game.assignments?.[0]?.confirmed ? (
-                      <Badge color={T.teal}>✅ Attending</Badge>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Badge color={T.teal}>✅ Attending</Badge>
+                        <button
+                          onClick={() => { setGuestPassGame(game); setGuestPassData(null); setGuestPassCopied(false); }}
+                          style={{ padding: "4px 10px", background: "transparent",
+                            border: `1px solid ${T.mist}55`, borderRadius: 20,
+                            fontSize: 10, fontWeight: 700, color: T.mist, cursor: "pointer" }}>
+                          🎫 Guest pass
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <button
@@ -666,6 +682,78 @@ export default function ScheduleScreen({ state, dispatch }) {
         )}
       </div>
     </div> {/* end scrollRef */}
+
+    {/* ── Guest Pass modal ── */}
+    {guestPassGame && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
+        zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        onClick={() => setGuestPassGame(null)}>
+        <div style={{ width: "100%", maxWidth: 430, background: T.dark,
+          borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
+          borderBottom: "none", padding: "20px 20px 44px" }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ width: 40, height: 4, borderRadius: 2,
+            background: T.green, margin: "0 auto 18px" }} />
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", marginBottom: 4 }}>🎫 Send a Guest Pass</div>
+          <div style={{ fontSize: 12, color: T.mist, marginBottom: 16, lineHeight: 1.6 }}>
+            Generate a one-time link for a guest to see your seat details for{" "}
+            <strong style={{ color: T.chalk }}>vs. {guestPassGame.opponent}</strong>.
+            They won't have account access — just game info.
+          </div>
+
+          {guestPassData ? (
+            <>
+              <div style={{ background: "#0D1F12", border: `1px solid ${T.lime}44`,
+                borderRadius: 10, padding: "12px 14px", marginBottom: 12,
+                fontFamily: "monospace", fontSize: 12, color: T.lime, wordBreak: "break-all" }}>
+                {window.location.origin}/guest/{guestPassData.code}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/guest/${guestPassData.code}`);
+                  setGuestPassCopied(true);
+                  setTimeout(() => setGuestPassCopied(false), 2000);
+                }}
+                style={{ width: "100%", padding: "12px", background: guestPassCopied ? T.teal : T.lime,
+                  border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700,
+                  color: T.dark, cursor: "pointer", marginBottom: 8, transition: "background 0.2s" }}>
+                {guestPassCopied ? "✓ Copied!" : "📋 Copy Link"}
+              </button>
+              {navigator.share && (
+                <button
+                  onClick={() => navigator.share({
+                    title: `HalfTime guest pass — vs. ${guestPassGame.opponent}`,
+                    url: `${window.location.origin}/guest/${guestPassData.code}`,
+                  })}
+                  style={{ width: "100%", padding: "12px", background: "transparent",
+                    border: `1px solid ${T.lime}55`, borderRadius: 10, fontSize: 14,
+                    fontWeight: 700, color: T.lime, cursor: "pointer" }}>
+                  ↗ Share
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              disabled={guestPassBusy}
+              onClick={async () => {
+                setGuestPassBusy(true);
+                try {
+                  const pass = await createGuestPass(guestPassGame.id, activePodId);
+                  setGuestPassData(pass);
+                } catch (e) { console.error(e); }
+                finally { setGuestPassBusy(false); }
+              }}
+              style={{ width: "100%", padding: "13px", background: T.lime,
+                border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700,
+                color: T.dark, cursor: guestPassBusy ? "not-allowed" : "pointer",
+                opacity: guestPassBusy ? 0.6 : 1 }}>
+              {guestPassBusy ? "Generating…" : "Generate Guest Pass →"}
+            </button>
+          )}
+        </div>
+      </div>
+    )}
 
     {/* ── Captain: Mark Delivered modal ── */}
     {deliverFor && (
