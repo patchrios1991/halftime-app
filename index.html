@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 
     <!-- ── Primary meta ───────────────────────────────────────────────────── -->
     <title>HalfTime — Season Ticket Pods</title>
@@ -31,12 +31,37 @@
     <!-- ── Preconnect to Supabase for faster auth ─────────────────────────── -->
     <link rel="preconnect" href="https://supabase.co" />
 
-    <!-- ── Prevent iOS tap callouts ──────────────────────────────────────── -->
+    <!-- ── Base styles ───────────────────────────────────────────────────── -->
     <style>
-      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-      body { margin: 0; background: #060F08; }
-      /* Safe area insets for notched iPhones */
-      #root { padding-top: env(safe-area-inset-top); }
+      *, *::before, *::after {
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+      }
+      html {
+        overscroll-behavior: none;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: #060F08;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overscroll-behavior: none;
+        overflow: hidden;
+      }
+      #root {
+        padding-top: env(safe-area-inset-top);
+        height: 100dvh;
+        overflow: hidden;
+      }
+      /* Suppress scrollbars everywhere */
+      ::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+      /* Prevent iOS double-tap zoom on buttons/links */
+      button, a, [role="button"] { touch-action: manipulation; }
+      /* Smooth momentum scroll for all scroll containers */
+      [style*="overflow-y: auto"], [style*="overflowY"] {
+        -webkit-overflow-scrolling: touch;
+      }
     </style>
   </head>
   <body>

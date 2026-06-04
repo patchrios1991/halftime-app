@@ -40,26 +40,43 @@ function NavBar({ screen, dispatch }) {
   return (
     <div style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-      width: "100%", maxWidth: 430, background: T.forest,
-      borderTop: "1px solid #1A4A2E", display: "flex", zIndex: 100,
+      width: "100%", maxWidth: 430,
+      background: "rgba(9,20,11,0.97)",
+      backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+      borderTop: "1px solid #1A4A2E",
+      display: "flex", zIndex: 100,
+      paddingBottom: "env(safe-area-inset-bottom, 0px)",
     }}>
-      {TABS.map(({ key, icon, label }) => (
-        <div key={key} onClick={() => dispatch({ type: "SET_SCREEN", screen: key })}
-          style={{ flex: 1, padding: "10px 0 8px", textAlign: "center", cursor: "pointer",
-            minHeight: 56 /* ensures ≥44px tap target + safe area */ }}>
-          <div style={{ fontSize: 19, marginBottom: 1 }}>{icon}</div>
-          <div style={{
-            fontSize: 8, fontWeight: 700, letterSpacing: 0.5, fontFamily: "Calibri,sans-serif",
-            color: screen === key ? T.lime : T.mist,
-          }}>
-            {label.toUpperCase()}
+      {TABS.map(({ key, icon, label }) => {
+        const active = screen === key;
+        return (
+          <div key={key} onClick={() => dispatch({ type: "SET_SCREEN", screen: key })}
+            style={{ flex: 1, padding: "8px 4px 6px", textAlign: "center", cursor: "pointer",
+              minHeight: 54, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 3 }}>
+            <div style={{
+              width: 44, height: 28, borderRadius: 9,
+              background: active ? `${T.lime}1A` : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "background 0.2s",
+            }}>
+              <div style={{ fontSize: 18, lineHeight: 1,
+                filter: active ? "none" : "opacity(0.55)",
+                transition: "filter 0.2s" }}>
+                {icon}
+              </div>
+            </div>
+            <div style={{
+              fontSize: 9, fontWeight: active ? 700 : 500,
+              letterSpacing: 0.4, fontFamily: "Calibri,sans-serif",
+              color: active ? T.lime : "#4A7A5A",
+              transition: "color 0.2s",
+            }}>
+              {label.toUpperCase()}
+            </div>
           </div>
-          {screen === key && (
-            <div style={{ width: 3, height: 3, borderRadius: "50%",
-              background: T.lime, margin: "2px auto 0" }} />
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -250,15 +267,17 @@ function AppShell({ state, dispatch, profile, signOut }) {
   return (
     <div style={{
       maxWidth: 430, margin: "0 auto",
-      background: T.dark, minHeight: "100vh",
+      background: T.dark, height: "100dvh",
       fontFamily: "Calibri,sans-serif", color: T.white,
-      overflowX: "hidden", position: "relative",
+      overflow: "hidden", position: "relative",
     }}>
       {/* Sticky top bar */}
       {!noNav.includes(state.screen) && (
         <div style={{
-          background: T.dark, padding: "12px 16px 10px",
-          borderBottom: "1px solid #1A4A2E",
+          background: "rgba(6,15,8,0.92)",
+          backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+          padding: "11px 14px 9px",
+          borderBottom: "1px solid rgba(26,74,46,0.6)",
           display: "flex", justifyContent: "space-between", alignItems: "center",
           position: "sticky", top: 0, zIndex: 50,
         }}>
@@ -309,70 +328,134 @@ function AppShell({ state, dispatch, profile, signOut }) {
         </div>
       )}
 
-      {/* ── Notification panel (fixed overlay below top bar) ─────────────── */}
+      {/* ── Notification panel ───────────────────────────────────────────── */}
       {showNotifPanel && !noNav.includes(state.screen) && (
         <>
           {/* Backdrop */}
           <div
-            style={{ position: "fixed", inset: 0, zIndex: 48 }}
+            style={{
+              position: "fixed", inset: 0, zIndex: 48,
+              background: "rgba(4,10,5,0.65)",
+              backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+              animation: "fadein 0.18s ease",
+            }}
             onClick={() => setShowNotifPanel(false)}
           />
           {/* Panel */}
           <div style={{
-            position: "fixed", top: 52, left: "50%", transform: "translateX(-50%)",
-            width: "100%", maxWidth: 430, zIndex: 49,
-            background: T.forest,
-            borderBottom: `2px solid ${T.green}44`,
-            maxHeight: 340, overflowY: "auto",
-            padding: "12px 14px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            position: "fixed", top: 56, left: "50%",
+            transform: "translateX(-50%)",
+            width: "calc(100% - 20px)", maxWidth: 410, zIndex: 49,
+            background: "#0A1A0D",
+            border: `1px solid ${T.green}`,
+            borderRadius: 18,
+            overflow: "hidden",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.8), 0 0 0 1px rgba(26,74,46,0.3)",
+            animation: "slideDown 0.2s cubic-bezier(0.34,1.56,0.64,1)",
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between",
-              alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.mist, letterSpacing: 1.5 }}>
-                NOTIFICATIONS
+            {/* Panel header */}
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "13px 16px 12px",
+              borderBottom: `1px solid ${T.green}55`,
+              background: "rgba(13,27,16,0.8)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 15 }}>🔔</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                  fontFamily: "Georgia,serif" }}>Notifications</span>
+                {unreadCount > 0 && (
+                  <span style={{
+                    background: T.lime, color: T.dark, borderRadius: 20,
+                    padding: "1px 8px", fontSize: 10, fontWeight: 700,
+                    lineHeight: "18px",
+                  }}>{unreadCount}</span>
+                )}
               </div>
-              {unreadCount > 0 && (
-                <div style={{ fontSize: 9, color: T.lime, cursor: "pointer" }}
-                  onClick={markAllRead}>Mark all read</div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                {unreadCount > 0 && (
+                  <span onClick={markAllRead}
+                    style={{ fontSize: 11, color: T.lime, cursor: "pointer", fontWeight: 600 }}>
+                    Mark read
+                  </span>
+                )}
+                <span onClick={() => setShowNotifPanel(false)}
+                  style={{ fontSize: 22, color: T.mist, cursor: "pointer",
+                    lineHeight: 1, marginTop: -1 }}>×</span>
+              </div>
             </div>
 
-            {notifications.length === 0 ? (
-              <div style={{ color: T.mist, fontSize: 12, textAlign: "center", padding: "20px 0" }}>
-                No notifications yet
-              </div>
-            ) : (
-              notifications.slice(0, 20).map((n, i) => (
-                <div key={n.id ?? i} style={{
-                  display: "flex", gap: 10, alignItems: "flex-start",
-                  padding: "9px 0", borderBottom: "1px solid #1A4A2E",
-                  opacity: n.read ? 0.5 : 1,
-                }}>
-                  <div style={{ fontSize: 16, flexShrink: 0 }}>{notifIcon(n.type)}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: n.read ? 400 : 700,
-                      color: T.white, marginBottom: 1 }}>
-                      {n.title ?? n.text}
-                    </div>
-                    {n.body && (
-                      <div style={{ fontSize: 10, color: T.mist, lineHeight: 1.4 }}>{n.body}</div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 9, color: T.mist, flexShrink: 0, marginTop: 2 }}>
-                    {n.created_at ? timeAgo(n.created_at) : n.time}
-                  </div>
+            {/* Notification list */}
+            <div style={{
+              overflowY: "auto", maxHeight: "60vh",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehavior: "contain",
+            }}>
+              {notifications.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "36px 20px" }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>🔕</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                    marginBottom: 4 }}>All caught up</div>
+                  <div style={{ fontSize: 11, color: T.mist }}>No notifications yet</div>
                 </div>
-              ))
-            )}
+              ) : (
+                notifications.slice(0, 20).map((n, i) => (
+                  <div key={n.id ?? i} style={{
+                    display: "flex", gap: 12, alignItems: "flex-start",
+                    padding: "12px 16px",
+                    borderBottom: `1px solid rgba(26,74,46,0.35)`,
+                    background: !n.read ? `${T.lime}07` : "transparent",
+                    transition: "background 0.15s",
+                  }}>
+                    {/* Icon bubble */}
+                    <div style={{ position: "relative", flexShrink: 0 }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 11,
+                        background: !n.read ? `${T.lime}1A` : "#1A4A2E44",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 17,
+                      }}>
+                        {notifIcon(n.type)}
+                      </div>
+                      {!n.read && (
+                        <div style={{
+                          position: "absolute", top: -2, right: -2,
+                          width: 9, height: 9, borderRadius: "50%",
+                          background: T.lime, border: "2px solid #0A1A0D",
+                        }} />
+                      )}
+                    </div>
+                    {/* Text */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 12.5, fontWeight: n.read ? 500 : 700,
+                        color: n.read ? "#8AAA90" : T.white,
+                        marginBottom: 2, lineHeight: 1.35,
+                      }}>
+                        {n.title ?? n.text}
+                      </div>
+                      {n.body && (
+                        <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.45,
+                          marginBottom: 4 }}>{n.body}</div>
+                      )}
+                      <div style={{ fontSize: 10, color: "#4A7A5A", fontWeight: 500 }}>
+                        {n.created_at ? timeAgo(n.created_at) : n.time}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </>
       )}
 
       {/* Screen content */}
       <div style={{
-        minHeight: noNav.includes(state.screen) ? "100vh" : "calc(100vh - 112px)",
+        height: noNav.includes(state.screen) ? "100dvh" : "calc(100dvh - 110px)",
         overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehavior: "contain",
       }}>
         {state.screen === "onboarding"   && <Onboarding dispatch={dispatch} />}
         {state.screen === "create_pod"   && <CreatePodScreen dispatch={dispatch} />}
@@ -396,14 +479,20 @@ function AppShell({ state, dispatch, profile, signOut }) {
 
       <style>{`
         @keyframes fadeInToast {
-          from { opacity:0; transform:translateX(-50%) translateY(-8px); }
+          from { opacity:0; transform:translateX(-50%) translateY(8px); }
           to   { opacity:1; transform:translateX(-50%) translateY(0); }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes slideDown {
+          from { opacity:0; transform:translateX(-50%) translateY(-10px) scale(0.98); }
+          to   { opacity:1; transform:translateX(-50%) translateY(0)  scale(1); }
+        }
+        @keyframes fadein {
+          from { opacity:0; }
+          to   { opacity:1; }
+        }
         input[type=range] { height: 4px; }
-        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 0px; }
-        /* Keyboard avoidance: forms use padding-bottom: var(--kb-height,0px) */
+        select, input, textarea { font-size: 16px !important; }
         :root { --kb-height: 0px; }
       `}</style>
     </div>
