@@ -1,5 +1,6 @@
 // ─── HalfTime Mobile App Shell ────────────────────────────────────────────────
 import { useReducer, useEffect, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { T } from "./tokens";
 import { reducer } from "./store/reducer";
@@ -103,9 +104,9 @@ function PodSwitcher({ dispatch }) {
         <span style={{ fontSize: 8, color: T.mist }}>▼</span>
       </div>
 
-      {open && (
+      {open && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.88)",
-          zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setOpen(false)}>
           <div style={{
             width: "100%", maxWidth: 430, background: T.dark,
@@ -180,7 +181,8 @@ function PodSwitcher({ dispatch }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
