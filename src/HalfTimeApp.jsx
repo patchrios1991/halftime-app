@@ -107,59 +107,78 @@ function PodSwitcher({ dispatch }) {
         <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.88)",
           zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setOpen(false)}>
-          <div style={{ width: "100%", maxWidth: 430, background: T.dark,
+          <div style={{
+            width: "100%", maxWidth: 430, background: T.dark,
             borderRadius: "20px 20px 0 0", border: `1px solid ${T.green}`,
             borderBottom: "none",
-            padding: "20px 20px calc(env(safe-area-inset-bottom, 0px) + 32px)",
-            maxHeight: "80vh", overflowY: "auto" }}
+            maxHeight: "85dvh",
+            display: "flex", flexDirection: "column",
+            overflow: "hidden",
+          }}
             onClick={e => e.stopPropagation()}>
 
-            <div style={{ width: 40, height: 4, borderRadius: 2,
-              background: T.green, margin: "0 auto 16px" }} />
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
-              fontFamily: "Georgia,serif", marginBottom: 14 }}>My Pods</div>
+            {/* Drag handle + title — fixed, never scrolls away */}
+            <div style={{ flexShrink: 0, padding: "16px 20px 10px" }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2,
+                background: T.green, margin: "0 auto 14px" }} />
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif" }}>My Pods</div>
+            </div>
 
-            {pods.map(pod => (
-              <div key={pod.id} onClick={() => { setActivePodId(pod.id); setOpen(false); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
-                  padding: "12px 14px", borderRadius: 12, marginBottom: 8,
-                  background: pod.id === activePodId ? `${T.lime}15` : T.forest,
-                  border: `1px solid ${pod.id === activePodId ? T.lime + "44" : "#1A4A2E"}`,
-                }}>
-                <span style={{ fontSize: 28 }}>{pod.sport_emoji || "🏟️"}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700,
-                    color: pod.id === activePodId ? T.lime : T.white }}>
-                    {pod.name}
+            {/* Scrollable pod list */}
+            <div style={{
+              flex: 1, overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehavior: "contain",
+              padding: "0 20px",
+            }}>
+              {pods.map(pod => (
+                <div key={pod.id} onClick={() => { setActivePodId(pod.id); setOpen(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
+                    padding: "12px 14px", borderRadius: 12, marginBottom: 8,
+                    background: pod.id === activePodId ? `${T.lime}15` : T.forest,
+                    border: `1px solid ${pod.id === activePodId ? T.lime + "44" : "#1A4A2E"}`,
+                  }}>
+                  <span style={{ fontSize: 28 }}>{pod.sport_emoji || "🏟️"}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700,
+                      color: pod.id === activePodId ? T.lime : T.white }}>
+                      {pod.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.mist }}>
+                      {pod.team_name} · Season {pod.season || "—"}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: T.mist }}>
-                    {pod.team_name} · Season {pod.season || "—"}
-                  </div>
+                  {pod.id === activePodId && (
+                    <span style={{ color: T.lime, fontSize: 18 }}>✓</span>
+                  )}
                 </div>
-                {pod.id === activePodId && (
-                  <span style={{ color: T.lime, fontSize: 18 }}>✓</span>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
 
-            {/* Browse open pods */}
-            <button onClick={() => { setOpen(false); dispatch({ type: "SET_SCREEN", screen: "browse_pods" }); }}
-              style={{ width: "100%", marginTop: 8, padding: "13px",
-                background: "transparent", border: `1.5px solid ${T.teal}44`,
-                borderRadius: 12, color: T.teal, fontSize: 13,
-                fontWeight: 700, cursor: "pointer" }}>
-              🔍 Browse Open Pods
-            </button>
-
-            {/* Create new pod */}
-            <button onClick={() => { setOpen(false); dispatch({ type: "SET_SCREEN", screen: "create_pod" }); }}
-              style={{ width: "100%", marginTop: 8, padding: "13px",
-                background: "transparent", border: `1.5px solid ${T.lime}44`,
-                borderRadius: 12, color: T.lime, fontSize: 13,
-                fontWeight: 700, cursor: "pointer" }}>
-              + Create New Pod
-            </button>
+            {/* Pinned footer — Browse + Create always visible */}
+            <div style={{
+              flexShrink: 0,
+              padding: "12px 20px",
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+              borderTop: `1px solid ${T.green}33`,
+            }}>
+              <button onClick={() => { setOpen(false); dispatch({ type: "SET_SCREEN", screen: "browse_pods" }); }}
+                style={{ width: "100%", padding: "13px",
+                  background: "transparent", border: `1.5px solid ${T.teal}44`,
+                  borderRadius: 12, color: T.teal, fontSize: 13,
+                  fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+                🔍 Browse Open Pods
+              </button>
+              <button onClick={() => { setOpen(false); dispatch({ type: "SET_SCREEN", screen: "create_pod" }); }}
+                style={{ width: "100%", padding: "13px",
+                  background: "transparent", border: `1.5px solid ${T.lime}44`,
+                  borderRadius: 12, color: T.lime, fontSize: 13,
+                  fontWeight: 700, cursor: "pointer" }}>
+                + Create New Pod
+              </button>
+            </div>
           </div>
         </div>
       )}
