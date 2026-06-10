@@ -1,0 +1,15 @@
+{
+  "appId": "com.halftimeapp.app",
+  "appName": "HalfTime",
+  "webDir": "dist",
+  "backgroundColor": "#060F08",
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

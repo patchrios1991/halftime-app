@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">HalfTime</string>
+    <string name="title_activity_main">HalfTime</string>
+    <string name="package_name">com.halftimeapp.app</string>
+    <string name="custom_url_scheme">com.halftimeapp.app</string>
+</resources>
