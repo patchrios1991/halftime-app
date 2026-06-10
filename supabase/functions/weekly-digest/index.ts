@@ -6,8 +6,8 @@ import { serve }       from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM_EMAIL     = Deno.env.get("FROM_EMAIL")     ?? "HalfTime <no-reply@halftime.app>";
-const APP_URL        = Deno.env.get("APP_URL")        ?? "https://halftime-app-hyxh.vercel.app";
+const FROM_EMAIL     = Deno.env.get("FROM_EMAIL")     ?? "HalfTime <noreply@halftime-app.com>";
+const APP_URL        = Deno.env.get("APP_URL")        ?? "https://app.halftime-app.com";
 const SUPABASE_URL   = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
