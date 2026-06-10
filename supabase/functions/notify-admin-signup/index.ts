@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
             ${nameRow}
           </table>
           <div style="margin-top:20px;padding-top:16px;border-top:1px solid #1A4A2E;">
-            <a href="https://www.halftime-app.com/admin"
+            <a href="https://app.halftime-app.com/admin"
                style="display:inline-block;background:#84CC16;color:#0A1A0E;text-decoration:none;
                       font-family:Georgia,serif;font-size:13px;font-weight:700;
                       padding:10px 24px;border-radius:8px;">
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
             <p style="margin:0 0 16px;font-size:14px;color:#94A3B8;">
               Ready to get started? Open the app and join or create your pod.
             </p>
-            <a href="https://www.halftime-app.com/app"
+            <a href="https://app.halftime-app.com/app"
                style="display:inline-block;background:#84CC16;color:#0A1A0E;text-decoration:none;
                       font-family:Georgia,serif;font-size:15px;font-weight:700;
                       padding:14px 40px;border-radius:10px;">
