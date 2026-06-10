@@ -83,7 +83,7 @@ export function reducer(state, action) {
       return { ...state, onboardingStep: state.onboardingStep + 1 };
 
     case "COMPLETE_ONBOARDING":
-      return { ...state, screen: "dashboard", onboardingStep: 0 };
+      return { ...state, screen: "home", onboardingStep: 0 };
 
     case "MARK_NOTIFS_READ": {
       const notifications = state.notifications.map(n => ({ ...n, read: true }));

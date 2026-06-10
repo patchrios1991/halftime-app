@@ -211,7 +211,7 @@ export default function Onboarding({ dispatch }) {
               Already in a pod? It'll appear automatically after signing in.
             </div>
             <button
-              onClick={() => completeOnboarding(dispatch, "dashboard")}
+              onClick={() => completeOnboarding(dispatch, "home")}
               style={{ background: "none", border: "none", color: T.mist,
                 fontSize: 12, cursor: "pointer", textDecoration: "underline",
                 textUnderlineOffset: 3 }}>

@@ -13,6 +13,7 @@ import { ActivePodProvider, useActivePod } from "./context/ActivePodContext";
 
 // Pages
 import Onboarding        from "./pages/app/Onboarding";
+import HomeHub           from "./pages/app/HomeHub";
 import Dashboard         from "./pages/app/Dashboard";
 import AllocationScreen  from "./pages/app/AllocationScreen";
 import ScheduleScreen    from "./pages/app/ScheduleScreen";
@@ -30,14 +31,17 @@ import Avatar   from "./components/Avatar";
 
 // ─── Nav tabs ────────────────────────────────────────────────────────────────
 const TABS = [
-  { key: "dashboard", icon: "🏠", label: "Home"     },
-  { key: "allocate",  icon: "⚡", label: "Allocate" },
+  { key: "home",      icon: "🏠", label: "Home"     },
   { key: "schedule",  icon: "🎟️", label: "Games"    },
   { key: "resale",    icon: "♻️",  label: "Resale"   },
   { key: "pod",       icon: "👥", label: "Pod"      },
 ];
 
+// Screens that are drill-downs of a tab (highlight that tab while on them)
+const TAB_OF_SCREEN = { dashboard: "home", allocate: "home" };
+
 function NavBar({ screen, dispatch }) {
+  const activeKey = TAB_OF_SCREEN[screen] ?? screen;
   return (
     <div style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
@@ -49,7 +53,7 @@ function NavBar({ screen, dispatch }) {
       paddingBottom: "env(safe-area-inset-bottom, 0px)",
     }}>
       {TABS.map(({ key, icon, label }) => {
-        const active = screen === key;
+        const active = activeKey === key;
         return (
           <div key={key} onClick={() => dispatch({ type: "SET_SCREEN", screen: key })}
             style={{ flex: 1, padding: "8px 4px 6px", textAlign: "center", cursor: "pointer",
@@ -303,8 +307,8 @@ function AppShell({ state, dispatch, profile, signOut }) {
         }}>
           <Wordmark size={20} />
 
-          {/* Pod switcher */}
-          <PodSwitcher dispatch={dispatch} />
+          {/* Pod switcher (hidden on the hub — it IS the pod list) */}
+          {state.screen !== "home" ? <PodSwitcher dispatch={dispatch} /> : <div />}
 
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <div style={{
@@ -480,6 +484,7 @@ function AppShell({ state, dispatch, profile, signOut }) {
         {state.screen === "onboarding"   && <Onboarding dispatch={dispatch} />}
         {state.screen === "create_pod"   && <CreatePodScreen dispatch={dispatch} />}
         {state.screen === "browse_pods"  && <BrowsePodsScreen dispatch={dispatch} />}
+        {state.screen === "home"         && <HomeHub dispatch={dispatch} profile={profile} />}
         {state.screen === "dashboard"    && <Dashboard state={state} dispatch={dispatch} profile={profile} />}
         {state.screen === "allocate"     && <AllocationScreen state={state} dispatch={dispatch} />}
         {state.screen === "schedule"     && <ScheduleScreen state={state} dispatch={dispatch} />}
@@ -525,7 +530,7 @@ export default function HalfTimeApp() {
   const { profile, loading: authLoading, isAuthenticated, signOut } = useAuth();
   const [state, dispatch] = useReducer(reducer, {
     ...initialState,
-    screen: localStorage.getItem("ht_onboarded") ? "dashboard" : "onboarding",
+    screen: localStorage.getItem("ht_onboarded") ? "home" : "onboarding",
   });
   const { pods, loading: podsLoading } = useMyPods();
 
@@ -541,7 +546,7 @@ export default function HalfTimeApp() {
     if (!podsLoading && isAuthenticated && isSupabaseConfigured) {
       if (pods.length > 0 && state.screen === "onboarding") {
         localStorage.setItem("ht_onboarded", "1");
-        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
+        dispatch({ type: "SET_SCREEN", screen: "home" });
       }
     }
   }, [podsLoading, pods.length, isAuthenticated, state.screen]);

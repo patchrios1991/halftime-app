@@ -190,12 +190,15 @@ export default function Dashboard({ state, dispatch, profile }) {
         background: `linear-gradient(160deg,${T.dark},${T.forest})`,
         padding: "20px 16px 20px", borderBottom: "1px solid #1A4A2E",
       }}>
-        <div style={{ fontSize: 11, color: T.mist, letterSpacing: 2, marginBottom: 4 }}>
-          WELCOME BACK
+        <div onClick={() => dispatch({ type: "SET_SCREEN", screen: "home" })}
+          style={{ display: "inline-flex", alignItems: "center", gap: 4,
+            fontSize: 11, color: T.mist, letterSpacing: 1, marginBottom: 6,
+            cursor: "pointer", fontWeight: 700, padding: "2px 0" }}>
+          ‹ ALL PODS
         </div>
         <div style={{ fontSize: 24, fontWeight: 700, color: T.white,
           fontFamily: "Georgia,serif", marginBottom: 16 }}>
-          Hey, {firstName} 👋
+          {fullPod?.sport_emoji ? `${fullPod.sport_emoji} ` : ""}{fullPod?.name || `Hey, ${firstName} 👋`}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>

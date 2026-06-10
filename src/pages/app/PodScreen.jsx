@@ -289,18 +289,16 @@ export default function PodScreen({ state, dispatch }) {
     try {
       await leavePod(activePodId);
       setShowLeaveConfirm(false);
-      // Switch to another pod or return to onboarding
+      // Return to the home hub — it handles both remaining pods and none
       await refreshPodContext();
       const { getMyPods } = await import("../../api/pods");
       const remaining = await getMyPods();
       if (remaining.length > 0) {
         setActivePodId(remaining[0].id);
-        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
       } else {
         localStorage.removeItem("ht_active_pod");
-        localStorage.removeItem("ht_onboarded");
-        dispatch({ type: "SET_SCREEN", screen: "onboarding" });
       }
+      dispatch({ type: "SET_SCREEN", screen: "home" });
     } catch (e) {
       setLeaveErr(e?.message || "Failed to leave pod. Please try again.");
     } finally {
@@ -340,12 +338,10 @@ export default function PodScreen({ state, dispatch }) {
       const remaining = await getMyPods();
       if (remaining.length > 0) {
         setActivePodId(remaining[0].id);
-        dispatch({ type: "SET_SCREEN", screen: "dashboard" });
       } else {
         localStorage.removeItem("ht_active_pod");
-        localStorage.removeItem("ht_onboarded");
-        dispatch({ type: "SET_SCREEN", screen: "onboarding" });
       }
+      dispatch({ type: "SET_SCREEN", screen: "home" });
     } catch (e) {
       setDeleteErr(e?.message || "Failed to delete pod. Please try again.");
     } finally {

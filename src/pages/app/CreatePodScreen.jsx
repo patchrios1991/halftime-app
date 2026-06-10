@@ -231,7 +231,7 @@ export default function CreatePodScreen({ dispatch }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <div
             onClick={() => dispatch({ type: "SET_SCREEN",
-              screen: localStorage.getItem("ht_onboarded") ? "dashboard" : "onboarding" })}
+              screen: localStorage.getItem("ht_onboarded") ? "home" : "onboarding" })}
             style={{ color: T.mist, fontSize: 22, cursor: "pointer", lineHeight: 1,
               padding: "4px 8px 4px 0", minWidth: 44, minHeight: 44,
               display: "flex", alignItems: "center" }}>‹
