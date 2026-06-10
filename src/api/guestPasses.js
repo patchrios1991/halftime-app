@@ -16,15 +16,15 @@ export async function createGuestPass(gameId, podId, note = "") {
   return data;
 }
 
+// Public lookup — works for anonymous guests. Uses a security-definer RPC
+// because RLS on games/pods blocks non-members from the embedded join.
 export async function getGuestPass(code) {
   const { data, error } = await supabase
-    .from("guest_passes")
-    .select("*, games(opponent, game_date, game_time, sport_emoji, seat_info), pods(name, venue, section, row)")
-    .eq("code", code)
-    .single();
+    .rpc("get_guest_pass_public", { pass_code: code });
 
   if (error) throw error;
-  return data;
+  if (!data || data.length === 0) throw new Error("Pass not found");
+  return data[0];
 }
 
 export async function getMyGuestPasses(gameId) {

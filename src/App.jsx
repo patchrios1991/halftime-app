@@ -6,6 +6,7 @@ import BetaDashboard  from "./pages/admin/BetaDashboard";
 import SignIn         from "./pages/auth/SignIn";
 import AuthCallback   from "./pages/auth/AuthCallback";
 import JoinPodScreen  from "./pages/app/JoinPodScreen";
+import GuestPassScreen from "./pages/public/GuestPassScreen";
 import TermsScreen    from "./pages/legal/TermsScreen";
 import PrivacyScreen  from "./pages/legal/PrivacyScreen";
 import ErrorBoundary  from "./components/ErrorBoundary";
@@ -245,6 +246,7 @@ export default function App() {
           <Route path="/auth/signin"     element={<SignIn />} />
           <Route path="/auth/callback"   element={<AuthCallback />} />
           <Route path="/join/:code"      element={<JoinPodScreen />} />
+          <Route path="/guest/:code"     element={<GuestPassScreen />} />
           <Route path="/terms"           element={<TermsScreen />} />
           <Route path="/privacy"         element={<PrivacyScreen />} />
           <Route path="*"                element={<NotFound />} />
