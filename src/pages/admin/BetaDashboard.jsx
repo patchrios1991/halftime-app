@@ -156,7 +156,13 @@ export default function BetaDashboard() {
     await supabase.from("waitlist").update(updates).eq("id", entry.id);
 
     if (action === "approve") {
-      const APP_URL = "https://halftime-app-hyxh.vercel.app";
+      // If they already created an account (e.g. via Google sign-in before
+      // approval), flip their profile to approved so the gate lets them in.
+      await supabase.rpc("approve_profile_by_email", { p_email: entry.email })
+        .then(() => {})
+        .catch(() => {});
+
+      const APP_URL = "https://app.halftime-app.com";
       await supabase.functions.invoke("send-email", {
         body: {
           type: "INSERT",

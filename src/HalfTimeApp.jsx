@@ -28,6 +28,7 @@ import PlayoffBidScreen  from "./pages/app/PlayoffBidScreen";
 import Wordmark from "./components/Wordmark";
 import Toast    from "./components/Toast";
 import Avatar   from "./components/Avatar";
+import PendingApproval from "./pages/auth/PendingApproval";
 
 // ─── Nav tabs ────────────────────────────────────────────────────────────────
 const TABS = [
@@ -527,7 +528,7 @@ function AppShell({ state, dispatch, profile, signOut }) {
 // ─── App Root ─────────────────────────────────────────────────────────────────
 export default function HalfTimeApp() {
   const navigate = useNavigate();
-  const { profile, loading: authLoading, isAuthenticated, signOut } = useAuth();
+  const { user, profile, loading: authLoading, isAuthenticated, signOut } = useAuth();
   const [state, dispatch] = useReducer(reducer, {
     ...initialState,
     screen: localStorage.getItem("ht_onboarded") ? "home" : "onboarding",
@@ -552,6 +553,13 @@ export default function HalfTimeApp() {
   }, [podsLoading, pods.length, isAuthenticated, state.screen]);
 
   if (authLoading && isSupabaseConfigured) return <LoadingScreen />;
+
+  // Approval gate — unapproved accounts (e.g. fresh Google sign-ups) wait here.
+  // Gates only on an explicit false so a transient profile-load failure can't
+  // lock out an approved user.
+  if (isSupabaseConfigured && isAuthenticated && profile?.approved === false) {
+    return <PendingApproval user={user} profile={profile} signOut={signOut} />;
+  }
 
   return (
     <ActivePodProvider>
