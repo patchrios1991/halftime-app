@@ -115,6 +115,36 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
     navigate("/auth/signin", { replace: true });
   }
 
+  // ── Account deletion ─────────────────────────────────────────────────────────
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteBusy, setDeleteBusy]               = useState(false);
+  const [deleteErr, setDeleteErr]                 = useState(null);
+
+  async function handleDeleteAccount() {
+    setDeleteBusy(true);
+    setDeleteErr(null);
+    try {
+      const { error } = await supabase.rpc("delete_my_account");
+      if (error) {
+        if (error.message?.includes("leave_pods_first")) {
+          throw new Error("Leave your pods first (Pod tab → Leave Pod), then try again.");
+        }
+        if (error.message?.includes("delete_pods_first")) {
+          throw new Error("Delete the pods you captain first (Pod tab → Delete Pod), then try again.");
+        }
+        throw error;
+      }
+      try { await signOut?.(); } catch {}
+      localStorage.removeItem("ht_active_pod");
+      localStorage.removeItem("ht_onboarded");
+      navigate("/", { replace: true });
+    } catch (e) {
+      setDeleteErr(e.message || "Failed to delete account.");
+      setDeleteBusy(false);
+    }
+  }
+
   // ── Load userId + compute achievements ──────────────────────────────────────
   useEffect(() => {
     async function loadAchievements() {
@@ -671,7 +701,73 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
             style={{ fontSize: 12, color: T.red, cursor: "pointer", fontWeight: 600 }}>
             Log Out
           </div>
+          <div onClick={() => { setShowDeleteAccount(true); setDeleteConfirmText(""); setDeleteErr(null); }}
+            style={{ fontSize: 11, color: "#7A3D3D", cursor: "pointer",
+              fontWeight: 600, marginTop: 14 }}>
+            Delete my account
+          </div>
         </div>
+
+        {/* ── Delete account modal ─────────────────────────────────────────── */}
+        {showDeleteAccount && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
+            zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 24 }}
+            onClick={() => !deleteBusy && setShowDeleteAccount(false)}>
+            <div style={{ width: "100%", maxWidth: 360, background: T.dark,
+              border: `1px solid ${T.red}55`, borderRadius: 18, padding: "24px 20px" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+                fontFamily: "Georgia,serif", marginBottom: 10 }}>
+                Delete your account?
+              </div>
+              <div style={{ fontSize: 12.5, color: T.mist, lineHeight: 1.55, marginBottom: 14 }}>
+                This permanently deletes your account, profile, and personal data.
+                It cannot be undone. If you're in any pods you'll need to leave
+                (or delete) them first so refunds are handled properly.
+              </div>
+              <div style={{ fontSize: 11, color: T.mist, marginBottom: 6 }}>
+                Type <span style={{ color: T.red, fontWeight: 700 }}>DELETE</span> to confirm:
+              </div>
+              <input
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoCapitalize="characters"
+                style={{ width: "100%", boxSizing: "border-box", background: "#0A1A0D",
+                  border: `1px solid ${T.green}`, borderRadius: 10, padding: "11px 12px",
+                  color: T.white, fontSize: 14, marginBottom: 12, outline: "none",
+                  fontFamily: "Calibri,sans-serif" }}
+              />
+              {deleteErr && (
+                <div style={{ fontSize: 12, color: T.red, marginBottom: 12, lineHeight: 1.4 }}>
+                  {deleteErr}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setShowDeleteAccount(false)} disabled={deleteBusy}
+                  style={{ flex: 1, padding: "12px", background: "transparent",
+                    border: `1.5px solid ${T.green}`, borderRadius: 10, color: T.mist,
+                    fontSize: 13, fontWeight: 700, cursor: "pointer",
+                    fontFamily: "Calibri,sans-serif" }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteBusy || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+                  style={{ flex: 1, padding: "12px",
+                    background: deleteConfirmText.trim().toUpperCase() === "DELETE" ? T.red : "#3A1515",
+                    border: "none", borderRadius: 10,
+                    color: deleteConfirmText.trim().toUpperCase() === "DELETE" ? T.white : "#7A5555",
+                    fontSize: 13, fontWeight: 700,
+                    cursor: deleteConfirmText.trim().toUpperCase() === "DELETE" ? "pointer" : "default",
+                    fontFamily: "Calibri,sans-serif" }}>
+                  {deleteBusy ? "Deleting…" : "Delete forever"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
