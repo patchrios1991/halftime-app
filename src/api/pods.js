@@ -1,5 +1,6 @@
 // ─── Pods API ─────────────────────────────────────────────────────────────────
 import { supabase } from "../lib/supabase";
+import { normalizeGames } from "../lib/embed";
 
 /** Fetch all pods the current user is a member of */
 export async function getMyPods() {
@@ -63,6 +64,7 @@ export async function getPodById(podId) {
     .single();
 
   if (error) throw error;
+  normalizeGames(data?.games);
   return data;
 }
 
@@ -239,14 +241,13 @@ export async function verifyTickets(podId, action = "both") {
   return data;
 }
 
-/** Get the escrow balance for a pod (sum of succeeded payments) */
+/** Get the escrow balance for a pod (sum of succeeded payments).
+ *  Uses an RPC because escrow_payments RLS only exposes the caller's own
+ *  rows — summing client-side undercounts for everyone else's payments. */
 export async function getPodEscrowBalance(podId) {
   const { data, error } = await supabase
-    .from("escrow_payments")
-    .select("amount")
-    .eq("pod_id", podId)
-    .eq("status", "succeeded");
+    .rpc("get_pod_escrow_balance", { p_pod_id: podId });
 
   if (error) throw error;
-  return data.reduce((sum, p) => sum + Number(p.amount), 0);
+  return Number(data) || 0;
 }

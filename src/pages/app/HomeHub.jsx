@@ -8,6 +8,7 @@ import { SkeletonCard } from "../../components/Skeleton";
 import { useActivePod } from "../../context/ActivePodContext";
 import { useCurrentUserId } from "../../hooks/useCurrentUserId";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { normalizeGames } from "../../lib/embed";
 import { fmtDate } from "../../lib/dateUtils";
 
 const STATUS_LABEL = {
@@ -53,7 +54,7 @@ export default function HomeHub({ dispatch, profile }) {
       .order("game_date")
       .order("game_time")
       .then(({ data }) => {
-        if (alive) { setGames(data ?? []); setGamesLoading(false); }
+        if (alive) { setGames(normalizeGames(data ?? [])); setGamesLoading(false); }
       });
     return () => { alive = false; };
   }, [pods]);

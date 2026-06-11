@@ -1,6 +1,7 @@
 // ─── Games & Assignments API ──────────────────────────────────────────────────
 import { supabase } from "../lib/supabase";
 import { notify } from "../lib/notify";
+import { normalizeGames } from "../lib/embed";
 import { runSnakeDraft, runLottery, runAIFairness } from "../engine/allocation";
 
 /** Fetch all games for a pod, including assignment info */
@@ -12,7 +13,7 @@ export async function getGamesForPod(podId) {
     .order("game_date", { ascending: true });
 
   if (error) throw error;
-  return data;
+  return normalizeGames(data);
 }
 
 /** Add a game to a pod (captain only) */

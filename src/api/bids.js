@@ -2,6 +2,7 @@
 import { supabase } from "../lib/supabase";
 import { notify } from "../lib/notify";
 import { getCurrentUserId } from "../lib/auth";
+import { normalizeGames } from "../lib/embed";
 
 /**
  * Get all marquee + playoff games for a pod, with their bids attached.
@@ -15,7 +16,7 @@ export async function getBiddableGames(podId) {
     .in("tier", ["marquee", "playoff"])
     .order("game_date", { ascending: true });
   if (error) throw error;
-  return data ?? [];
+  return normalizeGames(data ?? []);
 }
 
 /**

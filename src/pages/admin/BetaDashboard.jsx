@@ -5,6 +5,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../../tokens";
 import { supabase } from "../../lib/supabase";
+import { normalizeGames } from "../../lib/embed";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function weekLabel(dateStr) {
@@ -303,7 +304,7 @@ export default function BetaDashboard() {
       if (podsRes.error) throw podsRes.error;
 
       const rawPods     = podsRes.data    || [];
-      const rawGames    = gamesRes.data   || [];
+      const rawGames    = normalizeGames(gamesRes.data || []);
       const rawListings = listingsRes.data || [];
       const rawProfiles = profilesRes.data || [];
 
