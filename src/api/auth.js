@@ -1,5 +1,6 @@
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 import { supabase } from "../lib/supabase";
+import { isNative, AUTH_DEEP_LINK, authRedirectUrl, openInSystemBrowser } from "../lib/native";
 
 /** Sign up with email + password */
 export async function signUp({ email, password, displayName }) {
@@ -8,7 +9,7 @@ export async function signUp({ email, password, displayName }) {
     password,
     options: {
       data: { display_name: displayName },
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: authRedirectUrl(),
     },
   });
   if (error) throw error;
@@ -26,13 +27,24 @@ export async function signIn({ email, password }) {
 export async function signInWithMagicLink(email) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    options: { emailRedirectTo: authRedirectUrl() },
   });
   if (error) throw error;
 }
 
 /** Sign in with Google OAuth */
 export async function signInWithGoogle() {
+  if (isNative) {
+    // Google blocks OAuth in WebViews — open the system browser and come
+    // back via the deep link (handled in lib/native.js).
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: AUTH_DEEP_LINK, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+    await openInSystemBrowser(data.url);
+    return;
+  }
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: `${window.location.origin}/auth/callback` },

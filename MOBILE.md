@@ -30,18 +30,20 @@ npx @capacitor/assets generate --iconBackgroundColor "#060F08" --splashBackgroun
 | Google Play listing + upload | ⬜ | Play Console account ($25 one-time) |
 | Apple Developer enrollment | ⬜ | $99/yr, web signup |
 | Sign in with Apple | ⬜ | Apple Dev account first; REQUIRED because app offers Google sign-in (guideline 4.8) |
-| Native Google OAuth flow | ⬜ | see "Known work" below |
+| Native Google OAuth flow | ✅ built | needs a real-device test (sideload the release APK) |
 | iOS build + App Store upload | ⬜ | Mac with Xcode (or cloud: Codemagic / GitHub Actions macOS) |
 
 ## Known work before store submission
 
-1. **Google sign-in inside the native app will fail as-is.** Google blocks
-   OAuth in embedded WebViews (`disallowed_useragent`). Fix: open the OAuth
-   URL in the system browser via `@capacitor/browser` with
-   `skipBrowserRedirect`, and deep-link back into the app
-   (`signInWithOAuth({ options: { redirectTo: 'com.halftimeapp.app://auth-callback' }})`
-   plus Android App Links / iOS Universal Links). Email/password and magic
-   links work without this.
+1. ~~Google sign-in inside the native app will fail as-is.~~ **DONE (June
+   2026):** on native, `signInWithGoogle()` opens the system browser
+   (`@capacitor/browser` + `skipBrowserRedirect`) and Supabase redirects to
+   `com.halftimeapp.app://auth-callback`; `src/lib/native.js` catches the
+   deep link (`appUrlOpen`), restores the session from the implicit-flow
+   fragment, and reloads into `/app`. Scheme registered in AndroidManifest
+   + iOS Info.plist; redirect URL added to the Supabase allowlist.
+   **Still needs an on-device test** before store submission. Email links
+   (magic link / confirmation) on native point at the hosted web app.
 2. **Deep links** for `/join/:code` and `/guest/:code` should open the app:
    host `.well-known/assetlinks.json` (Android) and
    `.well-known/apple-app-site-association` (iOS) on app.halftime-app.com.
@@ -70,7 +72,9 @@ gradlew.bat bundleRelease    # AAB for Play Console
 gradlew.bat assembleRelease  # APK for direct installs / testing
 ```
 
-Outputs land in `android\app\build\outputs\{bundle,apk}\release\`.
+Outputs land in `C:\Android\gradle-builds\halftime\app\outputs\{bundle,apk}\release\`
+(build output is redirected off OneDrive in `android\build.gradle` —
+OneDrive sync locks Gradle intermediates and breaks builds).
 Bump `versionCode` (and `versionName`) in `android\app\build.gradle`
 before each Play upload. Run `npm run build:mobile` first so the web
 bundle is current.

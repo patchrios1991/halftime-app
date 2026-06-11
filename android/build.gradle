@@ -22,6 +22,9 @@ allprojects {
         google()
         mavenCentral()
     }
+    // Keep build output off OneDrive — its sync locks intermediates and
+    // randomly breaks incremental builds (AccessDenied / Unable to delete).
+    buildDir = new File("C:/Android/gradle-builds/halftime", project.name)
 }
 
 task clean(type: Delete) {
