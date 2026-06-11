@@ -26,7 +26,7 @@ npx @capacitor/assets generate --iconBackgroundColor "#060F08" --splashBackgroun
 | Native icons + splash (126 assets) | ✅ done | — |
 | Approval gate for store users | ✅ done | — |
 | In-app account deletion (Apple 5.1.1) | ✅ done | — |
-| Android build (AAB) | ⬜ | Android Studio or SDK cmdline tools (free, ~3 GB, Windows OK) |
+| Android build (AAB) | ✅ done | signed AAB + APK build locally (see below) |
 | Google Play listing + upload | ⬜ | Play Console account ($25 one-time) |
 | Apple Developer enrollment | ⬜ | $99/yr, web signup |
 | Sign in with Apple | ⬜ | Apple Dev account first; REQUIRED because app offers Google sign-in (guideline 4.8) |
@@ -48,12 +48,42 @@ npx @capacitor/assets generate --iconBackgroundColor "#060F08" --splashBackgroun
 3. **Apple review prep**: demo account credentials for the reviewer, privacy
    nutrition labels in App Store Connect, screenshots (6.7" + 5.5" iPhone).
 
-## Android (no Mac needed)
+## Android (no Mac needed) — set up on this PC, June 2026
 
-1. Install Android Studio (or SDK command-line tools).
-2. `npm run open:android`, then Build → Generate Signed Bundle (create a
-   keystore, BACK IT UP — losing it means losing the ability to update).
-3. Upload the AAB in Play Console → internal testing → production.
+Toolchain installed and working on this machine:
+
+- **JDK 21**: `C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot`
+- **Android SDK**: `C:\Android\Sdk` (platform 36, build-tools 36.0.0).
+  Deliberately NOT under AppData — Claude Desktop's MSIX container
+  redirects AppData writes into its LocalCache, hiding them from normal
+  processes.
+- **Upload keystore**: `..\keys\halftime-upload.keystore` (outside the
+  repo, in OneDrive for backup — see `keys\README.txt`). Passwords in
+  `android\keystore.properties` (gitignored). BACK UP THE KEYS FOLDER.
+- Release signing is wired into `app/build.gradle` via
+  `keystore.properties`; builds stay unsigned if that file is absent.
+
+Build commands (from `android\`):
+
+```
+gradlew.bat bundleRelease    # AAB for Play Console
+gradlew.bat assembleRelease  # APK for direct installs / testing
+```
+
+Outputs land in `android\app\build\outputs\{bundle,apk}\release\`.
+Bump `versionCode` (and `versionName`) in `android\app\build.gradle`
+before each Play upload. Run `npm run build:mobile` first so the web
+bundle is current.
+
+> Note for Claude Code sessions: Gradle cannot run as a child of the
+> sandboxed shell (Java NIO selectors die with "Unable to establish
+> loopback connection"). Launch it via WMI instead using
+> `android\ci-build.cmd <task>` through
+> `Invoke-CimMethod -ClassName Win32_Process -MethodName Create`;
+> it writes `ci-build-log.txt` + `ci-build-exit.txt`.
+
+To upload: Play Console → create app → upload AAB to internal testing,
+then promote to production.
 
 ## iOS (Mac or cloud Mac)
 
