@@ -1194,7 +1194,12 @@ export default function BetaDashboard() {
                       }}>
                         {/* Name */}
                         <td style={{ padding: "10px 12px", color: T.white, fontWeight: 600 }}>
-                          {u.display_name || <span style={{ color: T.mist, fontStyle: "italic" }}>No name</span>}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            {u.display_name || <span style={{ color: T.mist, fontStyle: "italic" }}>No name</span>}
+                            {/^.+@halftime-app\.com$/i.test(u.email || "") && (
+                              <Badge color={T.purple}>Demo</Badge>
+                            )}
+                          </span>
                         </td>
                         {/* Email */}
                         <td style={{ padding: "10px 12px", color: T.chalk }}>
