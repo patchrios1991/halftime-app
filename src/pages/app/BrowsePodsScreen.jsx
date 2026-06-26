@@ -49,17 +49,25 @@ export default function BrowsePodsScreen({ dispatch }) {
   const [maxCost,     setMaxCost]     = useState("");
   const [spotsOnly,   setSpotsOnly]   = useState(false);
 
+  // Pods the user can actually join — exclude any they already belong to
+  // (captain or member). The browse list is for discovering NEW pods; your
+  // own pods are managed from the Pod tab.
+  const visiblePods = useMemo(
+    () => pods.filter(p => !myPods.some(mp => mp.id === p.id)),
+    [pods, myPods]
+  );
+
   // Unique sports present in the pod list (for pills)
   const availableSports = useMemo(() => {
     const seen = new Set();
-    pods.forEach(p => { if (p.sport) seen.add(p.sport); });
+    visiblePods.forEach(p => { if (p.sport) seen.add(p.sport); });
     return Array.from(seen).sort();
-  }, [pods]);
+  }, [visiblePods]);
 
   // Client-side filtered list
   const filteredPods = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return pods.filter(pod => {
+    return visiblePods.filter(pod => {
       if (q) {
         const haystack = `${pod.name} ${pod.team_name} ${pod.sport} ${pod.venue || ""}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -77,7 +85,7 @@ export default function BrowsePodsScreen({ dispatch }) {
       }
       return true;
     });
-  }, [pods, search, sportFilter, maxCost, spotsOnly]);
+  }, [visiblePods, search, sportFilter, maxCost, spotsOnly]);
 
   const filtersActive = search || sportFilter || maxCost !== "" || spotsOnly;
 
@@ -340,7 +348,7 @@ export default function BrowsePodsScreen({ dispatch }) {
             <SkeletonCard lines={3} />
             <SkeletonCard lines={2} />
           </>
-        ) : pods.length === 0 ? (
+        ) : visiblePods.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏟️</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: T.white,
