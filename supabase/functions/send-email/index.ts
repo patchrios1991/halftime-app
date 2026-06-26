@@ -83,13 +83,22 @@ serve(async (req: Request) => {
         title:   string;
         body:    string;
       };
+      // Direct-recipient override used by flows that don't insert a
+      // notifications row (e.g. the admin "Approve & Invite" action, where
+      // the invitee may not have an account yet). When present, we email
+      // this address directly instead of looking it up by user_id.
+      _override_email?: string;
     };
 
-    if (!payload.record?.user_id) {
+    const overrideEmail = payload._override_email?.trim();
+
+    // Need either a direct recipient or a record with a user_id to look up.
+    if (!overrideEmail && !payload.record?.user_id) {
       return new Response("No record", { status: 200 }); // Non-fatal
     }
 
-    const { user_id, type, title, body } = payload.record;
+    const { type, title, body } = payload.record ?? {};
+    const user_id = payload.record?.user_id;
 
     // Skip if no Resend key
     if (!RESEND_API_KEY) {
@@ -99,17 +108,20 @@ serve(async (req: Request) => {
       });
     }
 
-    // Get user's email from Supabase Auth
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(user_id);
-    const email = authUser?.email;
+    // Resolve the recipient: prefer the explicit override, otherwise look the
+    // user's email up from Supabase Auth by user_id.
+    let email = overrideEmail;
+    if (!email) {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const { data: { user: authUser } } = await supabase.auth.admin.getUserById(user_id!);
+      email = authUser?.email;
+    }
 
     if (!email) {
-      console.log(`No email found for user ${user_id}`);
+      console.log(`No email found (override empty, user ${user_id})`);
       return new Response(JSON.stringify({ skipped: "no email" }), {
         headers: { "Content-Type": "application/json" },
       });

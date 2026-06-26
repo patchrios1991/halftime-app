@@ -134,6 +134,7 @@ export default function BetaDashboard() {
   const [waitlist,        setWaitlist]        = useState([]);
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [waitlistBusy,    setWaitlistBusy]    = useState(null); // entry id in flight
+  const [waitlistMsg,     setWaitlistMsg]     = useState(null); // { kind: "ok"|"err", text }
 
   const loadWaitlist = useCallback(async () => {
     setWaitlistLoading(true);
@@ -151,6 +152,7 @@ export default function BetaDashboard() {
 
   async function handleWaitlistAction(entry, action) {
     setWaitlistBusy(entry.id);
+    setWaitlistMsg(null);
     const updates = action === "approve"
       ? { status: "approved", approved_at: new Date().toISOString() }
       : { status: "rejected" };
@@ -164,19 +166,31 @@ export default function BetaDashboard() {
         .catch(() => {});
 
       const APP_URL = "https://app.halftime-app.com";
-      await supabase.functions.invoke("send-email", {
+      // send-email reads _override_email to mail the invitee directly (they
+      // may not have an account yet). Surface the real result instead of
+      // silently swallowing it, so "Invite sent" actually means sent.
+      const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
           type: "INSERT",
           table: "notifications",
           record: {
-            user_id: "00000000-0000-0000-0000-000000000000", // placeholder — send-email uses email field below
+            user_id: "00000000-0000-0000-0000-000000000000", // placeholder — send-email uses _override_email
             type:    "pod_active",
             title:   "You're approved for HalfTime! 🎉",
             body:    `Hey ${entry.name || "there"}, you've been approved to join HalfTime. Create your account here: ${APP_URL}/auth/signin?mode=signup&email=${encodeURIComponent(entry.email)}`,
           },
           _override_email: entry.email,
         },
-      }).catch(() => {});
+      });
+
+      if (error || !data?.sent) {
+        setWaitlistMsg({
+          kind: "err",
+          text: `Approved ${entry.email}, but the welcome email did not send${error?.message ? ` (${error.message})` : data?.skipped ? ` (${data.skipped})` : ""}. Check Resend/function logs.`,
+        });
+      } else {
+        setWaitlistMsg({ kind: "ok", text: `Approved ${entry.email} and welcome email sent ✓` });
+      }
     }
 
     setWaitlist(prev => prev.map(e => e.id === entry.id ? { ...e, ...updates } : e));
@@ -1084,6 +1098,21 @@ export default function BetaDashboard() {
               <Stat label="Approved" value={waitlist.filter(e => e.status === "approved").length} color={T.lime}  icon="✅" />
               <Stat label="Total"    value={waitlist.length}                                       color={T.mist}  icon="📋" />
             </div>
+
+            {waitlistMsg && (
+              <div style={{
+                marginBottom: 16, padding: "10px 14px", borderRadius: 10, fontSize: 13,
+                color: waitlistMsg.kind === "ok" ? T.lime : T.red,
+                background: (waitlistMsg.kind === "ok" ? T.lime : T.red) + "14",
+                border: `1px solid ${(waitlistMsg.kind === "ok" ? T.lime : T.red)}40`,
+                display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+              }}>
+                <span>{waitlistMsg.text}</span>
+                <button onClick={() => setWaitlistMsg(null)} style={{
+                  background: "transparent", border: "none", color: T.mist, cursor: "pointer",
+                  fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+              </div>
+            )}
 
             {waitlistLoading ? (
               <div style={{ color: T.mist, textAlign: "center", padding: 40 }}>Loading…</div>
