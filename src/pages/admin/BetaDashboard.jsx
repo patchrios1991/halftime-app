@@ -303,7 +303,7 @@ export default function BetaDashboard() {
             status, captain_id, allocation_done, created_at, nps,
             receipt_url, receipt_verified, receipt_rejected, receipt_note,
             pod_members(
-              id, user_id, escrow_funded, share_pct, cost, bid_credits,
+              id, user_id, escrow_funded, escrow_funded_at, share_pct, cost, bid_credits,
               tier, churn_risk, referral_count, games_allocated, games_attended, joined_at,
               profiles(display_name, verified)
             )
@@ -407,12 +407,16 @@ export default function BetaDashboard() {
         return weeklyMap.get(key);
       };
       realRawPods.forEach(p => {
-        const w = ensureWeek(p.created_at);
-        w.newPods++;
-        w.gmv += parseFloat(p.season_cost) || 0;
+        ensureWeek(p.created_at).newPods++;
       });
       realRawPods.forEach(p => {
-        (p.pod_members || []).forEach(m => { ensureWeek(m.joined_at).newMembers++; });
+        (p.pod_members || []).forEach(m => {
+          ensureWeek(m.joined_at).newMembers++;
+          // Weekly GMV = realized escrow, bucketed by the week it was funded.
+          if (m.escrow_funded) {
+            ensureWeek(m.escrow_funded_at || m.joined_at || p.created_at).gmv += parseFloat(m.cost) || 0;
+          }
+        });
       });
       rawListings.filter(l => l.status === "sold").forEach(l => {
         const key = weekSortKey(l.listed_at);
