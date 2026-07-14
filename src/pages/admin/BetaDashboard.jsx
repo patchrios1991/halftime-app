@@ -37,9 +37,17 @@ function Card({ children, style = {} }) {
       borderRadius: 14, padding: 16, ...style }}>{children}</div>
   );
 }
-function Stat({ label, value, sub, color = T.lime, icon }) {
+// Pods created purely for App Store / Play review (not real customers) —
+// excluded from the entire admin dashboard so metrics reflect real usage.
+// The pod stays in the DB for the reviewer; it just doesn't count here.
+// TODO: swap for an `is_demo` column on pods if more demo pods are added.
+const DEMO_POD_IDS = new Set([
+  "11111111-2222-3333-4444-555555550001", // "Chase Field Crew" review demo pod
+]);
+
+function Stat({ label, value, sub, color = T.lime, icon, onClick }) {
   return (
-    <Card style={{ textAlign: "center" }}>
+    <Card onClick={onClick} style={{ textAlign: "center" }}>
       {icon && <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>}
       <div style={{ fontSize: 24, fontWeight: 700, color,
         fontFamily: "Georgia,serif", lineHeight: 1 }}>{value}</div>
@@ -295,7 +303,7 @@ export default function BetaDashboard() {
             status, captain_id, allocation_done, created_at, nps,
             receipt_url, receipt_verified, receipt_rejected, receipt_note,
             pod_members(
-              id, user_id, escrow_funded, share_pct, bid_credits,
+              id, user_id, escrow_funded, share_pct, cost, bid_credits,
               tier, churn_risk, referral_count, games_allocated, games_attended, joined_at,
               profiles(display_name, verified)
             )
@@ -322,18 +330,26 @@ export default function BetaDashboard() {
       const rawListings = listingsRes.data || [];
       const rawProfiles = profilesRes.data || [];
 
+      // Demo pods (App Store review) are excluded from the entire admin
+      // dashboard so every metric, insight, and list reflects real usage.
+      const realRawPods = rawPods.filter(p => !DEMO_POD_IDS.has(p.id));
+
       // ── Transform pods ──────────────────────────────────────────────────────
-      const transformedPods = rawPods.map(p => {
+      const transformedPods = realRawPods.map(p => {
         const mems     = p.pod_members || [];
         const podGames = rawGames.filter(g => g.pod_id === p.id);
-        const gamesTotal    = podGames.length;
-        const gamesAttended = podGames.filter(g => {
+        const isPast = (g) => {
           if (!g.game_date) return false;
           const [yr, mo, dy] = g.game_date.split("-").map(Number);
-          return new Date(yr, mo - 1, dy) < today && g.assignments?.[0]?.confirmed;
-        }).length;
+          return new Date(yr, mo - 1, dy) < today;
+        };
+        const gamesTotal    = podGames.length;
+        const gamesPlayed   = podGames.filter(isPast).length;
+        const gamesAttended = podGames.filter(g => isPast(g) && g.assignments?.some(a => a.confirmed)).length;
         const soldListings  = rawListings.filter(l => l.pod_id === p.id && l.status === "sold");
         const resaleRevenue = soldListings.reduce((s, l) => s + parseFloat(l.sold_price || 0), 0);
+        // Realized escrow = sum of each funded member's committed dollar share.
+        const fundedEscrow  = mems.reduce((s, m) => s + (m.escrow_funded ? (parseFloat(m.cost) || 0) : 0), 0);
 
         return {
           id:           p.id,
@@ -344,8 +360,10 @@ export default function BetaDashboard() {
           maxMembers:   p.max_members,
           escrowFunded: mems.filter(m => m.escrow_funded).length,
           escrowPending: mems.filter(m => !m.escrow_funded).length,
-          gmv:          parseFloat(p.season_cost) || 0,
+          gmv:          parseFloat(p.season_cost) || 0,   // contracted season value
+          fundedEscrow,                                    // realized escrow (funded $)
           gamesTotal,
+          gamesPlayed,
           gamesAttended,
           resaleRevenue,
           nps:          p.nps != null ? parseFloat(p.nps) : null,
@@ -361,7 +379,7 @@ export default function BetaDashboard() {
       });
 
       // ── Transform members ───────────────────────────────────────────────────
-      const transformedMembers = rawPods.flatMap(p =>
+      const transformedMembers = realRawPods.flatMap(p =>
         (p.pod_members || []).map(m => ({
           id:           m.id,
           userId:       m.user_id,
@@ -388,12 +406,12 @@ export default function BetaDashboard() {
         }
         return weeklyMap.get(key);
       };
-      rawPods.forEach(p => {
+      realRawPods.forEach(p => {
         const w = ensureWeek(p.created_at);
         w.newPods++;
         w.gmv += parseFloat(p.season_cost) || 0;
       });
-      rawPods.forEach(p => {
+      realRawPods.forEach(p => {
         (p.pod_members || []).forEach(m => { ensureWeek(m.joined_at).newMembers++; });
       });
       rawListings.filter(l => l.status === "sold").forEach(l => {
@@ -405,10 +423,15 @@ export default function BetaDashboard() {
         .map(([, d]) => d)
         .slice(-8);
 
+      // Exclude demo-pod accounts from the sign-up count too.
+      const demoUserIds = new Set(
+        rawPods.filter(p => DEMO_POD_IDS.has(p.id))
+          .flatMap(p => (p.pod_members || []).map(m => m.user_id))
+      );
       setPods(transformedPods);
       setMembers(transformedMembers);
       setWeeklyData(sortedWeekly);
-      setTotalProfiles(rawProfiles.length);
+      setTotalProfiles(rawProfiles.filter(pr => !demoUserIds.has(pr.id)).length);
       setSetupState(null);
     } catch (e) {
       setDataError(e.message || "Unknown error — check the browser console.");
@@ -466,11 +489,13 @@ export default function BetaDashboard() {
     const fundedMembers   = members.filter(m => m.escrowFunded).length;
     const allocatedMembers = members.filter(m => m.gamesAllocated > 0).length;
     const attendedMembers  = members.filter(m => m.gamesAttended > 0).length;
-    const totalGMV        = pods.reduce((s, p) => s + p.gmv, 0);
+    // Realized GMV = escrow actually funded (not contracted season value).
+    const totalGMV        = pods.reduce((s, p) => s + (p.fundedEscrow || 0), 0);
     const totalResale     = pods.reduce((s, p) => s + p.resaleRevenue, 0);
     const totalGamesAttended = pods.reduce((s, p) => s + p.gamesAttended, 0);
-    const totalGamesTotal    = pods.reduce((s, p) => s + p.gamesTotal, 0);
-    const attendanceRate  = totalGamesTotal ? Math.round((totalGamesAttended / totalGamesTotal) * 100) : 0;
+    // Denominator is games already played — future games can't be "attended".
+    const totalGamesPlayed   = pods.reduce((s, p) => s + p.gamesPlayed, 0);
+    const attendanceRate  = totalGamesPlayed ? Math.round((totalGamesAttended / totalGamesPlayed) * 100) : 0;
     const npsScores       = pods.filter(p => p.nps != null).map(p => p.nps);
     const avgNPS          = npsScores.length
       ? Math.round(npsScores.reduce((a, b) => a + b, 0) / npsScores.length * 10) / 10
@@ -767,36 +792,33 @@ export default function BetaDashboard() {
         {tab === "overview" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 12 }}>
-              <Stat label="Total GMV" icon="💰"
+              <Stat label="Total GMV" icon="💰" onClick={() => setTab("revenue")}
                 value={metrics.totalGMV > 0 ? `$${(metrics.totalGMV / 1000).toFixed(1)}K` : "—"}
-                sub="season ticket value" />
-              <Stat label="Active Pods" icon="🏟️" color={T.teal}
+                sub="escrow funded" />
+              <Stat label="Active Pods" icon="🏟️" color={T.teal} onClick={() => setTab("pods")}
                 value={metrics.activePods}
                 sub={`of ${metrics.totalPods} total`} />
-              <Stat label="Members" icon="👥"
+              <Stat label="Members" icon="👥" onClick={() => setTab("members")}
                 value={metrics.totalMembers}
                 sub={`${metrics.fundedMembers} escrow funded`} />
-              <div onClick={() => setTab("signups")} style={{ cursor: "pointer" }}
-                title="Click to view all signups">
-                <Stat label="Sign Ups" icon="🙋" color={T.teal}
-                  value={metrics.totalProfiles}
-                  sub={`${metrics.totalMembers} joined a pod`} />
-              </div>
-              <Stat label="Platform Fees" icon="📈"
+              <Stat label="Sign Ups" icon="🙋" color={T.teal} onClick={() => setTab("signups")}
+                value={metrics.totalProfiles}
+                sub={`${metrics.totalMembers} joined a pod`} />
+              <Stat label="Platform Fees" icon="📈" onClick={() => setTab("revenue")}
                 value={metrics.platformFees > 0 ? `$${metrics.platformFees.toLocaleString()}` : "—"}
                 sub="3% escrow + 8% resale" />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
-              <Stat label="Avg Pod NPS" icon="⭐" color={T.teal}
+              <Stat label="Avg Pod NPS" icon="⭐" color={T.teal} onClick={() => setTab("pods")}
                 value={metrics.avgNPS != null ? metrics.avgNPS : "—"}
                 sub="out of 10" />
-              <Stat label="Attendance Rate" icon="🎟️"
+              <Stat label="Attendance Rate" icon="🎟️" onClick={() => setTab("pods")}
                 value={metrics.attendanceRate > 0 ? `${metrics.attendanceRate}%` : "—"}
-                sub="confirmed / allocated" />
-              <Stat label="Resale Volume" icon="♻️" color={T.amber}
+                sub="attended / games played" />
+              <Stat label="Resale Volume" icon="♻️" color={T.amber} onClick={() => setTab("revenue")}
                 value={metrics.totalResale > 0 ? `$${metrics.totalResale.toLocaleString()}` : "—"}
                 sub="sold ticket value" />
-              <Stat label="High Churn Risk" icon="⚠️" color={T.red}
+              <Stat label="High Churn Risk" icon="⚠️" color={T.red} onClick={() => setTab("members")}
                 value={metrics.highRisk}
                 sub="members flagged" />
             </div>
