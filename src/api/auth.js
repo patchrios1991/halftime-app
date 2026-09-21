@@ -52,6 +52,26 @@ export async function signInWithGoogle() {
   if (error) throw error;
 }
 
+/** Sign in with Apple OAuth */
+export async function signInWithApple() {
+  if (isNative) {
+    // Same system-browser + deep-link pattern as Google — required inside
+    // WKWebView since Apple's OAuth page also rejects embedded webviews.
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: { redirectTo: AUTH_DEEP_LINK, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+    await openInSystemBrowser(data.url);
+    return;
+  }
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "apple",
+    options: { redirectTo: `${window.location.origin}/auth/callback` },
+  });
+  if (error) throw error;
+}
+
 /** Sign out */
 export async function signOut() {
   const { error } = await supabase.auth.signOut();

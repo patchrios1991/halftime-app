@@ -6,6 +6,7 @@ import {
   signUp as apiSignUp,
   signOut as apiSignOut,
   signInWithGoogle as apiSignInWithGoogle,
+  signInWithApple as apiSignInWithApple,
   signInWithMagicLink as apiSignInWithMagicLink,
   getProfile,
   updateProfile as apiUpdateProfile,
@@ -113,6 +114,16 @@ export function useAuth() {
     }
   }, []);
 
+  const signInWithApple = useCallback(async () => {
+    setError(null);
+    try {
+      return await apiSignInWithApple();
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    }
+  }, []);
+
   const signInWithMagicLink = useCallback(async (email) => {
     setError(null);
     try {
@@ -145,6 +156,7 @@ export function useAuth() {
     signUp,
     signOut,
     signInWithGoogle,
+    signInWithApple,
     signInWithMagicLink,
     updateProfile,
   };

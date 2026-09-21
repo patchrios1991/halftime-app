@@ -52,6 +52,8 @@ function Btn({ children, onClick, disabled, variant = "primary", style: extra })
     ghost:   { background: "transparent", color: T.chalk, border: `1.5px solid ${T.green}` },
     google:  { background: T.white, color: "#1f1f1f", display: "flex",
                alignItems: "center", justifyContent: "center", gap: 10 },
+    apple:   { background: "#000000", color: "#ffffff", display: "flex",
+               alignItems: "center", justifyContent: "center", gap: 10 },
   };
   return (
     <button onClick={onClick} disabled={disabled} style={{ ...base, ...styles[variant] }}
@@ -98,7 +100,7 @@ function SocialProof() {
 // ══════════════════════════════════════════════════════════════════════════════
 export default function SignIn() {
   const navigate = useNavigate();
-  const { signIn, signUp, signInWithGoogle, signInWithMagicLink } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithApple, signInWithMagicLink } = useAuth();
 
   // mode: "signin" | "waitlist" | "signup" | "magic"
   // "signup" is hidden — only reachable from the approval email link or waitlist success screen
@@ -201,6 +203,17 @@ export default function SignIn() {
     }
   }
 
+  async function handleApple() {
+    setFeedback(null);
+    setBusy(true);
+    try {
+      await signInWithApple();
+    } catch (err) {
+      fb("error", err.message);
+      setBusy(false);
+    }
+  }
+
   // ── UI ──────────────────────────────────────────────────────────────────────
   const titles = {
     signin:   { head: "Welcome back",       sub: "Sign in to your HalfTime account" },
@@ -293,6 +306,13 @@ export default function SignIn() {
             <>
               {mode === "signin" && isSupabaseConfigured && (
                 <>
+                  <Btn variant="apple" onClick={handleApple} disabled={busy}>
+                    <svg width="17" height="20" viewBox="0 0 17 20" fill="#ffffff">
+                      <path d="M14.09 10.63c-.02-2.23 1.82-3.3 1.9-3.35-1.04-1.52-2.66-1.73-3.23-1.75-1.37-.14-2.68.81-3.38.81-.7 0-1.78-.79-2.93-.77-1.5.02-2.9.88-3.67 2.22-1.57 2.72-.4 6.73 1.13 8.93.75 1.08 1.64 2.29 2.8 2.24 1.13-.05 1.56-.72 2.92-.72 1.36 0 1.75.72 2.93.7 1.21-.02 1.97-1.09 2.7-2.18.86-1.25 1.21-2.46 1.22-2.52-.03-.01-2.34-.9-2.36-3.56z" />
+                      <path d="M11.9 3.98c.61-.75 1.03-1.78.91-2.83-.89.04-1.99.6-2.62 1.34-.57.65-1.07 1.72-.94 2.72.99.08 1.99-.5 2.65-1.23z" />
+                    </svg>
+                    Continue with Apple
+                  </Btn>
                   <Btn variant="google" onClick={handleGoogle} disabled={busy}>
                     <svg width="18" height="18" viewBox="0 0 48 48">
                       <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
