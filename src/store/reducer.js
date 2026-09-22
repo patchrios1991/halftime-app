@@ -90,6 +90,9 @@ export function reducer(state, action) {
       return { ...state, notifications };
     }
 
+    case "SET_TOAST":
+      return { ...state, toast: action.message };
+
     case "CLEAR_TOAST":
       return { ...state, toast: null };
 

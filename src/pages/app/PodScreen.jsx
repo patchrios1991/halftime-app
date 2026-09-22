@@ -140,7 +140,29 @@ export default function PodScreen({ state, dispatch }) {
 
   // Full pod with ALL members (requires SECURITY DEFINER RLS policy)
   const { pod: fullPod, escrowBalance: realEscrowBalance, refresh: refreshPod } = usePod(activePodId);
-  const { messages, sending, sendMessage } = usePodChat(activePodId);
+  const { messages, sending, sendMessage, reportMessage, blockSender } = usePodChat(activePodId);
+  const [msgMenuFor, setMsgMenuFor]     = useState(null); // message id
+  const [msgConfirm, setMsgConfirm]     = useState(null); // { type: "report" | "block", message }
+  const [msgActionBusy, setMsgActionBusy] = useState(false);
+
+  async function handleMessageAction() {
+    if (!msgConfirm) return;
+    setMsgActionBusy(true);
+    try {
+      if (msgConfirm.type === "report") {
+        await reportMessage(msgConfirm.message.id);
+        dispatch({ type: "SET_TOAST", message: "Reported — reviewed within 24 hours." });
+      } else {
+        await blockSender(msgConfirm.message.user_id);
+        dispatch({ type: "SET_TOAST", message: "User blocked." });
+      }
+      setMsgConfirm(null);
+    } catch (e) {
+      dispatch({ type: "SET_TOAST", message: e.message || "Something went wrong." });
+    } finally {
+      setMsgActionBusy(false);
+    }
+  }
 
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -1298,11 +1320,79 @@ export default function PodScreen({ state, dispatch }) {
                         }}>
                           {msg.content}
                         </div>
-                        <div style={{ fontSize: 9, color: T.mist,
-                          textAlign: isMe ? "right" : "left", marginTop: 2, marginLeft: 4 }}>
-                          {new Date(msg.created_at).toLocaleTimeString("en-US",
-                            { hour: "numeric", minute: "2-digit" })}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6,
+                          justifyContent: isMe ? "flex-end" : "flex-start",
+                          marginTop: 2, marginLeft: 4 }}>
+                          <div style={{ fontSize: 9, color: T.mist }}>
+                            {new Date(msg.created_at).toLocaleTimeString("en-US",
+                              { hour: "numeric", minute: "2-digit" })}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setMsgConfirm(null);
+                              setMsgMenuFor(msgMenuFor === msg.id ? null : msg.id);
+                            }}
+                            style={{ background: "none", border: "none", padding: "0 2px",
+                              color: T.mist, fontSize: 12, cursor: "pointer", lineHeight: 1 }}>
+                            ⋯
+                          </button>
                         </div>
+
+                        {/* Message action menu — Report always, Block for others only */}
+                        {msgMenuFor === msg.id && (
+                          <div style={{ display: "flex", gap: 6, marginTop: 4,
+                            justifyContent: isMe ? "flex-end" : "flex-start" }}>
+                            <button
+                              onClick={() => { setMsgMenuFor(null); setMsgConfirm({ type: "report", message: msg }); }}
+                              style={{ padding: "4px 10px", background: "transparent",
+                                border: `1px solid ${T.amber}55`, borderRadius: 6,
+                                color: T.amber, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                              🚩 Report
+                            </button>
+                            {!isMe && (
+                              <button
+                                onClick={() => { setMsgMenuFor(null); setMsgConfirm({ type: "block", message: msg }); }}
+                                style={{ padding: "4px 10px", background: "transparent",
+                                  border: `1px solid ${T.red}55`, borderRadius: 6,
+                                  color: T.red, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                                🚫 Block
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Confirm step */}
+                        {msgConfirm?.message.id === msg.id && (
+                          <div style={{ marginTop: 6,
+                            background: `${msgConfirm.type === "block" ? T.red : T.amber}10`,
+                            border: `1px solid ${msgConfirm.type === "block" ? T.red : T.amber}33`,
+                            borderRadius: 8, padding: "8px 10px" }}>
+                            <div style={{ fontSize: 10,
+                              color: msgConfirm.type === "block" ? T.red : T.amber,
+                              fontWeight: 700, marginBottom: 6 }}>
+                              {msgConfirm.type === "block"
+                                ? `Block ${msg.profiles?.display_name || "this member"}? You won't see their messages anymore.`
+                                : "Report this message for review?"}
+                            </div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button onClick={() => setMsgConfirm(null)}
+                                style={{ flex: 1, padding: "6px", background: "transparent",
+                                  border: `1px solid #1A4A2E`, borderRadius: 6, color: T.mist,
+                                  fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                                Cancel
+                              </button>
+                              <button onClick={handleMessageAction} disabled={msgActionBusy}
+                                style={{ flex: 1, padding: "6px",
+                                  background: msgConfirm.type === "block" ? T.red : T.amber,
+                                  border: "none", borderRadius: 6,
+                                  color: msgConfirm.type === "block" ? T.white : T.dark,
+                                  fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                  opacity: msgActionBusy ? 0.6 : 1 }}>
+                                {msgActionBusy ? "Working…" : msgConfirm.type === "block" ? "Yes, Block" : "Report"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
