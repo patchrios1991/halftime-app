@@ -1,0 +1,226 @@
+<title>HalfTime X Kit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gelasio:wght@700&family=Carlito:wght@400;700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #060F08;
+    --panel: #0D2B1A;
+    --line: #1A4A2E;
+    --lime: #C8F135;
+    --text: #E8F0E0;
+    --mist: #8FB097;
+    --teal: #34D399;
+    --amber: #FBBF24;
+    --serif: Gelasio, Georgia, "Times New Roman", serif;
+    --sans: Carlito, Calibri, "Segoe UI", system-ui, sans-serif;
+  }
+  img { max-width: 100%; height: auto; }
+  .field > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+  body { background: var(--ground); color: var(--text); font: 17px/1.5 var(--sans); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 700; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(40px, 7vw, 64px); line-height: 1; }
+  h1 b { color: var(--lime); font-weight: 700; }
+  h2 { font-size: 30px; }
+  .lede { color: var(--mist); max-width: 62ch; margin: 14px 0 0; font-size: 19px; }
+  .eyebrow { font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--lime); font-weight: 700; }
+
+  nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--ground);
+    border-bottom: 1px solid var(--line); margin: 28px -20px 0; padding: 10px 20px;
+    display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  nav a { flex: none; color: var(--mist); text-decoration: none; font-weight: 700; font-size: 15px;
+    padding: 7px 12px; border-radius: 999px; }
+  nav a:hover, nav a:focus-visible { color: var(--ground); background: var(--lime); outline: none; }
+  .progress { margin-left: auto; flex: none; align-self: center; color: var(--mist); font-size: 14px;
+    font-variant-numeric: tabular-nums; padding-left: 12px; }
+
+  section { padding-top: 48px; scroll-margin-top: 60px; }
+  .why { color: var(--mist); margin: 6px 0 20px; max-width: 62ch; }
+
+  .posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 16px; }
+  .post { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px;
+    display: flex; flex-direction: column; gap: 14px; }
+  .post.done { opacity: .55; }
+  .post .num { font-size: 13px; color: var(--lime); font-weight: 700; letter-spacing: .12em; }
+  .post p { margin: 0; white-space: pre-wrap; font-size: 17px; overflow-wrap: anywhere; }
+  .post img { border-radius: 10px; border: 1px solid var(--line); display: block; cursor: zoom-in; }
+  .poll { display: grid; gap: 6px; }
+  .poll span { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; color: var(--mist); font-size: 15px; }
+  .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+  .count { font-size: 14px; color: var(--mist); font-variant-numeric: tabular-nums; }
+  .count.tight { color: var(--amber); }
+  .spacer { flex: 1; }
+  button, .btn { font: 700 15px var(--sans); border-radius: 10px; padding: 9px 14px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--text); text-decoration: none; }
+  button.primary { background: var(--lime); border-color: var(--lime); color: var(--ground); }
+  button:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+  .btn:hover, button:hover { border-color: var(--lime); }
+  label.check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--mist); cursor: pointer; }
+  label.check input { accent-color: var(--lime); width: 16px; height: 16px; }
+
+  .thread .post { position: relative; }
+  .profile { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .field { display: grid; grid-template-columns: 110px 1fr auto; gap: 12px; align-items: center;
+    padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .field:last-child { border-bottom: 0; }
+  .field .k { color: var(--mist); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+  .banner { border-radius: 12px; border: 1px solid var(--line); }
+  .avatar { width: 96px; height: 96px; border-radius: 50%; border: 3px solid var(--ground); margin-top: -48px; margin-left: 20px; position: relative; }
+
+  table { width: 100%; border-collapse: collapse; }
+  .table-wrap { overflow-x: auto; }
+  td, th { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--mist); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  td:first-child { white-space: nowrap; font-weight: 700; color: var(--lime); width: 80px; }
+  td a { color: var(--text); }
+
+  .tips { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+  .tips div { border-top: 2px solid var(--lime); padding-top: 12px; }
+  .tips h3 { font-size: 20px; margin-bottom: 6px; }
+  .tips p { margin: 0; color: var(--mist); }
+
+  dialog { background: var(--ground); border: 1px solid var(--line); border-radius: 14px; padding: 12px; max-width: min(96vw, 1200px); }
+  dialog::backdrop { background: rgba(0,0,0,.8); }
+  dialog img { display: block; border-radius: 8px; }
+  dialog p { color: var(--mist); margin: 10px 4px 2px; font-size: 14px; }
+  .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    background: var(--lime); color: var(--ground); font-weight: 700; padding: 10px 18px; border-radius: 999px; }
+  @media (max-width: 560px) {
+    .field { grid-template-columns: 1fr auto; }
+    .field .k { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Marketing kit · X</div>
+  <h1>Half<b>Time</b> on X</h1>
+  <p class="lede">Every post is ready to copy, and each one fits X's 280-character limit. “Open in X” pre-fills the composer. Attach the image yourself: right-click or long-press it to save.</p>
+
+  <nav id="nav"></nav>
+  <main id="main"></main>
+</div>
+<dialog id="zoom"><img id="zoom-img" alt=""><p>Right-click or long-press to save this image.</p></dialog>
+<div class="toast" id="toast" hidden>Copied</div>
+
+<script>
+const DATA = /*POSTS_JSON*/null;
+
+function xLength(text) {
+  const light = (cp) => cp <= 4351 || (cp >= 8192 && cp <= 8205) || (cp >= 8208 && cp <= 8223) || (cp >= 8242 && cp <= 8247);
+  const t = text.replace(/\b(?:https?:\/\/)?[\w-]+\.(?:com|app|io)\S*/g, () => "\u0000".repeat(23)).replace(/️/g, "");
+  let n = 0; for (const ch of t) n += light(ch.codePointAt(0)) ? 1 : 2; return n;
+}
+
+let done = {};
+try { done = JSON.parse(localStorage.getItem("ht-x-done") || "{}"); } catch (e) {}
+function saveDone() { try { localStorage.setItem("ht-x-done", JSON.stringify(done)); } catch (e) {} }
+
+const el = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null) n.setAttribute(k, v);
+  }
+  kids.flat().forEach((k) => k != null && n.append(k.nodeType ? k : document.createTextNode(k)));
+  return n;
+};
+
+function toast(msg) {
+  const t = document.getElementById("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.h); toast.h = setTimeout(() => (t.hidden = true), 1400);
+}
+
+async function copy(text, node) {
+  try { await navigator.clipboard.writeText(text); toast("Copied"); }
+  catch (e) {
+    const r = document.createRange(); r.selectNodeContents(node);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Selected. Press Ctrl+C to copy");
+  }
+}
+
+function zoom(src) { const d = document.getElementById("zoom"); document.getElementById("zoom-img").src = src; d.showModal(); }
+document.getElementById("zoom").addEventListener("click", (e) => e.currentTarget.close());
+
+const total = [];
+function postCard(p, key, label) {
+  total.push(key);
+  const len = xLength(p.text);
+  const body = el("p", {}, p.text);
+  const card = el("article", { class: "post" + (done[key] ? " done" : ""), id: "post-" + key });
+  const box = el("input", { type: "checkbox", id: "done-" + key });
+  box.checked = !!done[key];
+  box.addEventListener("change", () => { done[key] = box.checked; card.classList.toggle("done", box.checked); saveDone(); updateProgress(); });
+  card.append(...[
+    label ? el("div", { class: "num" }, label) : null,
+    body,
+    p.poll ? el("div", { class: "poll" }, p.poll.map((o) => el("span", {}, o))) : null,
+    p.image ? el("img", { src: "images/" + p.image, alt: "Image card for this post", loading: "lazy", onclick: () => zoom("images/" + p.image) }) : null,
+    el("div", { class: "meta" },
+      el("span", { class: "count" + (len > 260 ? " tight" : "") }, `${len}/280`),
+      p.poll ? el("span", { class: "count" }, "Add the poll in X") : null,
+      el("span", { class: "spacer" }),
+      el("label", { class: "check", for: "done-" + key }, box, "Posted"),
+      el("a", { class: "btn", href: "https://x.com/intent/post?text=" + encodeURIComponent(p.text), target: "_blank", rel: "noopener" }, "Open in X"),
+      el("button", { class: "primary", type: "button", onclick: () => copy(p.text, body) }, "Copy"),
+    ),
+  ].filter(Boolean));
+  return card;
+}
+
+function updateProgress() {
+  const n = total.filter((k) => done[k]).length;
+  document.getElementById("progress").textContent = `${n} of ${total.length} posted`;
+}
+
+const main = document.getElementById("main");
+const sections = [];
+function section(id, title, why, ...kids) {
+  sections.push([id, title]);
+  main.append(el("section", { id }, el("h2", {}, title), why ? el("p", { class: "why" }, why) : null, ...kids));
+}
+
+// Profile
+const pr = DATA.profile;
+const field = (k, v) => { const val = el("span", {}, v); return el("div", { class: "field" }, el("span", { class: "k" }, k), val,
+  el("button", { type: "button", onclick: () => copy(v, val) }, "Copy")); };
+section("profile", "Profile setup", "Do this before the first post. The header and avatar files are below; save them and upload in X under Edit profile.",
+  el("div", { class: "profile" },
+    el("div", {}, el("img", { class: "banner", src: "images/header-1500x500.png", alt: "Profile header", onclick: () => zoom("images/header-1500x500.png") }),
+      el("img", { class: "avatar", src: "images/avatar.png", alt: "Profile avatar", onclick: () => zoom("images/avatar.png") })),
+    el("div", {}, field("Name", pr.name), field("Bio", pr.bio), field("Location", pr.location), field("Website", pr.website)),
+  ));
+
+section("pinned", "Pinned post", "Post it first, then pin it from the ⋯ menu so it's the first thing new visitors see.",
+  el("div", { class: "posts" }, postCard(DATA.pinned, "pinned")));
+
+const th = DATA.thread;
+section("thread", th.title, th.note + " In X, write post 1, then tap + to add each next post before posting them all together.",
+  el("div", { class: "posts thread" }, th.posts.map((p, i) => postCard(p, "t" + i, `${i + 1} / ${th.posts.length}`))));
+
+DATA.pillars.forEach((pl) => section(pl.id, pl.title, pl.why, el("div", { class: "posts" }, pl.posts.map((p) => postCard(p, p.id)))));
+
+section("replies", DATA.replies.title, DATA.replies.why, el("div", { class: "posts" }, DATA.replies.posts.map((p) => postCard(p, p.id))));
+
+// Schedule
+const all = Object.fromEntries([...DATA.pillars.flatMap((p) => p.posts), ...DATA.replies.posts].map((p) => [p.id, p]));
+const nameFor = (id) => id === "pinned" ? ["Pinned post", "pinned"] : id === "launch-thread" ? ["Launch thread (7 posts)", "thread"]
+  : all[id] ? [all[id].text.split("\n")[0], "post-" + id] : [id, null];
+section("schedule", "Two-week schedule", "About one post a day. Mornings (8–10am) and the hour before evening games tend to do best for sports audiences.",
+  el("div", { class: "table-wrap" }, el("table", {},
+    el("thead", {}, el("tr", {}, el("th", {}, "Day"), el("th", {}, "Post"))),
+    el("tbody", {}, DATA.schedule.map((d) => el("tr", {}, el("td", {}, d.day),
+      el("td", {}, d.items.map((id, i) => { const [t, a] = nameFor(id);
+        return el("div", {}, a ? el("a", { href: "#" + a }, t) : t); }))))))));
+
+section("tips", "Ground rules", null, el("div", { class: "tips" },
+  el("div", {}, el("h3", {}, "Reply to everyone"), el("p", {}, "Early on, replies matter more than posts. Answer every reply within a few hours, and spend 15 minutes a day replying to fans talking about season tickets.")),
+  el("div", {}, el("h3", {}, "One link, not every post"), el("p", {}, "X tends to show posts with links to fewer people. Keep the link in the pinned post and bio, and add it to about one post in five.")),
+  el("div", {}, el("h3", {}, "Images win"), el("p", {}, "Posts with an image get far more attention. Every image here is 1600×900 so X shows it uncropped.")),
+));
+
+const nav = document.getElementById("nav");
+sections.forEach(([id, t]) => nav.append(el("a", { href: "#" + id }, t)));
+nav.append(el("span", { class: "progress", id: "progress" }));
+updateProgress();
+</script>

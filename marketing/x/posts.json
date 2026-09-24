@@ -1,0 +1,297 @@
+{
+  "profile": {
+    "name": "HalfTime",
+    "bio": "Split season tickets with your crew. Fair game allocation, Stripe-secured escrow, and resale for the nights you can't make it. Early access is open 👇",
+    "location": "Every home game",
+    "website": "halftime-app.com"
+  },
+  "pinned": {
+    "id": "pinned",
+    "text": "Season tickets are the best seats in sports and the worst math in your budget.\n\nHalfTime lets you split them with your crew. Fund your share, get a fair slice of the schedule, and resell or trade the nights you can't make.\n\nEarly access is open → halftime-app.com",
+    "image": "01-intro.png"
+  },
+  "thread": {
+    "id": "launch-thread",
+    "title": "Launch thread",
+    "note": "Post on day 1, right after the pinned post. Attach each image to the post it's listed on.",
+    "posts": [
+      {
+        "text": "Every group that splits season tickets ends up with the same three things: a spreadsheet, a Venmo mess, and one friend who somehow got all the good games.\n\nWe built HalfTime to fix that. Here's how it works 🧵",
+        "image": "01-intro.png"
+      },
+      {
+        "text": "1. Start a pod.\n\nOne person creates it for their team, sets everyone's share, and invites the crew. Two people splitting a plan in half, or ten people each taking a slice. Both work."
+      },
+      {
+        "text": "2. Everyone funds their share into escrow.\n\nStripe holds the money until the whole pod is committed. If the pod doesn't fill, nobody gets stuck covering someone else's seats.",
+        "image": "05-escrow.png"
+      },
+      {
+        "text": "3. The games get split fairly.\n\nPick a snake draft, a lottery weighted by ownership, or our fairness engine, which balances marquee games against your share. Every pod gets a 0–100 fairness score so you can see it's even.",
+        "image": "03-snake-draft.png"
+      },
+      {
+        "text": "4. Can't make a game?\n\nList it on your pod's resale marketplace in seconds, or trade it with a podmate. Taking your dad instead? Send him a guest pass with the game, section, and row in one link.",
+        "image": "06-app-schedule.png"
+      },
+      {
+        "text": "5. Rivalry night. Playoff game. Everyone wants it.\n\nPods can auction marquee and playoff games with bid credits, so the big nights go to whoever wants them most, not whoever texted the group chat first."
+      },
+      {
+        "text": "HalfTime works for NBA, NFL, MLB, NHL, MLS, and college teams. We're onboarding pods by invite right now.\n\nTell us your team and grab early access: halftime-app.com"
+      }
+    ]
+  },
+  "pillars": [
+    {
+      "id": "relatable",
+      "title": "The problem",
+      "why": "Relatable, shareable. These earn follows from people who already split tickets.",
+      "posts": [
+        {
+          "id": "math",
+          "text": "The season ticket math:\n\n41 home games\n2 seats\n1 of you\n~12 nights you'll actually make it\n\nGet a pod.",
+          "image": "02-season-math.png"
+        },
+        {
+          "id": "spreadsheet",
+          "text": "Nobody in a season ticket group chat has ever said \"this spreadsheet is working great.\""
+        },
+        {
+          "id": "that-friend",
+          "text": "Every season ticket group has one friend who somehow ended up with Opening Night, the rivalry game, and every Saturday.\n\nWe built HalfTime for everyone else in that group."
+        },
+        {
+          "id": "venmo",
+          "text": "Split season tickets four ways and you learn a lot about your friends.\n\nMostly who \"forgot\" to send their share."
+        },
+        {
+          "id": "tuesday",
+          "text": "Your season tickets don't care that you have a work thing on Tuesday.\n\nYour pod does. Trade it, resell it, or hand it to your cousin with a guest pass."
+        }
+      ]
+    },
+    {
+      "id": "features",
+      "title": "How it works",
+      "why": "One feature per post. Pair with the app screenshots so people see the real product.",
+      "posts": [
+        {
+          "id": "snake",
+          "text": "How a snake draft splits a season:\n\nRound 1: A → B → C → D\nRound 2: D → C → B → A\nRound 3: A → B → C → D\n\nBest games go first, and whoever picks last in one round picks first in the next. HalfTime runs the whole draft for your pod in one tap.",
+          "image": "03-snake-draft.png"
+        },
+        {
+          "id": "escrow",
+          "text": "\"I'll Venmo you Friday\" is not a payment plan.\n\nOn HalfTime, everyone funds their share up front. Stripe holds it in escrow until the whole pod is in. Nobody gets left holding the bag.",
+          "image": "05-escrow.png"
+        },
+        {
+          "id": "fairness",
+          "text": "Every HalfTime pod gets a fairness score from 0 to 100.\n\nIt checks how close each member landed to their fair share of the season, weighted by game quality. It settles the \"you got all the good ones\" argument before it starts.",
+          "image": "04-fairness.png"
+        },
+        {
+          "id": "resale",
+          "text": "An empty seat is money you already spent.\n\nCan't make a game? List it on your pod's resale marketplace in seconds and get something back.",
+          "image": "08-app-resale.png"
+        },
+        {
+          "id": "trades",
+          "text": "Got a Tuesday, want a Saturday?\n\nTrade games with anyone in your pod and it settles instantly. No IOUs, no \"I'll get you next time.\""
+        },
+        {
+          "id": "guest-pass",
+          "text": "Giving your ticket to a friend shouldn't take six texts and a blurry screenshot.\n\nSend a HalfTime guest pass: one link with the matchup, venue, section, row, and who it's from."
+        },
+        {
+          "id": "dashboard",
+          "text": "Your share, your cost, your games, and whether everyone's paid. All on one screen.\n\nThis is what a funded pod looks like on HalfTime.",
+          "image": "07-app-dashboard.png"
+        },
+        {
+          "id": "captain",
+          "text": "Are you the one who holds the season tickets and chases everyone for money?\n\nCongrats, you're a pod captain. HalfTime handles the collecting and the splitting so you can just go to the game."
+        }
+      ]
+    },
+    {
+      "id": "timely",
+      "title": "This season",
+      "why": "Ride what fans are already talking about. Post these close to the real dates.",
+      "posts": [
+        {
+          "id": "openers",
+          "text": "NBA and NHL openers are a few weeks out.\n\nIf you've been carrying season tickets alone, or pricing them out and wincing, this is the moment to build a pod.\n\nhalftime-app.com"
+        },
+        {
+          "id": "october",
+          "text": "October baseball is the reason you buy the full season.\n\nIt's a lot easier to afford when four friends split it. Start planning next year's pod now."
+        },
+        {
+          "id": "nfl",
+          "text": "NFL season tickets: 8 or 9 home games, sometimes a PSL on top, and a price tag that rivals a used car.\n\nFour friends. Two games each. One great tailgate."
+        },
+        {
+          "id": "renewal",
+          "text": "Renewal invoice just landed and you're doing mental math?\n\nDon't drop the seats. Split them. HalfTime turns one scary number into a few reasonable ones."
+        }
+      ]
+    },
+    {
+      "id": "engagement",
+      "title": "Conversation starters",
+      "why": "Replies boost reach on X. Answer every reply you get on these.",
+      "posts": [
+        {
+          "id": "poll",
+          "text": "How does your season ticket group split games?",
+          "poll": [
+            "Snake draft",
+            "Whoever asks first",
+            "Spreadsheet chaos",
+            "We don't talk about it"
+          ]
+        },
+        {
+          "id": "one-game",
+          "text": "What's the one home game on your team's schedule you'd never give up?"
+        },
+        {
+          "id": "team-qt",
+          "text": "Quote this with your team and how many people you'd split a season with.\n\nWe're using the answers to decide which teams to onboard first."
+        },
+        {
+          "id": "worst-story",
+          "text": "Worst thing that's ever happened in your season ticket group chat. Go."
+        }
+      ]
+    },
+    {
+      "id": "cta",
+      "title": "Early access",
+      "why": "Direct asks. Keep these to about one in five posts.",
+      "posts": [
+        {
+          "id": "invite",
+          "text": "HalfTime is in invite-based early access.\n\nTell us your team and we'll help you get your pod set up → halftime-app.com"
+        },
+        {
+          "id": "one-liner",
+          "text": "Own half. Play every game.\n\nSplit season tickets with your crew → halftime-app.com",
+          "image": "01-intro.png"
+        }
+      ]
+    }
+  ],
+  "replies": {
+    "title": "Reply templates",
+    "why": "For replying to people who post about ticket prices or splitting seats. Personalize each one, and only reply where it genuinely helps.",
+    "posts": [
+      {
+        "id": "r-price",
+        "text": "Splitting them with a few friends is the move. We built HalfTime for exactly this: fair game split, and escrow so nobody flakes on their share."
+      },
+      {
+        "id": "r-spreadsheet",
+        "text": "We built an app so you never have to maintain that spreadsheet again. Snake draft, lottery, or a fairness engine, your pod's choice."
+      },
+      {
+        "id": "r-cantgo",
+        "text": "If you split those with friends on HalfTime, a night you can't make goes to a podmate trade or the resale marketplace instead of an empty seat."
+      }
+    ]
+  },
+  "schedule": [
+    {
+      "day": "Day 1",
+      "items": [
+        "Set bio, header, and avatar",
+        "pinned",
+        "launch-thread"
+      ]
+    },
+    {
+      "day": "Day 2",
+      "items": [
+        "math"
+      ]
+    },
+    {
+      "day": "Day 3",
+      "items": [
+        "snake",
+        "poll"
+      ]
+    },
+    {
+      "day": "Day 4",
+      "items": [
+        "spreadsheet"
+      ]
+    },
+    {
+      "day": "Day 5",
+      "items": [
+        "escrow"
+      ]
+    },
+    {
+      "day": "Day 6",
+      "items": [
+        "one-game"
+      ]
+    },
+    {
+      "day": "Day 7",
+      "items": [
+        "dashboard"
+      ]
+    },
+    {
+      "day": "Day 8",
+      "items": [
+        "that-friend",
+        "openers"
+      ]
+    },
+    {
+      "day": "Day 9",
+      "items": [
+        "fairness"
+      ]
+    },
+    {
+      "day": "Day 10",
+      "items": [
+        "team-qt"
+      ]
+    },
+    {
+      "day": "Day 11",
+      "items": [
+        "resale"
+      ]
+    },
+    {
+      "day": "Day 12",
+      "items": [
+        "venmo",
+        "invite"
+      ]
+    },
+    {
+      "day": "Day 13",
+      "items": [
+        "guest-pass"
+      ]
+    },
+    {
+      "day": "Day 14",
+      "items": [
+        "worst-story",
+        "october"
+      ]
+    }
+  ]
+}
