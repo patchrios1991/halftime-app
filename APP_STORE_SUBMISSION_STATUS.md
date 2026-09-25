@@ -1,8 +1,12 @@
 # App Store Submission Status
 
-**Last updated:** 2026-09-22
+**Last updated:** 2026-09-25
 **Branch:** `claude/elegant-hamilton-2x8akp`
-**Status: Resubmitted, waiting on Apple review again.** Build `1.0 (1)` (Sign in with Apple + UIScene fix) got a **Guideline 2.1 "Information Needed"** response requiring Report + Block in pod chat (Guideline 1.2). Built that, fixed two pre-existing bugs it exposed, uploaded build `1.0 (2)`, replied to Apple's message and resubmitted. Jorge recorded the demo on his iPhone via TestFlight and attached it to the reply.
+**Status: 🎉 APPROVED and live.** Build `1.0 (2)` passed App Review (approval email received 2026-09-25, review completed same day it was submitted — 2026-09-22 — Apple's system just took ~3 days to send the completion email). Availability turned on in App Store Connect (Free, 175 countries/regions — 148 processing, 27 "Cannot Sell" which is normal and doesn't block release). Live listing: **apps.apple.com/app/halftime-season-ticket-pods/id6809882491**
+
+## Round 2 — Guideline 2.1 response (2026-09-22), approved (2026-09-25)
+
+Build `1.0 (1)` (Sign in with Apple + UIScene fix) got a **Guideline 2.1 "Information Needed"** response requiring Report + Block in pod chat (Guideline 1.2). Built that, fixed two pre-existing bugs it exposed, uploaded build `1.0 (2)`, replied to Apple's message and resubmitted. Jorge recorded the demo on his iPhone via TestFlight and attached it to the reply. Approved ~3 days later, no further questions from Apple.
 
 ## Round 2 — Guideline 2.1 response (2026-09-22)
 
