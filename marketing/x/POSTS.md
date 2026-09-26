@@ -9,11 +9,40 @@ Images are 1600×900 (shows uncropped in the X timeline). Re-render them with
 | Field | Value |
 |---|---|
 | Name | HalfTime |
-| Bio | Split season tickets with your crew. Fair game allocation, Stripe-secured escrow, and resale for the nights you can't make it. Early access is open 👇 (150/160) |
+| Bio | The app for splitting season tickets with your crew. Fair game drafts, no chasing Venmo, and resale for the nights you can't make it. Now on iPhone 👇 (150/160) |
 | Location | Every home game |
-| Website | halftime-app.com |
+| Website | [App Store link] |
 | Avatar | `images/avatar.png` |
 | Header | `images/header-1500x500.png` |
+
+## App Store launch
+
+Post the main one, pin it (replacing the old pinned post), then reply to it with the follow-up so the thread keeps going.
+
+```
+HalfTime is live on the App Store 🎉
+
+Split season tickets with your crew. Fund your share into escrow, split the games fairly, and trade or resell the nights you can't make.
+
+Start your pod → [App Store link]
+```
+Image: `images/09-launch.png`
+<sub>217/280</sub>
+
+```
+Works for NBA, NFL, MLB, NHL, MLS, and college teams. Android is on the way.
+
+If you try it, tell us what you think. We read every reply.
+```
+<sub>137/280</sub>
+
+```
+Your season tickets now come with an app for splitting them.
+
+HalfTime is on the App Store → [App Store link]
+```
+Image: `images/09-launch.png`
+<sub>117/280</sub>
 
 ## Pinned post
 
@@ -22,10 +51,10 @@ Season tickets are the best seats in sports and the worst math in your budget.
 
 HalfTime lets you split them with your crew. Fund your share, get a fair slice of the schedule, and resell or trade the nights you can't make.
 
-Early access is open → halftime-app.com
+Get it on iPhone → [App Store link]
 ```
 Image: `images/01-intro.png`
-<sub>271/280</sub>
+<sub>267/280</sub>
 
 ## Launch thread
 
@@ -92,11 +121,11 @@ Pods can auction marquee and playoff games with bid credits, so the big nights g
 **7/7**
 
 ```
-HalfTime works for NBA, NFL, MLB, NHL, MLS, and college teams. We're onboarding pods by invite right now.
+HalfTime works for NBA, NFL, MLB, NHL, MLS, and college teams, and it's live on the App Store now.
 
-Tell us your team and grab early access: halftime-app.com
+Start your pod: [App Store link]
 ```
-<sub>171/280</sub>
+<sub>139/280</sub>
 
 
 ## The problem
@@ -220,7 +249,7 @@ NBA and NHL openers are a few weeks out.
 
 If you've been carrying season tickets alone, or pricing them out and wincing, this is the moment to build a pod.
 
-halftime-app.com
+[App Store link]
 ```
 <sub>180/280</sub>
 
@@ -263,30 +292,30 @@ What's the one home game on your team's schedule you'd never give up?
 ```
 Quote this with your team and how many people you'd split a season with.
 
-We're using the answers to decide which teams to onboard first.
+We're using the answers to decide which teams to focus on first.
 ```
-<sub>137/280</sub>
+<sub>138/280</sub>
 
 ```
 Worst thing that's ever happened in your season ticket group chat. Go.
 ```
 <sub>70/280</sub>
 
-## Early access
+## Download
 
 Direct asks. Keep these to about one in five posts.
 
 ```
-HalfTime is in invite-based early access.
+HalfTime is on the App Store.
 
-Tell us your team and we'll help you get your pod set up → halftime-app.com
+Start a pod for your team, invite your crew, and split the season → [App Store link]
 ```
-<sub>126/280</sub>
+<sub>123/280</sub>
 
 ```
 Own half. Play every game.
 
-Split season tickets with your crew → halftime-app.com
+Split season tickets with your crew → [App Store link]
 ```
 Image: `images/01-intro.png`
 <sub>90/280</sub>
@@ -296,9 +325,9 @@ Image: `images/01-intro.png`
 For replying to people who post about ticket prices or splitting seats. Personalize each one, and only reply where it genuinely helps.
 
 ```
-Splitting them with a few friends is the move. We built HalfTime for exactly this: fair game split, and escrow so nobody flakes on their share.
+Splitting them with a few friends is the move. We built HalfTime for exactly this: fair game split, and escrow so nobody flakes on their share. It's on the App Store now.
 ```
-<sub>143/280</sub>
+<sub>170/280</sub>
 
 ```
 We built an app so you never have to maintain that spreadsheet again. Snake draft, lottery, or a fairness engine, your pod's choice.
@@ -314,8 +343,8 @@ If you split those with friends on HalfTime, a night you can't make goes to a po
 
 | Day | Post |
 |---|---|
-| Day 1 | Set bio, header, and avatar<br>Pinned post<br>Launch thread |
-| Day 2 | `math`: The season ticket math: |
+| Launch day | Update bio and website<br>`launch-main`: HalfTime is live on the App Store 🎉<br>`launch-reply`: Works for NBA, NFL, MLB, NHL, MLS, and college teams. Android is on the way.<br>Pin launch-main |
+| Day 2 | Launch thread<br>`math`: The season ticket math: |
 | Day 3 | `snake`: How a snake draft splits a season:<br>`poll`: How does your season ticket group split games? |
 | Day 4 | `spreadsheet`: Nobody in a season ticket group chat has ever said "this spreadsheet is working great." |
 | Day 5 | `escrow`: "I'll Venmo you Friday" is not a payment plan. |
@@ -325,6 +354,6 @@ If you split those with friends on HalfTime, a night you can't make goes to a po
 | Day 9 | `fairness`: Every HalfTime pod gets a fairness score from 0 to 100. |
 | Day 10 | `team-qt`: Quote this with your team and how many people you'd split a season with. |
 | Day 11 | `resale`: An empty seat is money you already spent. |
-| Day 12 | `venmo`: Split season tickets four ways and you learn a lot about your friends.<br>`invite`: HalfTime is in invite-based early access. |
+| Day 12 | `venmo`: Split season tickets four ways and you learn a lot about your friends.<br>`invite`: HalfTime is on the App Store. |
 | Day 13 | `guest-pass`: Giving your ticket to a friend shouldn't take six texts and a blurry screenshot. |
 | Day 14 | `worst-story`: Worst thing that's ever happened in your season ticket group chat. Go.<br>`october`: October baseball is the reason you buy the full season. |

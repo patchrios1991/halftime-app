@@ -1,13 +1,35 @@
 {
+  "appStoreUrl": null,
   "profile": {
     "name": "HalfTime",
-    "bio": "Split season tickets with your crew. Fair game allocation, Stripe-secured escrow, and resale for the nights you can't make it. Early access is open 👇",
+    "bio": "The app for splitting season tickets with your crew. Fair game drafts, no chasing Venmo, and resale for the nights you can't make it. Now on iPhone 👇",
     "location": "Every home game",
-    "website": "halftime-app.com"
+    "website": "{appstore}"
+  },
+  "launch": {
+    "id": "launch",
+    "title": "App Store launch",
+    "why": "Post the main one, pin it (replacing the old pinned post), then reply to it with the follow-up so the thread keeps going.",
+    "posts": [
+      {
+        "id": "launch-main",
+        "text": "HalfTime is live on the App Store 🎉\n\nSplit season tickets with your crew. Fund your share into escrow, split the games fairly, and trade or resell the nights you can't make.\n\nStart your pod → {appstore}",
+        "image": "09-launch.png"
+      },
+      {
+        "id": "launch-reply",
+        "text": "Works for NBA, NFL, MLB, NHL, MLS, and college teams. Android is on the way.\n\nIf you try it, tell us what you think. We read every reply."
+      },
+      {
+        "id": "launch-short",
+        "text": "Your season tickets now come with an app for splitting them.\n\nHalfTime is on the App Store → {appstore}",
+        "image": "09-launch.png"
+      }
+    ]
   },
   "pinned": {
     "id": "pinned",
-    "text": "Season tickets are the best seats in sports and the worst math in your budget.\n\nHalfTime lets you split them with your crew. Fund your share, get a fair slice of the schedule, and resell or trade the nights you can't make.\n\nEarly access is open → halftime-app.com",
+    "text": "Season tickets are the best seats in sports and the worst math in your budget.\n\nHalfTime lets you split them with your crew. Fund your share, get a fair slice of the schedule, and resell or trade the nights you can't make.\n\nGet it on iPhone → {appstore}",
     "image": "01-intro.png"
   },
   "thread": {
@@ -38,7 +60,7 @@
         "text": "5. Rivalry night. Playoff game. Everyone wants it.\n\nPods can auction marquee and playoff games with bid credits, so the big nights go to whoever wants them most, not whoever texted the group chat first."
       },
       {
-        "text": "HalfTime works for NBA, NFL, MLB, NHL, MLS, and college teams. We're onboarding pods by invite right now.\n\nTell us your team and grab early access: halftime-app.com"
+        "text": "HalfTime works for NBA, NFL, MLB, NHL, MLS, and college teams, and it's live on the App Store now.\n\nStart your pod: {appstore}"
       }
     ]
   },
@@ -122,7 +144,7 @@
       "posts": [
         {
           "id": "openers",
-          "text": "NBA and NHL openers are a few weeks out.\n\nIf you've been carrying season tickets alone, or pricing them out and wincing, this is the moment to build a pod.\n\nhalftime-app.com"
+          "text": "NBA and NHL openers are a few weeks out.\n\nIf you've been carrying season tickets alone, or pricing them out and wincing, this is the moment to build a pod.\n\n{appstore}"
         },
         {
           "id": "october",
@@ -159,7 +181,7 @@
         },
         {
           "id": "team-qt",
-          "text": "Quote this with your team and how many people you'd split a season with.\n\nWe're using the answers to decide which teams to onboard first."
+          "text": "Quote this with your team and how many people you'd split a season with.\n\nWe're using the answers to decide which teams to focus on first."
         },
         {
           "id": "worst-story",
@@ -169,16 +191,16 @@
     },
     {
       "id": "cta",
-      "title": "Early access",
+      "title": "Download",
       "why": "Direct asks. Keep these to about one in five posts.",
       "posts": [
         {
           "id": "invite",
-          "text": "HalfTime is in invite-based early access.\n\nTell us your team and we'll help you get your pod set up → halftime-app.com"
+          "text": "HalfTime is on the App Store.\n\nStart a pod for your team, invite your crew, and split the season → {appstore}"
         },
         {
           "id": "one-liner",
-          "text": "Own half. Play every game.\n\nSplit season tickets with your crew → halftime-app.com",
+          "text": "Own half. Play every game.\n\nSplit season tickets with your crew → {appstore}",
           "image": "01-intro.png"
         }
       ]
@@ -190,7 +212,7 @@
     "posts": [
       {
         "id": "r-price",
-        "text": "Splitting them with a few friends is the move. We built HalfTime for exactly this: fair game split, and escrow so nobody flakes on their share."
+        "text": "Splitting them with a few friends is the move. We built HalfTime for exactly this: fair game split, and escrow so nobody flakes on their share. It's on the App Store now."
       },
       {
         "id": "r-spreadsheet",
@@ -204,16 +226,18 @@
   },
   "schedule": [
     {
-      "day": "Day 1",
+      "day": "Launch day",
       "items": [
-        "Set bio, header, and avatar",
-        "pinned",
-        "launch-thread"
+        "Update bio and website",
+        "launch-main",
+        "launch-reply",
+        "Pin launch-main"
       ]
     },
     {
       "day": "Day 2",
       "items": [
+        "launch-thread",
         "math"
       ]
     },

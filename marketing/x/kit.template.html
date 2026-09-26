@@ -97,6 +97,7 @@
   <h1>Half<b>Time</b> on X</h1>
   <p class="lede">Every post is ready to copy, and each one fits X's 280-character limit. “Open in X” pre-fills the composer. Attach the image yourself: right-click or long-press it to save.</p>
 
+  <p class="lede" id="nolink" hidden><strong>Before posting:</strong> replace “[App Store link]” with your App Store link.</p>
   <nav id="nav"></nav>
   <main id="main"></main>
 </div>
@@ -108,7 +109,7 @@ const DATA = /*POSTS_JSON*/null;
 
 function xLength(text) {
   const light = (cp) => cp <= 4351 || (cp >= 8192 && cp <= 8205) || (cp >= 8208 && cp <= 8223) || (cp >= 8242 && cp <= 8247);
-  const t = text.replace(/\b(?:https?:\/\/)?[\w-]+\.(?:com|app|io)\S*/g, () => "\u0000".repeat(23)).replace(/️/g, "");
+  const t = text.replace(/(?:https?:\/\/)?(?:[\w-]+\.)+(?:com|app|io)\b\S*/g, () => "\u0000".repeat(23)).replace(/️/g, "");
   let n = 0; for (const ch of t) n += light(ch.codePointAt(0)) ? 1 : 2; return n;
 }
 
@@ -145,7 +146,7 @@ document.getElementById("zoom").addEventListener("click", (e) => e.currentTarget
 const total = [];
 function postCard(p, key, label) {
   total.push(key);
-  const len = xLength(p.text);
+  const len = p.len ?? xLength(p.text);
   const body = el("p", {}, p.text);
   const card = el("article", { class: "post" + (done[key] ? " done" : ""), id: "post-" + key });
   const box = el("input", { type: "checkbox", id: "done-" + key });
@@ -191,7 +192,10 @@ section("profile", "Profile setup", "Do this before the first post. The header a
     el("div", {}, field("Name", pr.name), field("Bio", pr.bio), field("Location", pr.location), field("Website", pr.website)),
   ));
 
-section("pinned", "Pinned post", "Post it first, then pin it from the ⋯ menu so it's the first thing new visitors see.",
+const L = DATA.launch;
+section(L.id, L.title, L.why, el("div", { class: "posts" }, L.posts.map((p) => postCard(p, p.id))));
+
+section("pinned", "Pinned post", "The evergreen version. Once the launch buzz fades (a week or two), pin this one again in place of the launch post.",
   el("div", { class: "posts" }, postCard(DATA.pinned, "pinned")));
 
 const th = DATA.thread;
@@ -203,7 +207,7 @@ DATA.pillars.forEach((pl) => section(pl.id, pl.title, pl.why, el("div", { class:
 section("replies", DATA.replies.title, DATA.replies.why, el("div", { class: "posts" }, DATA.replies.posts.map((p) => postCard(p, p.id))));
 
 // Schedule
-const all = Object.fromEntries([...DATA.pillars.flatMap((p) => p.posts), ...DATA.replies.posts].map((p) => [p.id, p]));
+const all = Object.fromEntries([...DATA.launch.posts, ...DATA.pillars.flatMap((p) => p.posts), ...DATA.replies.posts].map((p) => [p.id, p]));
 const nameFor = (id) => id === "pinned" ? ["Pinned post", "pinned"] : id === "launch-thread" ? ["Launch thread (7 posts)", "thread"]
   : all[id] ? [all[id].text.split("\n")[0], "post-" + id] : [id, null];
 section("schedule", "Two-week schedule", "About one post a day. Mornings (8–10am) and the hour before evening games tend to do best for sports audiences.",
@@ -219,6 +223,7 @@ section("tips", "Ground rules", null, el("div", { class: "tips" },
   el("div", {}, el("h3", {}, "Images win"), el("p", {}, "Posts with an image get far more attention. Every image here is 1600×900 so X shows it uncropped.")),
 ));
 
+document.getElementById("nolink").hidden = !!DATA.appStoreUrl;
 const nav = document.getElementById("nav");
 sections.forEach(([id, t]) => nav.append(el("a", { href: "#" + id }, t)));
 nav.append(el("span", { class: "progress", id: "progress" }));

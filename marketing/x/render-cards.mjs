@@ -168,6 +168,9 @@ cards["07-app-dashboard.png"] = phoneCard("02-pod-dashboard.png", "Your pod",
 cards["08-app-resale.png"] = phoneCard("04-resale.png", "Can't make it?",
   "List it in seconds.", "Your pod's resale marketplace turns an empty seat into money back.");
 
+cards["09-launch.png"] = phoneCard("02-pod-dashboard.png", "Now on the App Store",
+  "Split the season.<br>Share the seats.", "HalfTime is live on iPhone. Start a pod, invite your crew, and split your season tickets.");
+
 cards["header-1500x500.png"] = base(1500, 500, `
   <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;padding:0 90px;text-align:right">
     <div class="serif" style="font-size:72px;line-height:1.05">Split the season.<br><span style="color:${T.lime}">Share the seats.</span></div>
