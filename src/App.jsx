@@ -49,9 +49,6 @@ function AdminRoute({ children }) {
 
 function Landing() {
   const navigate = useNavigate();
-  const [email,        setEmail]        = useState("");
-  const [submitted,    setSubmitted]    = useState(false);
-  const [wlBusy,       setWlBusy]       = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   // If already signed in, skip the landing page and go straight to the app
@@ -75,19 +72,6 @@ function Landing() {
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
-  }
-
-  async function handleWaitlist(e) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setWlBusy(true);
-    try {
-      if (isSupabaseConfigured) {
-        await supabase.from("waitlist").insert({ email: email.trim() });
-      }
-      setSubmitted(true);
-    } catch { setSubmitted(true); } // show success even if table doesn't exist yet
-    finally { setWlBusy(false); }
   }
 
   return (
@@ -140,54 +124,6 @@ function Landing() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Waitlist */}
-      <div style={{ maxWidth: 420, width: "100%", background: T.forest,
-        border: "1px solid #1A4A2E", borderRadius: 16, padding: "24px 20px",
-        marginBottom: 28 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: T.white,
-          fontFamily: "Georgia,serif", marginBottom: 4 }}>
-          🏆 Get early access
-        </div>
-        <div style={{ fontSize: 12, color: T.mist, marginBottom: 16 }}>
-          We're onboarding new pods by invite. Drop your email and we'll reach out.
-        </div>
-        {submitted ? (
-          <div style={{ background: `${T.lime}18`, border: `1px solid ${T.lime}44`,
-            borderRadius: 10, padding: "14px 16px", textAlign: "center" }}>
-            <div style={{ fontSize: 20, marginBottom: 4 }}>✅</div>
-            <div style={{ fontSize: 13, color: T.lime, fontWeight: 700 }}>You're on the list!</div>
-            <div style={{ fontSize: 11, color: T.mist, marginTop: 4 }}>
-              We'll reach out soon. Invite a friend to move up faster.
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleWaitlist}
-            style={{ display: "flex", gap: 8 }}>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="your@email.com"
-              required
-              style={{
-                flex: 1, padding: "11px 14px", background: T.dark,
-                border: "1px solid #1A4A2E", borderRadius: 8, color: T.white,
-                fontSize: 13, outline: "none", fontFamily: "Calibri,sans-serif",
-              }}
-            />
-            <button type="submit" disabled={wlBusy}
-              style={{
-                padding: "11px 18px", background: T.lime, border: "none",
-                borderRadius: 8, color: T.dark, fontSize: 13,
-                fontWeight: 700, cursor: "pointer",
-                opacity: wlBusy ? 0.7 : 1, flexShrink: 0,
-              }}>
-              {wlBusy ? "…" : "Join →"}
-            </button>
-          </form>
-        )}
       </div>
 
       <div style={{ fontSize: 11, color: T.mist, textAlign: "center", lineHeight: 2 }}>
