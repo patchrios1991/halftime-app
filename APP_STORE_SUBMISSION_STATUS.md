@@ -2,9 +2,25 @@
 
 **Last updated:** 2026-09-28
 **Branch:** `claude/elegant-hamilton-2x8akp`
-**Status: 🎉 LIVE and fully searchable.** Build `1.0 (2)` passed App Review (approved 2026-09-25). Direct link worked immediately; App Store search indexing caught up by 2026-09-28 (~3 days after approval). Availability: Free, 175 countries/regions. Live listing: **apps.apple.com/app/halftime-season-ticket-pods/id6809882491** — searchable as "HalfTime Season Ticket Pods".
+**Status: Version 1.0.1 (build 1) submitted for review**, waiting on Apple. App is otherwise live and searchable at **apps.apple.com/app/halftime-season-ticket-pods/id6809882491** on version 1.0 — this round is a voluntary product update, not a response to an Apple request.
 
-**This submission is complete.** Nothing pending. Remaining items below are optional future follow-ups, not blockers.
+## Round 3 — open signup, no App Review request behind it (2026-09-28)
+
+User decision: remove the early-access waitlist gate entirely. Anyone downloading the app should be able to create an account and start using it immediately via Apple, Google, or email/password — no manual approval, no magic link, no "request access" detour.
+
+1. **`041_auto_approve_signups.sql`** — `handle_new_user()` now always inserts new profiles with `approved = true`, instead of only auto-approving emails pre-approved on the waitlist. Takes effect immediately for all existing app versions (server-side), applied via the same Management API process as always.
+2. **`SignIn.jsx`** — removed the "waitlist" and "magic" modes entirely. Only "signin" and "signup" remain; "New here? Create account" goes straight to signup instead of a waitlist form.
+3. **`App.jsx`** — removed the separate "🏆 Get early access" waitlist box from the marketing Landing page (`/`), and made the **native app** skip that Landing page entirely for unauthenticated users — goes straight to `/auth/signin` instead of showing an "Open App" button that just leads deeper into the same app. The Landing page still shows for web visitors (`isNative` check gates this).
+4. **`friendlyError.js`** — two error messages referenced the removed magic-link option and a nonexistent invite-code system; reworded.
+5. The `approved` column and admin tooling (BetaDashboard's Waitlist tab, `approve_profile_by_email()`) were deliberately left in place as a moderation safety net, not removed.
+
+### ⚠️ Lesson learned: closed pre-release train
+
+First upload attempt at build `1.0 (3)` failed: *"Invalid Pre-Release Train. The train version '1.0' is closed for new build submissions"* — **once a version is approved and released, Apple permanently closes it to further build uploads.** Bumping only the Xcode Build number isn't enough for any future update; the marketing **Version** number itself must increase too (e.g. `1.0` → `1.0.1`), and a **new version must be created in App Store Connect** (the "+ VERSION" button) before a build can be attached to it. Build numbers reset fine per-version (went back to `1` for `1.0.1`) — they only need to be unique within each version, not globally.
+
+Fixed: Version bumped to `1.0.1`, Build to `1`, re-archived, uploaded successfully, new `1.0.1` version created in App Store Connect, build attached, submitted for review.
+
+**Next time you ship an update:** always bump the Version field in Xcode (not just Build), and expect to create a new version entry in App Store Connect first.
 
 ## Round 2 — Guideline 2.1 response (2026-09-22), approved (2026-09-25)
 
