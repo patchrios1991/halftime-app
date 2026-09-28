@@ -12,6 +12,7 @@ import PrivacyScreen  from "./pages/legal/PrivacyScreen";
 import ErrorBoundary  from "./components/ErrorBoundary";
 import { T } from "./tokens";
 import { supabase, isSupabaseConfigured } from "./lib/supabase";
+import { isNative } from "./lib/native";
 
 // ─── Admin-only route guard ───────────────────────────────────────────────────
 function AdminRoute({ children }) {
@@ -51,11 +52,16 @@ function Landing() {
   const navigate = useNavigate();
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // If already signed in, skip the landing page and go straight to the app
+  // If already signed in, skip the landing page and go straight to the app.
+  // In the native app there's no reason to show a marketing page with an
+  // "Open App" button — go straight to sign in/create account instead. The
+  // marketing landing page still shows for web visitors.
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate("/app", { replace: true });
+      } else if (isNative) {
+        navigate("/auth/signin", { replace: true });
       } else {
         setCheckingAuth(false);
       }
