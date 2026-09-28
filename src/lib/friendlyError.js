@@ -3,13 +3,13 @@
 
 const MAP = [
   // Auth errors
-  ["Invalid login credentials",          "Wrong email or password. Try again or use a magic link."],
+  ["Invalid login credentials",          "Wrong email or password. Try again."],
   ["Email not confirmed",                 "Check your inbox for a confirmation email before signing in."],
   ["User already registered",             "An account with that email already exists — sign in instead."],
   ["Password should be at least",         "Password must be at least 6 characters long."],
   ["Email address is invalid",            "Enter a valid email address."],
-  ["Signup is disabled",                  "New sign-ups are currently invite-only. Use your invite code."],
-  ["Token has expired",                   "That link has expired. Request a new magic link."],
+  ["Signup is disabled",                  "New sign-ups are currently unavailable. Please try again later."],
+  ["Token has expired",                   "That link has expired. Please try again."],
   ["JWT expired",                         "Your session expired — please sign in again."],
 
   // RLS / permissions

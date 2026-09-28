@@ -1,4 +1,4 @@
-// ─── SignIn / Waitlist / SignUp ────────────────────────────────────────────────
+// ─── SignIn / SignUp ────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
 import { useNavigate }         from "react-router-dom";
 import { T }                   from "../../tokens";
@@ -100,10 +100,9 @@ function SocialProof() {
 // ══════════════════════════════════════════════════════════════════════════════
 export default function SignIn() {
   const navigate = useNavigate();
-  const { signIn, signUp, signInWithGoogle, signInWithApple, signInWithMagicLink } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithApple } = useAuth();
 
-  // mode: "signin" | "waitlist" | "signup" | "magic"
-  // "signup" is hidden — only reachable from the approval email link or waitlist success screen
+  // mode: "signin" | "signup"
   const params   = new URLSearchParams(window.location.search);
   const initMode = params.get("mode") === "signup" ? "signup" : "signin";
 
@@ -116,11 +115,6 @@ export default function SignIn() {
   const [feedback,    setFeedback]    = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  // Waitlist-specific state
-  const [wlName,  setWlName]  = useState("");
-  const [wlEmail, setWlEmail] = useState("");
-  const [wlDone,  setWlDone]  = useState(false);
-
   const fb = (type, msg) => setFeedback({ type, msg });
   function clearFieldErrors() { setFieldErrors({}); }
 
@@ -129,11 +123,9 @@ export default function SignIn() {
     const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim())          errs.email    = "Email is required.";
     else if (!emailRx.test(email)) errs.email = "Enter a valid email address.";
-    if (mode !== "magic") {
-      if (!password)             errs.password = "Password is required.";
-      else if (mode === "signup" && password.length < 8)
-                                 errs.password = "Password must be at least 8 characters.";
-    }
+    if (!password)             errs.password = "Password is required.";
+    else if (mode === "signup" && password.length < 8)
+                               errs.password = "Password must be at least 8 characters.";
     if (mode === "signup") {
       if (!displayName.trim())   errs.displayName = "Display name is required.";
       if (!agreedToTos)          errs.tos = "You must agree to the Terms of Service.";
@@ -148,42 +140,12 @@ export default function SignIn() {
     if (!validateSignIn()) return;
     setBusy(true);
     try {
-      if (mode === "magic") {
-        await signInWithMagicLink(email);
-        fb("success", `Magic link sent to ${email} — check your inbox!`);
-      } else if (mode === "signup") {
+      if (mode === "signup") {
         await signUp({ email, password, displayName });
         fb("success", "Account created! Check your email to confirm your address.");
       } else {
         await signIn({ email, password });
         navigate("/app");
-      }
-    } catch (err) {
-      fb("error", friendlyError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleWaitlist(e) {
-    e.preventDefault();
-    const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const errs = {};
-    if (!wlName.trim())            errs.wlName  = "Your name is required.";
-    if (!wlEmail.trim())           errs.wlEmail = "Email is required.";
-    else if (!emailRx.test(wlEmail)) errs.wlEmail = "Enter a valid email address.";
-    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
-
-    setBusy(true);
-    setFeedback(null);
-    try {
-      const { error } = await supabase.from("waitlist")
-        .insert({ name: wlName.trim(), email: wlEmail.trim().toLowerCase() });
-      if (error) {
-        if (error.code === "23505") fb("error", "That email is already on the waitlist.");
-        else throw error;
-      } else {
-        setWlDone(true);
       }
     } catch (err) {
       fb("error", friendlyError(err));
@@ -216,10 +178,8 @@ export default function SignIn() {
 
   // ── UI ──────────────────────────────────────────────────────────────────────
   const titles = {
-    signin:   { head: "Welcome back",       sub: "Sign in to your HalfTime account" },
-    waitlist: { head: "Request access",     sub: "Join the waitlist — we'll reach out soon" },
-    signup:   { head: "Create account",     sub: "You're approved — set up your account" },
-    magic:    { head: "Magic link",         sub: "We'll email you a one-click sign-in" },
+    signin: { head: "Welcome back",   sub: "Sign in to your HalfTime account" },
+    signup: { head: "Create account", sub: "Set up your HalfTime account"     },
   };
   const { head, sub } = titles[mode];
 
@@ -261,153 +221,85 @@ export default function SignIn() {
             </div>
           )}
 
-          {/* ── Waitlist form ── */}
-          {mode === "waitlist" && (
-            wlDone ? (
-              <div style={{ textAlign: "center", padding: "10px 0" }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>🎉</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.white,
-                  fontFamily: "Georgia,serif", marginBottom: 8 }}>You're on the list!</div>
-                <div style={{ fontSize: 13, color: T.mist, lineHeight: 1.6 }}>
-                  We'll review your request and send you an email when you're approved.
-                  Usually within a few days.
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleWaitlist} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <Field label="Your name" value={wlName}
-                  onChange={v => { setWlName(v); setFieldErrors(f => ({ ...f, wlName: null })); }}
-                  placeholder="Jordan K." autoComplete="name" error={fieldErrors.wlName} />
-                <Field label="Email" type="email" value={wlEmail}
-                  onChange={v => { setWlEmail(v); setFieldErrors(f => ({ ...f, wlEmail: null })); }}
-                  placeholder="you@example.com" autoComplete="email" error={fieldErrors.wlEmail} />
-
-                {/* Why HalfTime */}
-                <div style={{ background: "#0D1F12", borderRadius: 10, padding: "12px 14px",
-                  border: "1px solid #1A4A2E" }}>
-                  {[
-                    "🎟️ Own a fraction of season tickets",
-                    "💸 Pay only your share — nothing more",
-                    "🔒 Funds held in Stripe escrow until confirmed",
-                  ].map(line => (
-                    <div key={line} style={{ fontSize: 12, color: T.mist, marginBottom: 5, lineHeight: 1.5 }}>
-                      {line}
-                    </div>
-                  ))}
-                </div>
-
-                <Btn disabled={busy}>{busy ? "Submitting…" : "Request access →"}</Btn>
-              </form>
-            )
-          )}
-
-          {/* ── Sign in + Signup + Magic forms ── */}
-          {mode !== "waitlist" && (
+          {mode === "signin" && isSupabaseConfigured && (
             <>
-              {mode === "signin" && isSupabaseConfigured && (
-                <>
-                  <Btn variant="apple" onClick={handleApple} disabled={busy}>
-                    <svg width="17" height="20" viewBox="0 0 17 20" fill="#ffffff">
-                      <path d="M14.09 10.63c-.02-2.23 1.82-3.3 1.9-3.35-1.04-1.52-2.66-1.73-3.23-1.75-1.37-.14-2.68.81-3.38.81-.7 0-1.78-.79-2.93-.77-1.5.02-2.9.88-3.67 2.22-1.57 2.72-.4 6.73 1.13 8.93.75 1.08 1.64 2.29 2.8 2.24 1.13-.05 1.56-.72 2.92-.72 1.36 0 1.75.72 2.93.7 1.21-.02 1.97-1.09 2.7-2.18.86-1.25 1.21-2.46 1.22-2.52-.03-.01-2.34-.9-2.36-3.56z" />
-                      <path d="M11.9 3.98c.61-.75 1.03-1.78.91-2.83-.89.04-1.99.6-2.62 1.34-.57.65-1.07 1.72-.94 2.72.99.08 1.99-.5 2.65-1.23z" />
-                    </svg>
-                    Continue with Apple
-                  </Btn>
-                  <Btn variant="google" onClick={handleGoogle} disabled={busy}>
-                    <svg width="18" height="18" viewBox="0 0 48 48">
-                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                    </svg>
-                    Continue with Google
-                  </Btn>
-                  <Divider />
-                </>
-              )}
-
-              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {mode === "signup" && (
-                  <Field label="Display name" value={displayName}
-                    onChange={v => { setDisplay(v); setFieldErrors(f => ({ ...f, displayName: null })); }}
-                    placeholder="Jordan K." autoComplete="name" error={fieldErrors.displayName} />
-                )}
-                <Field label="Email" type="email" value={email}
-                  onChange={v => { setEmail(v); setFieldErrors(f => ({ ...f, email: null })); }}
-                  placeholder="you@example.com" autoComplete="email" error={fieldErrors.email} />
-                {mode !== "magic" && (
-                  <Field label="Password" type="password" value={password}
-                    onChange={v => { setPassword(v); setFieldErrors(f => ({ ...f, password: null })); }}
-                    placeholder={mode === "signup" ? "Create a password (min 8 chars)" : "Enter your password"}
-                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                    error={fieldErrors.password}
-                    hint={mode === "signup" && !fieldErrors.password && password.length > 0 && password.length < 8
-                      ? `${8 - password.length} more character${8 - password.length !== 1 ? "s" : ""} needed`
-                      : null} />
-                )}
-                {mode === "signup" && (
-                  <div>
-                    <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
-                      <input type="checkbox" checked={agreedToTos}
-                        onChange={e => { setAgreedToTos(e.target.checked); setFieldErrors(f => ({ ...f, tos: null })); }}
-                        style={{ marginTop: 2, accentColor: T.lime, width: 16, height: 16,
-                          flexShrink: 0, cursor: "pointer" }} />
-                      <span style={{ fontSize: 12, color: T.mist, lineHeight: 1.5 }}>
-                        I agree to the{" "}
-                        <a href="/terms" target="_blank" rel="noopener noreferrer"
-                          style={{ color: T.lime, textDecoration: "none" }}>Terms of Service</a>
-                        {" "}and{" "}
-                        <a href="/privacy" target="_blank" rel="noopener noreferrer"
-                          style={{ color: T.lime, textDecoration: "none" }}>Privacy Policy</a>
-                      </span>
-                    </label>
-                    {fieldErrors.tos && (
-                      <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>{fieldErrors.tos}</div>
-                    )}
-                  </div>
-                )}
-                <Btn disabled={busy}>
-                  {busy ? "Please wait…" :
-                   mode === "magic"  ? "Send magic link →" :
-                   mode === "signup" ? "Create account →" : "Sign in →"}
-                </Btn>
-              </form>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {mode === "signin" && (
-                  <button onClick={() => { setMode("waitlist"); setFeedback(null); clearFieldErrors(); }}
-                    style={linkStyle}>
-                    New here? Request access →
-                  </button>
-                )}
-                {(mode === "signup" || mode === "waitlist") && (
-                  <button onClick={() => { setMode("signin"); setFeedback(null); clearFieldErrors(); }}
-                    style={linkStyle}>
-                    Already have an account? Sign in
-                  </button>
-                )}
-                {mode === "signin" && (
-                  <button onClick={() => { setMode("magic"); setFeedback(null); clearFieldErrors(); }}
-                    style={linkStyle}>
-                    Sign in with magic link
-                  </button>
-                )}
-                {mode === "magic" && (
-                  <button onClick={() => { setMode("signin"); setFeedback(null); clearFieldErrors(); }}
-                    style={linkStyle}>
-                    ← Back to sign in
-                  </button>
-                )}
-              </div>
+              <Btn variant="apple" onClick={handleApple} disabled={busy}>
+                <svg width="17" height="20" viewBox="0 0 17 20" fill="#ffffff">
+                  <path d="M14.09 10.63c-.02-2.23 1.82-3.3 1.9-3.35-1.04-1.52-2.66-1.73-3.23-1.75-1.37-.14-2.68.81-3.38.81-.7 0-1.78-.79-2.93-.77-1.5.02-2.9.88-3.67 2.22-1.57 2.72-.4 6.73 1.13 8.93.75 1.08 1.64 2.29 2.8 2.24 1.13-.05 1.56-.72 2.92-.72 1.36 0 1.75.72 2.93.7 1.21-.02 1.97-1.09 2.7-2.18.86-1.25 1.21-2.46 1.22-2.52-.03-.01-2.34-.9-2.36-3.56z" />
+                  <path d="M11.9 3.98c.61-.75 1.03-1.78.91-2.83-.89.04-1.99.6-2.62 1.34-.57.65-1.07 1.72-.94 2.72.99.08 1.99-.5 2.65-1.23z" />
+                </svg>
+                Continue with Apple
+              </Btn>
+              <Btn variant="google" onClick={handleGoogle} disabled={busy}>
+                <svg width="18" height="18" viewBox="0 0 48 48">
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                Continue with Google
+              </Btn>
+              <Divider />
             </>
           )}
 
-          {mode === "waitlist" && !wlDone && (
-            <button onClick={() => { setMode("signin"); setFeedback(null); clearFieldErrors(); }}
-              style={linkStyle}>
-              Already have an account? Sign in
-            </button>
-          )}
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {mode === "signup" && (
+              <Field label="Display name" value={displayName}
+                onChange={v => { setDisplay(v); setFieldErrors(f => ({ ...f, displayName: null })); }}
+                placeholder="Jordan K." autoComplete="name" error={fieldErrors.displayName} />
+            )}
+            <Field label="Email" type="email" value={email}
+              onChange={v => { setEmail(v); setFieldErrors(f => ({ ...f, email: null })); }}
+              placeholder="you@example.com" autoComplete="email" error={fieldErrors.email} />
+            <Field label="Password" type="password" value={password}
+              onChange={v => { setPassword(v); setFieldErrors(f => ({ ...f, password: null })); }}
+              placeholder={mode === "signup" ? "Create a password (min 8 chars)" : "Enter your password"}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              error={fieldErrors.password}
+              hint={mode === "signup" && !fieldErrors.password && password.length > 0 && password.length < 8
+                ? `${8 - password.length} more character${8 - password.length !== 1 ? "s" : ""} needed`
+                : null} />
+            {mode === "signup" && (
+              <div>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                  <input type="checkbox" checked={agreedToTos}
+                    onChange={e => { setAgreedToTos(e.target.checked); setFieldErrors(f => ({ ...f, tos: null })); }}
+                    style={{ marginTop: 2, accentColor: T.lime, width: 16, height: 16,
+                      flexShrink: 0, cursor: "pointer" }} />
+                  <span style={{ fontSize: 12, color: T.mist, lineHeight: 1.5 }}>
+                    I agree to the{" "}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer"
+                      style={{ color: T.lime, textDecoration: "none" }}>Terms of Service</a>
+                    {" "}and{" "}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                      style={{ color: T.lime, textDecoration: "none" }}>Privacy Policy</a>
+                  </span>
+                </label>
+                {fieldErrors.tos && (
+                  <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>{fieldErrors.tos}</div>
+                )}
+              </div>
+            )}
+            <Btn disabled={busy}>
+              {busy ? "Please wait…" : mode === "signup" ? "Create account →" : "Sign in →"}
+            </Btn>
+          </form>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {mode === "signin" && (
+              <button onClick={() => { setMode("signup"); setFeedback(null); clearFieldErrors(); }}
+                style={linkStyle}>
+                New here? Create account →
+              </button>
+            )}
+            {mode === "signup" && (
+              <button onClick={() => { setMode("signin"); setFeedback(null); clearFieldErrors(); }}
+                style={linkStyle}>
+                Already have an account? Sign in
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

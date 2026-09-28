@@ -53,8 +53,10 @@ export default function AuthCallback() {
           clearTimeout(timeout);
           subscription.unsubscribe();
 
-          // Unapproved accounts (incl. brand-new Google sign-ups) proceed to
-          // /app, where the profiles.approved gate shows the pending screen.
+          // New signups are auto-approved. Any remaining unapproved accounts
+          // (e.g. legacy waitlist entries from before the gate was removed)
+          // still proceed to /app, where the profiles.approved gate shows
+          // the pending screen.
 
           // Honour pending redirect (e.g. /join/:code saved before sign-in)
           const returnTo = sessionStorage.getItem("auth_return") || "/app";
