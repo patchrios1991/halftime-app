@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-09-29
 **Branch:** `claude/elegant-hamilton-2x8akp` (also merged into `master` as of 2026-09-29 — see below)
-**Status: Version 1.0.1 APPROVED by Apple.** Not yet distributed/live — check the Distribution tab in App Store Connect for whether it's "Pending Developer Release," "Processing for App Store," or already "Ready for Sale," and report back what it shows if unsure what to do next.
+**Status: Version 1.0.1 is LIVE.** Auto-distributed after Apple's approval — confirmed showing in the App Store app's Updates section. No manual release step was needed. **1.0.1 does not yet include the Round 4 fixes below** (sign-in stuck-loading, modal clipping) — those are code-complete and pushed to this branch but not yet built/archived/submitted as a new version.
 
 ## Round 4 — post-launch fixes, in progress (2026-09-29)
 
