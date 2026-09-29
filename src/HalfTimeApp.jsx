@@ -354,7 +354,7 @@ function AppShell({ state, dispatch, profile, signOut }) {
       )}
 
       {/* ── Notification panel ───────────────────────────────────────────── */}
-      {showNotifPanel && !noNav.includes(state.screen) && (
+      {showNotifPanel && !noNav.includes(state.screen) && createPortal(
         <>
           {/* Backdrop */}
           <div
@@ -472,7 +472,8 @@ function AppShell({ state, dispatch, profile, signOut }) {
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
       {/* Screen content */}

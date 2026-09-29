@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { T } from "../tokens";
 
 export default function Toast({ message, onClose }) {
@@ -7,7 +8,7 @@ export default function Toast({ message, onClose }) {
     return () => clearTimeout(t);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div style={{
       position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)",
       background: "#0F2617",
@@ -22,6 +23,7 @@ export default function Toast({ message, onClose }) {
       whiteSpace: "nowrap",
     }}>
       {message}
-    </div>
+    </div>,
+    document.body
   );
 }
