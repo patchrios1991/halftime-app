@@ -26,13 +26,13 @@ Fix: wrapped every affected `position: fixed` modal/overlay in `createPortal(...
 
 Verified after every file: `npx eslint <file>` (only pre-existing, unrelated errors present — confirmed identical before/after via `git stash`) and `npm run build:mobile` (clean build each time). **Not yet visually tested on-device** — I cannot run Xcode/the simulator myself; this needs to be tested on Jorge's Mac before it ships.
 
-**3. "App feels slow/unpolished" — not yet addressed.** Asked the user for specifics rather than guessing further; the modal-clipping fix may account for some of this impression (broken modals feel janky) but isn't a full answer on its own.
+**3. "App feels slow/unpolished" — SKIPPED for now, by user decision (2026-09-29).** No specific instances to go on; user will note concrete examples if/when they notice them, to revisit later. Not blocking anything below.
 
 ### Next steps for whoever picks this up
-1. Confirm 1.0.1's Distribution tab state in App Store Connect (Pending Developer Release / Processing / Ready for Sale) and take action if it's sitting on manual release.
+1. 1.0.1 confirmed live (auto-distributed, no manual release step needed) — nothing to do there.
 2. Test the sign-in fix and the modal-portal fix on-device (needs Jorge's Mac + Xcode) before archiving a new build.
 3. Once verified, bump Version again (remember: closed pre-release train, see Round 3 lesson below) and ship as the next build.
-4. Circle back on item 3 (general polish) once the user gives specific examples.
+4. Item 3 (general polish) stays open/unscheduled — pick it up only once the user has specific examples to point at.
 
 ## Web app (app.halftime-app.com) synced with the iOS work — 2026-09-29
 
