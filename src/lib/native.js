@@ -27,6 +27,21 @@ export async function openInSystemBrowser(url) {
 }
 
 /**
+ * Navigate within the already-running app, without a full page reload.
+ * A full reload (window.location.assign) tears down and reboots the whole
+ * WebView — re-running Supabase client init, session restore, and listener
+ * registration from scratch. If any of that hangs (flaky network right
+ * after an OAuth round trip, a backgrounded WebView, etc.) the app is
+ * stranded on a loading screen until force-restarted. React Router's
+ * BrowserRouter listens for "popstate", so pushing history + dispatching
+ * one triggers client-side navigation instead.
+ */
+function navigateTo(path) {
+  window.history.pushState({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+/**
  * Register the appUrlOpen listener. Call once at startup (no-op on web).
  * Handles:
  *   com.halftimeapp.app://auth-callback#access_token=…  → restore session
@@ -53,17 +68,17 @@ export async function initNativeDeepLinks() {
         if (access_token && refresh_token) {
           const { error } = await supabase.auth.setSession({ access_token, refresh_token });
           if (error) throw error;
-          window.location.assign("/app");
+          navigateTo("/app");
         } else if (errorDesc) {
           console.error("[HalfTime] OAuth error:", errorDesc);
-          window.location.assign("/auth/signin");
+          navigateTo("/auth/signin");
         }
         return;
       }
 
       // Future App Links (https://app.halftime-app.com/join/…, /guest/…)
       const appLink = url.match(/^https:\/\/app\.halftime-app\.com(\/.*)?$/);
-      if (appLink) window.location.assign(appLink[1] || "/");
+      if (appLink) navigateTo(appLink[1] || "/");
     } catch (err) {
       console.error("[HalfTime] deep link handling failed:", err);
     }
