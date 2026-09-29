@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-09-29
 **Branch:** `claude/elegant-hamilton-2x8akp` (also merged into `master` as of 2026-09-29 — see below)
-**Status: Version 1.0.1 is LIVE.** Auto-distributed after Apple's approval — confirmed showing in the App Store app's Updates section. No manual release step was needed. **1.0.1 does not yet include the Round 4 fixes below** (sign-in stuck-loading, modal clipping) — those are code-complete and pushed to this branch but not yet built/archived/submitted as a new version.
+**Status: Version 1.0.2 (build 1) submitted for review**, waiting on Apple. This version includes the Round 4 fixes below (sign-in stuck-loading, modal clipping). 1.0.1 is otherwise live and auto-distributed.
+
+**⚠️ Not visually tested on-device before submission** — user chose to skip the on-device test step and ship directly. If Apple approves and either bug (stuck sign-in loading screen, or any modal still appearing cut off) turns out to still be present, that's the first thing to check.
 
 ## Round 4 — post-launch fixes, in progress (2026-09-29)
 
@@ -24,14 +26,18 @@ Fix: wrapped every affected `position: fixed` modal/overlay in `createPortal(...
 - `HalfTimeApp.jsx` — 1 additional site (notification panel; the pod switcher modal was already portal-wrapped from earlier work)
 - `components/Toast.jsx` — the global toast, found during this sweep (not in the original 24-site count but affected by the same bug)
 
-Verified after every file: `npx eslint <file>` (only pre-existing, unrelated errors present — confirmed identical before/after via `git stash`) and `npm run build:mobile` (clean build each time). **Not yet visually tested on-device** — I cannot run Xcode/the simulator myself; this needs to be tested on Jorge's Mac before it ships.
+Verified after every file: `npx eslint <file>` (only pre-existing, unrelated errors present — confirmed identical before/after via `git stash`) and `npm run build:mobile` (clean build each time). **Not tested on-device** — user chose to skip that step (see status banner at top) and go straight to archiving/submitting.
 
 **3. "App feels slow/unpolished" — SKIPPED for now, by user decision (2026-09-29).** No specific instances to go on; user will note concrete examples if/when they notice them, to revisit later. Not blocking anything below.
 
+### Build 1.0.2 (1) — submitted (2026-09-29)
+
+On Jorge's Mac: `git pull origin claude/elegant-hamilton-2x8akp` (confirmed at commit `b837a6b`) → `npm install` → `npm run build:mobile` (clean, no errors) → opened `ios/App/App.xcodeproj` → bumped Version `1.0.1` → `1.0.2`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.2` in App Store Connect, attached the processed build, **Add for Review**. Now waiting on Apple.
+
 ### Next steps for whoever picks this up
 1. 1.0.1 confirmed live (auto-distributed, no manual release step needed) — nothing to do there.
-2. Test the sign-in fix and the modal-portal fix on-device (needs Jorge's Mac + Xcode) before archiving a new build.
-3. Once verified, bump Version again (remember: closed pre-release train, see Round 3 lesson below) and ship as the next build.
+2. Waiting on Apple's review of 1.0.2. Once it's approved/live, **on-device test both fixes immediately** (sign-in with Apple/Google lands cleanly on Home; delete-pod confirmation modal is fully visible/tappable) since this went out without that verification.
+3. If either bug is still present, that means the fix in code didn't fully address the real-device behavior — come back to `src/lib/native.js` (sign-in) or the `createPortal` sweep (modal clipping) and re-diagnose rather than assuming the diagnosis in this doc is complete.
 4. Item 3 (general polish) stays open/unscheduled — pick it up only once the user has specific examples to point at.
 
 ## Web app (app.halftime-app.com) synced with the iOS work — 2026-09-29
