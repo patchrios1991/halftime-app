@@ -2,6 +2,7 @@
 // Public page shown when someone opens an invite link: /join/:code
 // Works for logged-in and logged-out users alike.
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { T } from "../../tokens";
 import Wordmark from "../../components/Wordmark";
@@ -384,7 +385,7 @@ export default function JoinPodScreen() {
         </div>
       )}
       {/* Seat map modal */}
-      {showSeatMap && pod.seat_map_url && (
+      {showSeatMap && pod.seat_map_url && createPortal(
         <div
           onClick={() => setShowSeatMap(false)}
           style={{
@@ -441,7 +442,8 @@ export default function JoinPodScreen() {
               Tap anywhere outside to close
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </Screen>
   );

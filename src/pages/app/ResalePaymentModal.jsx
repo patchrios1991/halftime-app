@@ -1,6 +1,7 @@
 // ─── ResalePaymentModal ────────────────────────────────────────────────────────
 // Stripe payment flow for buying a resale ticket listing.
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { T } from "../../tokens";
 import { stripePromise, isStripeConfigured } from "../../lib/stripe";
@@ -108,7 +109,7 @@ function CheckoutForm({ amount, gameName, onSuccess, onCancel }) {
 
 // ── Modal shell ────────────────────────────────────────────────────────────────
 function Modal({ title, onClose, children }) {
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.88)",
       zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 430, background: T.dark,
@@ -129,7 +130,8 @@ function Modal({ title, onClose, children }) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
