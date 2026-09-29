@@ -1,5 +1,6 @@
 // ─── ProfileScreen ────────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
@@ -280,7 +281,7 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
       <div style={{ padding: 14 }}>
 
         {/* ── Edit modal ─────────────────────────────────────────────────── */}
-        {editing && (
+        {editing && createPortal(
           <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.9)",
             zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
             onClick={() => { if (!saving) setEditing(false); }}>
@@ -362,7 +363,8 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* ── Push notifications ─────────────────────────────────────────── */}
@@ -529,7 +531,7 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
         </Card>
 
         {/* ── Payment Methods modal ──────────────────────────────────────── */}
-        {showPaymentMethods && (
+        {showPaymentMethods && createPortal(
           <div
             style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.9)",
               zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -567,11 +569,12 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
                 Manage via Escrow →
               </button>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* ── Pod Agreements modal ───────────────────────────────────────── */}
-        {showPodAgreements && (
+        {showPodAgreements && createPortal(
           <div
             style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.9)",
               zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -619,11 +622,12 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
                 Close
               </button>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* ── Help & Support modal ───────────────────────────────────────── */}
-        {showHelp && (
+        {showHelp && createPortal(
           <div
             style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.9)",
               zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -692,7 +696,8 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
                 support@halftime-app.com · We reply within 24h
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* ── Sign out ───────────────────────────────────────────────────── */}
@@ -709,7 +714,7 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
         </div>
 
         {/* ── Delete account modal ─────────────────────────────────────────── */}
-        {showDeleteAccount && (
+        {showDeleteAccount && createPortal(
           <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
             zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center",
             padding: 24 }}
@@ -766,7 +771,8 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>
