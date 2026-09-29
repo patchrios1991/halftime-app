@@ -1,5 +1,6 @@
 // ─── BrowsePodsScreen ─────────────────────────────────────────────────────────
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { T } from "../../tokens";
 import Card from "../../components/Card";
 import Badge from "../../components/Badge";
@@ -475,7 +476,7 @@ export default function BrowsePodsScreen({ dispatch }) {
         const isJoining   = joining === pod.id;
         const isJoined    = joined  === pod.id;
 
-        return (
+        return createPortal(
           <div
             onClick={() => { setSelectedPod(null); setShowSeatMap(false); }}
             style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
@@ -937,12 +938,13 @@ export default function BrowsePodsScreen({ dispatch }) {
                 + Create a pod like this one
               </button>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 
       {/* ── Seat map sub-modal ──────────────────────────────────────────────── */}
-      {showSeatMap && selectedPod?.seat_map_url && (
+      {showSeatMap && selectedPod?.seat_map_url && createPortal(
         <div
           onClick={() => setShowSeatMap(false)}
           style={{ position: "fixed", inset: 0, zIndex: 300,
@@ -986,7 +988,8 @@ export default function BrowsePodsScreen({ dispatch }) {
               Tap anywhere outside to close
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
