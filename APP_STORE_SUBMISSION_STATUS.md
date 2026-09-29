@@ -2,7 +2,37 @@
 
 **Last updated:** 2026-09-29
 **Branch:** `claude/elegant-hamilton-2x8akp` (also merged into `master` as of 2026-09-29 — see below)
-**Status: Version 1.0.1 (build 1) submitted for review**, waiting on Apple. App is otherwise live and searchable at **apps.apple.com/app/halftime-season-ticket-pods/id6809882491** on version 1.0 — this round is a voluntary product update, not a response to an Apple request.
+**Status: Version 1.0.1 APPROVED by Apple.** Not yet distributed/live — check the Distribution tab in App Store Connect for whether it's "Pending Developer Release," "Processing for App Store," or already "Ready for Sale," and report back what it shows if unsure what to do next.
+
+## Round 4 — post-launch fixes, in progress (2026-09-29)
+
+User reported three issues on the **live 1.0 build** (not the just-approved 1.0.1): (1) sign-in with Apple/Google gets stuck on a loading screen until the app is force-quit and reopened; (2) the delete-pod confirmation modal is visually cut off / unclickable; (3) general feeling that the app is slow/unpolished. Agreed with the user to fix all three in code now (safe, since 1.0.1 was already submitted and this work targets whatever version ships *after* it) without touching Xcode/App Store Connect for the in-flight review.
+
+**1. Sign-in stuck-loading fix — DONE, committed (`685def2`)**
+`src/lib/native.js`: the native OAuth deep-link handler used `window.location.assign(...)` to navigate to `/app` after restoring the session. On native that's a full WebView reload — it re-runs Supabase client init, session restore, and listener registration from scratch, and if any of that hangs after an OAuth round trip, the app is stuck on a loading screen until force-restarted. Replaced with a `navigateTo()` helper that does `history.pushState` + a synthetic `popstate` event instead, so React Router does client-side navigation without tearing down the WebView. Applied to all three navigation points (success → `/app`, error → `/auth/signin`, future App Links).
+
+**2. Delete-pod modal clipping fix (systemic) — DONE, committed across 9 commits**
+Root cause: WebKit/Safari clips `position: fixed` descendants to the bounds of the nearest ancestor with a non-`visible` `overflow` — and that's not just literal `overflow: auto`. `HalfTimeApp.jsx`'s outer app-shell wrapper sets `overflowX: hidden` with `overflowY` left unset; per the CSS overflow spec's used-value rule (if one axis is `visible` and the other isn't, the `visible` one's *used* value becomes `auto`), that makes the wrapper a scroll container on **both** axes, and WebKit clips fixed-position descendants to it. The inner "Screen content" div nested inside it also has an explicit `overflowY: "auto"` and a height capped to `calc(100dvh - 112px)` (room for the top bar + bottom nav) — so any modal rendered from a screen component landed inside a box shorter than the viewport, and got visibly cut off. That's exactly what "the final confirmation to delete is blocked off" was.
+
+Fix: wrapped every affected `position: fixed` modal/overlay in `createPortal(..., document.body)` so it renders directly under `<body>`, outside every clipping ancestor, regardless of where in the component tree it's triggered from. Applied surgically (existing JSX left untouched aside from the wrap) to minimize regression risk, across:
+- `PodScreen.jsx` — 6 sites (flag perk, dispute, leave/delete pod confirm, member onboarding, invite modal)
+- `ScheduleScreen.jsx` — 7 sites (guest pass, mark delivered, trade offer, release game, reassign game, share schedule, incoming trades)
+- `ProfileScreen.jsx` — 5 sites (edit profile, payment methods, pod agreements, help & support, delete account)
+- `BrowsePodsScreen.jsx` — 2 sites (pod detail sheet, seat map)
+- `JoinPodScreen.jsx` — 1 site (seat map)
+- `ResalePaymentModal.jsx` — 1 site (shared `Modal` shell used by all its phases)
+- `HalfTimeApp.jsx` — 1 additional site (notification panel; the pod switcher modal was already portal-wrapped from earlier work)
+- `components/Toast.jsx` — the global toast, found during this sweep (not in the original 24-site count but affected by the same bug)
+
+Verified after every file: `npx eslint <file>` (only pre-existing, unrelated errors present — confirmed identical before/after via `git stash`) and `npm run build:mobile` (clean build each time). **Not yet visually tested on-device** — I cannot run Xcode/the simulator myself; this needs to be tested on Jorge's Mac before it ships.
+
+**3. "App feels slow/unpolished" — not yet addressed.** Asked the user for specifics rather than guessing further; the modal-clipping fix may account for some of this impression (broken modals feel janky) but isn't a full answer on its own.
+
+### Next steps for whoever picks this up
+1. Confirm 1.0.1's Distribution tab state in App Store Connect (Pending Developer Release / Processing / Ready for Sale) and take action if it's sitting on manual release.
+2. Test the sign-in fix and the modal-portal fix on-device (needs Jorge's Mac + Xcode) before archiving a new build.
+3. Once verified, bump Version again (remember: closed pre-release train, see Round 3 lesson below) and ship as the next build.
+4. Circle back on item 3 (general polish) once the user gives specific examples.
 
 ## Web app (app.halftime-app.com) synced with the iOS work — 2026-09-29
 
