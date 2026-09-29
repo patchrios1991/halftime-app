@@ -1,8 +1,16 @@
 # App Store Submission Status
 
-**Last updated:** 2026-09-28
-**Branch:** `claude/elegant-hamilton-2x8akp`
+**Last updated:** 2026-09-29
+**Branch:** `claude/elegant-hamilton-2x8akp` (also merged into `master` as of 2026-09-29 — see below)
 **Status: Version 1.0.1 (build 1) submitted for review**, waiting on Apple. App is otherwise live and searchable at **apps.apple.com/app/halftime-season-ticket-pods/id6809882491** on version 1.0 — this round is a voluntary product update, not a response to an Apple request.
+
+## Web app (app.halftime-app.com) synced with the iOS work — 2026-09-29
+
+All 14 commits from this whole effort (Sign in with Apple through round 3's open-signup work) had only ever been pushed to `claude/elegant-hamilton-2x8akp`, never merged into `master` — the branch Vercel auto-deploys `app.halftime-app.com` from. That meant the live web app was stuck on old code (approval gate, no Apple sign-in, outdated "Get early access" copy) the whole time, even after everything shipped to iOS.
+
+Fixed: fast-forward merged `claude/elegant-hamilton-2x8akp` → `master` (clean, no conflicts, master hadn't diverged at all) and pushed. Verified live on `app.halftime-app.com` afterward. Also synced the user's Mac and Windows machines to the same `master` state, so all three checkouts (Mac, Windows, GitHub) are now aligned — either machine is safe to develop from next.
+
+**Going forward:** if more work happens on this feature branch, remember to also merge it into `master` when the web app should reflect it — the two aren't automatically kept in sync.
 
 ## Round 3 — open signup, no App Review request behind it (2026-09-28)
 
