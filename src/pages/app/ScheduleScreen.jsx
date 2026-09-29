@@ -1,5 +1,6 @@
 // ─── ScheduleScreen ───────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { T } from "../../tokens";
 import Badge from "../../components/Badge";
 import Pill from "../../components/Pill";
@@ -684,7 +685,7 @@ export default function ScheduleScreen({ state, dispatch }) {
     </div> {/* end scrollRef */}
 
     {/* ── Guest Pass modal ── */}
-    {guestPassGame && (
+    {guestPassGame && createPortal(
       <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
         zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         onClick={() => setGuestPassGame(null)}>
@@ -752,11 +753,12 @@ export default function ScheduleScreen({ state, dispatch }) {
             </button>
           )}
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Captain: Mark Delivered modal ── */}
-    {deliverFor && (
+    {deliverFor && createPortal(
       <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
         zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         onClick={e => { if (e.target === e.currentTarget) { setDeliverFor(null); setDeliveryNote(""); setDeliveryUrl(""); } }}>
@@ -837,11 +839,12 @@ export default function ScheduleScreen({ state, dispatch }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Trade offer modal ── */}
-    {showTradeFor && (
+    {showTradeFor && createPortal(
       <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.9)",
         zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         onClick={e => { if (e.target === e.currentTarget) { setShowTradeFor(null); setTradeTarget(null); } }}>
@@ -947,11 +950,12 @@ export default function ScheduleScreen({ state, dispatch }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Release game modal ── */}
-    {showReleaseFor && (
+    {showReleaseFor && createPortal(
       <div
         style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
           zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -1010,11 +1014,12 @@ export default function ScheduleScreen({ state, dispatch }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Captain: reassign game bottom sheet ── */}
-    {showAssignFor && (
+    {showAssignFor && createPortal(
       <div
         style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
           zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -1080,11 +1085,12 @@ export default function ScheduleScreen({ state, dispatch }) {
             Cancel
           </button>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Share My Schedule card ── */}
-    {showShareCard && (
+    {showShareCard && createPortal(
       <div
         style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
           zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -1176,11 +1182,12 @@ export default function ScheduleScreen({ state, dispatch }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Incoming trades panel ── */}
-    {showIncoming && (
+    {showIncoming && createPortal(
       <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.9)",
         zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         onClick={e => { if (e.target === e.currentTarget) setShowIncoming(false); }}>
@@ -1244,7 +1251,8 @@ export default function ScheduleScreen({ state, dispatch }) {
             Close
           </button>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
     </>
   );
