@@ -1,5 +1,6 @@
 // ─── PodScreen ────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { T } from "../../tokens";
 import Avatar from "../../components/Avatar";
 import Badge from "../../components/Badge";
@@ -1201,7 +1202,7 @@ export default function PodScreen({ state, dispatch }) {
         )}
 
         {/* Flag perk modal */}
-        {showFlagModal && (
+        {showFlagModal && createPortal(
           <div onClick={() => setShowFlagModal(false)}
             style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
               zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -1267,7 +1268,8 @@ export default function PodScreen({ state, dispatch }) {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* ── Chat tab ── */}
@@ -2198,7 +2200,7 @@ export default function PodScreen({ state, dispatch }) {
     </div>
 
     {/* ── Dispute modal ── */}
-    {showDisputeModal && (
+    {showDisputeModal && createPortal(
       <div onClick={() => setShowDisputeModal(false)}
         style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
           zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -2295,11 +2297,12 @@ export default function PodScreen({ state, dispatch }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Leave pod confirmation modal ── */}
-    {showLeaveConfirm && (
+    {showLeaveConfirm && createPortal(
       <div
         onClick={() => setShowLeaveConfirm(false)}
         style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
@@ -2376,11 +2379,12 @@ export default function PodScreen({ state, dispatch }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* ── Delete pod confirmation modal ── */}
-    {showDeleteConfirm && (
+    {showDeleteConfirm && createPortal(
       <div
         onClick={() => setShowDeleteConfirm(false)}
         style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
@@ -2454,7 +2458,8 @@ export default function PodScreen({ state, dispatch }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     {/* Escrow payment modal */}
@@ -2481,7 +2486,7 @@ export default function PodScreen({ state, dispatch }) {
     {!isCaptain && onboardStep !== null && fullPod && (() => {
       const step = ONBOARD_STEPS[onboardStep];
       const isLast = onboardStep === ONBOARD_STEPS.length - 1;
-      return (
+      return createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.95)",
           zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div style={{ width: "100%", maxWidth: 430, background: T.dark,
@@ -2522,7 +2527,8 @@ export default function PodScreen({ state, dispatch }) {
               Skip
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       );
     })()}
     </>
@@ -2567,7 +2573,7 @@ function InviteModal({ podName, inviteCode, onClose }) {
     }
   }
 
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.88)",
       zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -2638,6 +2644,7 @@ function InviteModal({ podName, inviteCode, onClose }) {
           They'll need to fund their escrow share to be fully active.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
