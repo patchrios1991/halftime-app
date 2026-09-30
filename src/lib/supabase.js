@@ -19,7 +19,6 @@ export const supabase = createClient(
       persistSession:    true,
       autoRefreshToken:  true,
       flowType:          "implicit", // avoids PKCE code-verifier issues with email links
-      debug:             true, // TEMP: diagnosing setSession() hanging on native — remove once fixed
     },
   }
 );
