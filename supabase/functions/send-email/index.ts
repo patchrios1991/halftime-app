@@ -11,6 +11,7 @@ const APP_URL        = Deno.env.get("APP_URL")    ?? "https://halftime-app-hyxh.
 // ── Icon per notification type ─────────────────────────────────────────────────
 function notifIcon(type: string): string {
   switch (type) {
+    case "welcome":         return "🎉";
     case "escrow_funded":   return "✅";
     case "escrow_failed":   return "❌";
     case "pod_active":      return "🎉";

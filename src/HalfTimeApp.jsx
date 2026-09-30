@@ -196,6 +196,7 @@ function PodSwitcher({ dispatch }) {
 // ─── Notification helpers ─────────────────────────────────────────────────────
 function notifIcon(type) {
   switch (type) {
+    case "welcome":         return "🎉";
     case "escrow_funded":   return "✅";
     case "escrow_failed":   return "❌";
     case "pod_active":      return "🎉";
