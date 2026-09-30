@@ -61,10 +61,23 @@ export function useAuth() {
     });
 
     // Subscribe to future changes (sign-in / sign-out / token refresh)
+    //
+    // This callback runs while GoTrueClient still holds its internal
+    // per-session lock (it's invoked from inside setSession()/etc.'s
+    // _notifyAllSubscribers(), before that call is allowed to return).
+    // loadProfile() -> getProfile() calls supabase.auth.getUser(), which
+    // needs that same lock — awaiting it directly here deadlocks: setSession()
+    // waits on this callback, this callback waits on getUser(), and getUser()
+    // waits on a lock setSession() is still holding. Confirmed on-device via
+    // gotrue-js's own debug logging: setSession() during the native Sign in
+    // with Apple/Google flow hung forever with "_notifyAllSubscribers(SIGNED_IN)
+    // begin" logged and no matching "end". Deferring with setTimeout lets the
+    // current call stack (and the lock) unwind first — this is Supabase's own
+    // documented guidance for onAuthStateChange callbacks.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         setUser(session?.user ?? null);
-        await loadProfile(session?.user ?? null);
+        setTimeout(() => { loadProfile(session?.user ?? null); }, 0);
       }
     );
 
