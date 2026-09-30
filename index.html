@@ -63,6 +63,15 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- TEMP: diagnosing a native setSession() hang — must run before the
+         module script below, since @supabase/auth-js reads this localStorage
+         flag once at its own module-evaluation time (import hoisting means a
+         statement placed inside main.jsx/supabase.js runs too late). Remove
+         this whole script tag once the root cause is found and fixed. -->
+    <script>
+      try { localStorage.setItem('supabase.gotrue-js.locks.debug', 'true'); } catch (e) {}
+    </script>
     <script type="module" src="/src/main.jsx"></script>
 
     <!-- ── Register service worker ────────────────────────────────────────── -->
