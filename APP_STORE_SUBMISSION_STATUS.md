@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-09-30
 **Branch:** `claude/elegant-hamilton-2x8akp` (also merged into `master` as of 2026-09-29 — see below)
-**Status: Version 1.0.2 is LIVE — sign-in stuck-loading bug's TRUE root cause now found and fixed (`c5e1ddb`), via on-device console debugging.** Two earlier fix attempts (in 1.0.2, and a follow-up) both turned out to be wrong theories — see the full trace below. Not yet retested on-device or shipped. Modal-clipping fix status is **unconfirmed** — user has not yet specifically retested the delete-pod modal on 1.0.2; don't assume it works.
+**Status: Version 1.0.3 (build 1) submitted for review**, waiting on Apple. Both the sign-in stuck-loading bug and the delete-pod modal clipping bug are **confirmed fixed on-device** by the user (both Apple and Google sign-in tested) before this build was archived — see the full root-cause trace below. 1.0.1 and 1.0.2 are both live.
 
 ## Round 4 — post-launch fixes, in progress (2026-09-29)
 
@@ -16,9 +16,9 @@ User reported three issues on the **live 1.0 build** (not the just-approved 1.0.
 
 *Real root cause, found via Safari Web Inspector console + Supabase's own internal debug logging (`fa828f5`, `1a8fd0f`, `c4b68fe` added the diagnostics; see their commit messages for the full methodology):* Both earlier attempts were solving a navigation problem that didn't exist. The actual trace showed `supabase.auth.setSession()` itself never resolving — specifically, it acquires GoTrueClient's internal per-session-key lock, successfully calls `_saveSession()`, then calls `_notifyAllSubscribers(SIGNED_IN)` — and that step's debug log shows "begin" but **never "end"**. `useAuth.js`'s `onAuthStateChange` subscription (active the whole time `SignIn.jsx` is mounted, since it calls `useAuth()` directly) had an `async` callback that directly `await`ed `loadProfile()` → `getProfile()` → `supabase.auth.getUser()` — another GoTrueClient call needing that *same* lock. Locks aren't re-entrant: `setSession()` was waiting on the subscriber callback to finish, the callback was waiting on `getUser()`, and `getUser()` was waiting on a lock `setSession()` itself still held. A textbook deadlock, and a **documented Supabase footgun** — their own guidance says never to directly await client calls inside an `onAuthStateChange` callback.
 
-*Fix (`c5e1ddb`):* Removed `async`/`await` from the `onAuthStateChange` callback in `useAuth.js`; `loadProfile()` is now deferred via `setTimeout(fn, 0)` so the current call stack (and the lock) unwinds and releases before it runs. Lint clean (one pre-existing, unrelated error confirmed via `git stash`), `npm run build:mobile` clean. **Not yet retested on-device.**
+*Fix (`c5e1ddb`):* Removed `async`/`await` from the `onAuthStateChange` callback in `useAuth.js`; `loadProfile()` is now deferred via `setTimeout(fn, 0)` so the current call stack (and the lock) unwinds and releases before it runs. **Confirmed fixed on-device** — user tested both Sign in with Apple and Sign in with Google, both landed cleanly on Home with no stuck spinner.
 
-*Diagnostic scaffolding still in the tree, not yet cleaned up:* `console.log("[HalfTime][debug] ...")` lines in `src/lib/native.js`, `src/lib/routerBridge.js`, and `src/pages/auth/SignIn.jsx`; `debug: true` in the Supabase client config (`src/lib/supabase.js`); and an inline `<script>` in `index.html` enabling gotrue-js's own lock-debug logging. All clearly marked `TEMP` in comments — remove once the fix is confirmed working on-device, before shipping to Apple.
+Diagnostic scaffolding (`console.log("[HalfTime][debug] ...")` lines, the Supabase client's `debug: true`, and the gotrue-js locks-debug flag in `index.html`) added across `fa828f5`/`1a8fd0f`/`c4b68fe` was stripped in `5a1400a` once the fix was confirmed working, before this version shipped.
 
 **2. Delete-pod modal clipping fix (systemic) — DONE, committed across 9 commits**
 Root cause: WebKit/Safari clips `position: fixed` descendants to the bounds of the nearest ancestor with a non-`visible` `overflow` — and that's not just literal `overflow: auto`. `HalfTimeApp.jsx`'s outer app-shell wrapper sets `overflowX: hidden` with `overflowY` left unset; per the CSS overflow spec's used-value rule (if one axis is `visible` and the other isn't, the `visible` one's *used* value becomes `auto`), that makes the wrapper a scroll container on **both** axes, and WebKit clips fixed-position descendants to it. The inner "Screen content" div nested inside it also has an explicit `overflowY: "auto"` and a height capped to `calc(100dvh - 112px)` (room for the top bar + bottom nav) — so any modal rendered from a screen component landed inside a box shorter than the viewport, and got visibly cut off. That's exactly what "the final confirmation to delete is blocked off" was.
@@ -33,21 +33,23 @@ Fix: wrapped every affected `position: fixed` modal/overlay in `createPortal(...
 - `HalfTimeApp.jsx` — 1 additional site (notification panel; the pod switcher modal was already portal-wrapped from earlier work)
 - `components/Toast.jsx` — the global toast, found during this sweep (not in the original 24-site count but affected by the same bug)
 
-Verified after every file: `npx eslint <file>` (only pre-existing, unrelated errors present — confirmed identical before/after via `git stash`) and `npm run build:mobile` (clean build each time). **Not tested on-device** — user chose to skip that step (see status banner at top) and go straight to archiving/submitting.
+Verified after every file: `npx eslint <file>` (only pre-existing, unrelated errors present — confirmed identical before/after via `git stash`) and `npm run build:mobile` (clean build each time). Shipped untested in 1.0.2; **confirmed fixed on-device** by the user while testing the 1.0.3 build (delete-pod confirmation modal fully visible and tappable).
 
 **3. "App feels slow/unpolished" — SKIPPED for now, by user decision (2026-09-29).** No specific instances to go on; user will note concrete examples if/when they notice them, to revisit later. Not blocking anything below.
 
-### Build 1.0.2 (1) — submitted (2026-09-29)
+### Build 1.0.2 (1) — submitted 2026-09-29, live — sign-in fix in this build did NOT work
 
-On Jorge's Mac: `git pull origin claude/elegant-hamilton-2x8akp` (confirmed at commit `b837a6b`) → `npm install` → `npm run build:mobile` (clean, no errors) → opened `ios/App/App.xcodeproj` → bumped Version `1.0.1` → `1.0.2`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.2` in App Store Connect, attached the processed build, **Add for Review**. Now waiting on Apple.
+On Jorge's Mac: `git pull origin claude/elegant-hamilton-2x8akp` (confirmed at commit `b837a6b`) → `npm install` → `npm run build:mobile` (clean, no errors) → opened `ios/App/App.xcodeproj` → bumped Version `1.0.1` → `1.0.2`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.2` in App Store Connect, attached the processed build, **Add for Review**. Shipped without on-device testing (user's explicit choice at the time) — the sign-in fix in this build (`navigateTo()` via pushState/popstate) turned out not to actually fix anything; see Round 4 item 1 above for the full misdiagnosis-then-correct-diagnosis story.
+
+### Build 1.0.3 (1) — submitted 2026-09-30, includes the REAL fixes
+
+On Jorge's Mac, after both bugs were confirmed fixed on-device (this time, actually tested — see Round 4 above): `git pull origin claude/elegant-hamilton-2x8akp` (commit `5a1400a`) → `npm install` → `npm run build:mobile` (clean) → bumped Version `1.0.2` → `1.0.3`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.3` in App Store Connect, attached the build, **Add for Review**. Now waiting on Apple.
 
 ### Next steps for whoever picks this up
 1. 1.0.1 and 1.0.2 both confirmed live (auto-distributed, no manual release step needed) — nothing to do there.
-2. **On Jorge's Mac:** `git pull origin claude/elegant-hamilton-2x8akp` (expect `c5e1ddb` or later) → `npm install` → `npm run build:mobile` → open Xcode, run on-device, retest sign-in with Apple and Google (sign out first). The Safari Web Inspector console (Mac Safari → Develop → [iPhone] → the HalfTime entry) should now show `_notifyAllSubscribers(SIGNED_IN)` actually completing — if it hangs again, get the console output again rather than guessing at a new theory.
-3. While on-device, also (re-)test the delete-pod confirmation modal, since that's never been specifically confirmed on 1.0.2 either.
-4. **Before shipping:** remove the temporary debug scaffolding listed just above (search the codebase for `[HalfTime][debug]` and `TEMP` comments) — it was left in deliberately in case the fix needed a second on-device round, but should not ship to production.
-5. Once sign-in and the modal are both confirmed working for real, and debug logging is stripped: bump Version to `1.0.3`, Build to `1` (closed pre-release train — see Round 3 lesson below), archive, upload, create the `1.0.3` version in App Store Connect, submit.
-6. Item 3 (general polish) stays open/unscheduled — pick it up only once the user has specific examples to point at.
+2. Waiting on Apple's review of 1.0.3. Once it's approved/live, do one more on-device sanity check of sign-in and the delete-pod modal on the actual shipped build, just to be safe — though both were verified on this exact code before archiving.
+3. Item 3 (general polish) stays open/unscheduled — pick it up only once the user has specific examples to point at.
+4. If a future sign-in-adjacent bug ever resurfaces, the Safari Web Inspector + Supabase debug-logging method used in Round 4 (Mac Safari → Develop → [iPhone] → the HalfTime entry → Console tab; temporarily re-add `debug: true` to the Supabase client config and/or the gotrue-js locks-debug localStorage flag) is the fastest way to find the real cause rather than guessing — two guesses were wrong before the console trace nailed it in one shot.
 
 ## Web app (app.halftime-app.com) synced with the iOS work — 2026-09-29
 
