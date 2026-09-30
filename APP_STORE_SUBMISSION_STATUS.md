@@ -1,43 +1,38 @@
 # App Store Submission Status
 
 **Last updated:** 2026-09-30
-**Branch:** `claude/elegant-hamilton-2x8akp` (also merged into `master` as of 2026-09-29 — see below)
-**Status: Version 1.0.3 (build 1) submitted for review**, waiting on Apple. Both Round 4 bugs (sign-in stuck-loading, delete-pod modal clipping) are confirmed fixed on-device. **Round 5 work (below) is code-complete and pushed, but NOT yet in any shipped build** — needs a Supabase migration applied, an Xcode capability added, and on-device testing before the next version.
+**Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5 — see below)
+**Status: Version 1.0.3 (build 1) submitted for review**, waiting on Apple. Round 4 bugs (sign-in stuck-loading, delete-pod modal clipping) are confirmed fixed on-device and are in 1.0.3. **Round 5 work (below) is code-complete, merged to `master`, and confirmed fixed on-device — ready to ship as 1.0.4 the moment 1.0.3 is approved.**
 
-## Round 5 — signup UX + email issues, code done, not yet applied/tested (2026-09-30)
+## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
 
-User created a test account with a fresh email to check signup end-to-end and found three issues:
+User created a test account with a fresh email to check signup end-to-end and found three issues. All three are now fixed and confirmed working on-device.
 
-**1. Signup confirmation UX — DONE, code pushed (`5c49de4`)**
-After creating an account, the page just sat there with an inline feedback banner saying to check email — looked ambiguous, unclear if it worked. Replaced with a clear modal (`src/pages/auth/SignIn.jsx`) confirming the account was created and naming the email address the confirmation link went to, with a "Got it" button that returns to the sign-in form. No backend changes — pure UI, works as soon as the next build ships.
+**1. Signup confirmation UX — DONE, verified working (`5c49de4`)**
+After creating an account, the page just sat there with an inline feedback banner saying to check email — looked ambiguous, unclear if it worked. Replaced with a clear modal (`src/pages/auth/SignIn.jsx`) confirming the account was created and naming the email address the confirmation link went to, with a "Got it" button that returns to the sign-in form.
 
-**2. Email confirmation link opens Safari instead of the app — code pushed (`d342a18`), NEEDS an Xcode step + on-device test**
-Confirmation emails link to `https://app.halftime-app.com/auth/callback` (an ordinary https URL — mail clients won't treat a custom URL scheme like `com.halftimeapp.app://` as tappable, so this was always necessary). Without iOS Universal Links configured, tapping it just opens Safari. This was a known, already-documented gap (`MOBILE.md`'s "Known work before store submission" list, item 2).
+**2. Email confirmation link opens Safari instead of the app — DONE, verified working (`d342a18`)**
+Confirmation emails link to `https://app.halftime-app.com/auth/callback` (an ordinary https URL — mail clients won't treat a custom URL scheme like `com.halftimeapp.app://` as tappable, so this was always necessary). Without iOS Universal Links configured, tapping it just opened Safari. This was a known, already-documented gap (`MOBILE.md`'s "Known work before store submission" list, item 2).
 
-Fixed the code side:
-- `public/.well-known/apple-app-site-association` — registers `app.halftime-app.com`'s `/auth/callback`, `/join/*`, `/guest/*` paths for Team `Y2Y42U7LZ6` / bundle `com.halftimeapp.app`. This repo's `master` already deploys `app.halftime-app.com` to Vercel, so no separate hosting step — verified the file survives `npm run build:mobile` and lands intact at `dist/.well-known/apple-app-site-association`.
-- `vercel.json` — added an explicit `Content-Type: application/json` header for that path (it has no file extension to infer from, and Apple's spec recommends that content type). Vercel's static filesystem serving already takes priority over the app's SPA catch-all rewrite (confirmed by `manifest.json`/`sw.js` already working today), so the AASA file won't get swallowed by the rewrite.
-- `src/lib/native.js` — the `appUrlOpen` listener now treats a Universal Link landing on `/auth/callback` exactly like the existing custom-scheme deep link (same token-extraction + `setSession()` code path, already verified working via the Round 4 on-device console debugging), instead of depending on uncertain behavior from Supabase's client-side `detectSessionInUrl` re-scanning a URL set via a programmatic router navigation.
+Fixed:
+- `public/.well-known/apple-app-site-association` — registers `app.halftime-app.com`'s `/auth/callback`, `/join/*`, `/guest/*` paths for Team `Y2Y42U7LZ6` / bundle `com.halftimeapp.app`.
+- `vercel.json` — explicit `Content-Type: application/json` header for that path.
+- `src/lib/native.js` — the `appUrlOpen` listener now treats a Universal Link landing on `/auth/callback` exactly like the existing custom-scheme deep link (same token-extraction + `setSession()` code path already verified via the Round 4 console debugging).
+- Xcode: added the **Associated Domains** capability (`applinks:app.halftime-app.com`) to the App target under Signing & Capabilities.
 
-**⚠️ Still needed, Xcode GUI step I can't do myself:** add the **Associated Domains** capability to the App target, with `applinks:app.halftime-app.com`. Steps: open the project in Xcode → click the blue project icon → under TARGETS click **App** → **Signing & Capabilities** tab → **+ Capability** → search "Associated Domains" → add it → click **+** under the new Associated Domains section → enter `applinks:app.halftime-app.com`. An app already installed on a device won't pick up a new entitlement without a fresh build/install, so this needs a rebuild + reinstall to test, and Apple's CDN can take a little while to first fetch/cache the AASA file after that (if it doesn't work immediately, wait a few minutes and try again before assuming it's broken).
+**Gotcha hit and resolved:** the AASA file initially wasn't reachable — `master` (which `app.halftime-app.com` deploys from via Vercel) hadn't been updated since Round 3; all of Round 4/5 only existed on the feature branch. Fast-forward merged `claude/elegant-hamilton-2x8akp` → `master` and pushed (clean, no conflicts) to actually deploy it. Verified the file live at `https://app.halftime-app.com/.well-known/apple-app-site-association` afterward (correct JSON, not the app's HTML). Then had to **fully delete and reinstall the app** on the test device — iOS had cached a negative Universal Links validation result from testing earlier in the session, before the AASA was actually live; a plain Xcode rebuild-in-place doesn't force iOS to re-check. (This is a one-time fix for a device that was tested against a broken server — a real user's first App Store install always triggers a fresh validation, so this won't affect anyone downloading normally.)
 
-**3. No welcome email after confirming — DONE, code pushed (`3d29321`), NEEDS the migration applied**
-The only existing "welcome"-style email was the admin's manual "Approve & Invite" action in `BetaDashboard.jsx` — a leftover from the old waitlist-gated signup flow that migration 041 made unnecessary for normal signups. Nothing fires automatically for an ordinary signup.
+**3. No welcome email after confirming — DONE, verified working (`3d29321`)**
+The only existing "welcome"-style email was the admin's manual "Approve & Invite" action in `BetaDashboard.jsx` — a leftover from the old waitlist-gated signup flow that migration 041 made unnecessary for normal signups. Nothing fired automatically for an ordinary signup.
 
-`supabase/migrations/042_welcome_email.sql` adds a `welcome` notification, inserted exactly once per account, right when their email is confirmed:
-- Apple/Google OAuth signups: immediately in `handle_new_user()`, since `email_confirmed_at` is already set at `auth.users` INSERT time (the provider vouches for the email).
-- Email/password signups: via a new `AFTER UPDATE ON auth.users` trigger firing when `email_confirmed_at` transitions from null to set — i.e. exactly when they tap the confirmation link, matching what the user reported missing.
+`supabase/migrations/042_welcome_email.sql` (applied via Supabase Dashboard → SQL Editor) adds a `welcome` notification, inserted exactly once per account, right when their email is confirmed — immediately in `handle_new_user()` for OAuth signups, or via a new `AFTER UPDATE ON auth.users` trigger for email/password signups when `email_confirmed_at` transitions from null to set. Reuses the existing Database Webhook → `send-email` Edge Function (Resend) — no new infrastructure. Added a 🎉 icon for the `welcome` type in both the email template and the in-app notification panel.
 
-No new infrastructure needed — the existing Database Webhook on `public.notifications` INSERT already calls the `send-email` Edge Function (Resend) for any row, so this migration just inserts into a table that's already wired up. Also added a 🎉 icon for the `welcome` type in both the email template (`supabase/functions/send-email/index.ts`) and the in-app notification panel (`HalfTimeApp.jsx`) so it doesn't fall back to the generic 🔔.
-
-**⚠️ Still needed:** apply this migration to the live database. **Use the Supabase Dashboard → SQL Editor** (paste the contents of `supabase/migrations/042_welcome_email.sql` and run it) rather than the Management API — this environment has no Supabase credentials to run it directly, and the Dashboard SQL Editor has been the more reliable path for schema-affecting changes in this project anyway (see the Round 2 "NOTIFY pgrst" gotcha note further down).
+**Side note, unrelated to the code:** while debugging why the confirmation email itself wasn't arriving (separate from the welcome email — turned out to just be user error checking the wrong inbox/spot), confirmed along the way that custom SMTP (Resend, `smtp.resend.com`) is already correctly configured for Supabase's built-in auth emails, with a 30 emails/hour rate limit — comfortably above normal testing/usage volume, so not a concern.
 
 ### Next steps for whoever picks this up
-1. **Apply `042_welcome_email.sql`** via Supabase Dashboard → SQL Editor.
-2. **On Jorge's Mac, in Xcode:** add the Associated Domains capability (`applinks:app.halftime-app.com`) as described above, under Signing & Capabilities.
-3. Pull latest (`git pull origin claude/elegant-hamilton-2x8akp`), `npm run build:mobile`, rebuild and reinstall on-device via Xcode.
-4. Test all three: (a) sign up with a fresh email, confirm the new modal shows and looks right; (b) tap the confirmation link in the received email and confirm it opens the native app directly instead of Safari; (c) confirm a welcome email actually arrives after confirming.
-5. Once all three are verified, this can ride along in whatever version ships next (no separate emergency release needed — none of these are regressions, just missing-feature fixes).
+1. Everything in Round 5 is done, merged to `master`, and verified on-device. Nothing further needed here.
+2. Waiting on Apple's review of 1.0.3.
+3. **The moment 1.0.3 is approved:** on Jorge's Mac, pull latest, `npm run build:mobile`, bump Version to `1.0.4` / Build to `1` in Xcode, archive, upload, create the `1.0.4` version in App Store Connect (include Round 5's fixes in the release notes too), submit.
 
 ## Round 4 — post-launch fixes, in progress (2026-09-29)
 
