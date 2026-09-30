@@ -1,5 +1,6 @@
 // ─── SignIn / SignUp ────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
+import { createPortal }        from "react-dom";
 import { useNavigate }         from "react-router-dom";
 import { T }                   from "../../tokens";
 import Wordmark                from "../../components/Wordmark";
@@ -114,6 +115,8 @@ export default function SignIn() {
   const [busy,        setBusy]        = useState(false);
   const [feedback,    setFeedback]    = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [showCheckEmail, setShowCheckEmail] = useState(false);
+  const [checkEmailAddr, setCheckEmailAddr] = useState("");
 
   const fb = (type, msg) => setFeedback({ type, msg });
   function clearFieldErrors() { setFieldErrors({}); }
@@ -142,7 +145,9 @@ export default function SignIn() {
     try {
       if (mode === "signup") {
         await signUp({ email, password, displayName });
-        fb("success", "Account created! Check your email to confirm your address.");
+        setCheckEmailAddr(email);
+        setShowCheckEmail(true);
+        setPassword("");
       } else {
         await signIn({ email, password });
         navigate("/app");
@@ -184,6 +189,7 @@ export default function SignIn() {
   const { head, sub } = titles[mode];
 
   return (
+    <>
     <div style={{ minHeight: "100vh", background: T.dark, display: "flex",
                   alignItems: "center", justifyContent: "center", padding: "24px 16px" }}>
       <div style={{ width: "100%", maxWidth: 400, display: "flex",
@@ -303,6 +309,43 @@ export default function SignIn() {
         </div>
       </div>
     </div>
+
+    {/* ── Check your email modal ─────────────────────────────────────── */}
+    {showCheckEmail && createPortal(
+      <div
+        onClick={() => setShowCheckEmail(false)}
+        style={{ position: "fixed", inset: 0, background: "rgba(6,15,8,0.92)",
+          zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 24 }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ width: "100%", maxWidth: 360, background: T.dark,
+            border: `1px solid ${T.green}`, borderRadius: 18, padding: "28px 22px" }}
+        >
+          <div style={{ fontSize: 34, textAlign: "center", marginBottom: 10 }}>📧</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", textAlign: "center", marginBottom: 8 }}>
+            Check your email
+          </div>
+          <div style={{ fontSize: 13, color: T.mist, textAlign: "center",
+            lineHeight: 1.6, marginBottom: 22 }}>
+            We sent a confirmation link to{" "}
+            <strong style={{ color: T.chalk }}>{checkEmailAddr}</strong>.
+            Tap the link to activate your account, then come back and sign in.
+          </div>
+          <button
+            onClick={() => { setShowCheckEmail(false); setMode("signin"); clearFieldErrors(); }}
+            style={{ width: "100%", padding: "13px", background: T.lime,
+              border: "none", borderRadius: 10, color: T.dark,
+              fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "Georgia,serif" }}>
+            Got it →
+          </button>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
 
