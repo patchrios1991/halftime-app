@@ -157,9 +157,12 @@ export default function SignIn() {
   async function handleGoogle() {
     setFeedback(null);
     setBusy(true);
+    console.log("[HalfTime][debug] handleGoogle: calling signInWithGoogle()");
     try {
       await signInWithGoogle();
+      console.log("[HalfTime][debug] handleGoogle: signInWithGoogle() resolved without error");
     } catch (err) {
+      console.log("[HalfTime][debug] handleGoogle: signInWithGoogle() threw:", err);
       fb("error", err.message);
       setBusy(false);
     }
@@ -168,9 +171,12 @@ export default function SignIn() {
   async function handleApple() {
     setFeedback(null);
     setBusy(true);
+    console.log("[HalfTime][debug] handleApple: calling signInWithApple()");
     try {
       await signInWithApple();
+      console.log("[HalfTime][debug] handleApple: signInWithApple() resolved without error");
     } catch (err) {
+      console.log("[HalfTime][debug] handleApple: signInWithApple() threw:", err);
       fb("error", err.message);
       setBusy(false);
     }

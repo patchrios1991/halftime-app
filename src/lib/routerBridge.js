@@ -10,15 +10,19 @@
 let navigateFn = null;
 
 export function setNavigateFn(fn) {
+  console.log("[HalfTime][debug] routerBridge: navigate function captured");
   navigateFn = fn;
 }
 
 export function navigateApp(path, options) {
+  console.log("[HalfTime][debug] navigateApp called:", path, "navigateFn set?", !!navigateFn);
   if (navigateFn) {
     navigateFn(path, options);
+    console.log("[HalfTime][debug] navigateFn(path) called");
   } else {
     // Router hasn't mounted yet (shouldn't happen in practice — this is only
     // called from the deep-link handler after the app is already running).
+    console.log("[HalfTime][debug] navigateFn was null, falling back to location.assign");
     window.location.assign(path);
   }
 }

@@ -58,24 +58,35 @@ export async function initNativeDeepLinks() {
   if (!isNative) return;
   const { App } = await import("@capacitor/app");
 
+  console.log("[HalfTime][debug] initNativeDeepLinks: listener registered");
+
   App.addListener("appUrlOpen", async ({ url }) => {
+    console.log("[HalfTime][debug] appUrlOpen fired:", url);
     try {
       if (url.startsWith(AUTH_DEEP_LINK)) {
+        console.log("[HalfTime][debug] matches AUTH_DEEP_LINK");
         // Close the in-app browser tab if the platform supports it
         try {
           const { Browser } = await import("@capacitor/browser");
           await Browser.close();
-        } catch { /* not implemented on Android — Custom Tab dismisses itself */ }
+          console.log("[HalfTime][debug] Browser.close() resolved");
+        } catch (e) {
+          console.log("[HalfTime][debug] Browser.close() threw (expected on Android):", e);
+        }
 
         const fragment = new URLSearchParams(url.split("#")[1] ?? "");
         const access_token  = fragment.get("access_token");
         const refresh_token = fragment.get("refresh_token");
         const errorDesc     = fragment.get("error_description");
+        console.log("[HalfTime][debug] tokens present:", { hasAccess: !!access_token, hasRefresh: !!refresh_token, errorDesc });
 
         if (access_token && refresh_token) {
+          console.log("[HalfTime][debug] calling supabase.auth.setSession...");
           const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (error) throw error;
+          if (error) { console.log("[HalfTime][debug] setSession errored:", error); throw error; }
+          console.log("[HalfTime][debug] setSession succeeded, calling navigateTo('/app')");
           navigateTo("/app");
+          console.log("[HalfTime][debug] navigateTo('/app') call returned, location is now:", window.location.pathname);
         } else if (errorDesc) {
           console.error("[HalfTime] OAuth error:", errorDesc);
           navigateTo("/auth/signin");
