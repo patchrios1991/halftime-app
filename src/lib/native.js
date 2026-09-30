@@ -3,6 +3,15 @@
 // system browser and Supabase redirects back into the app via the custom
 // scheme below. initNativeDeepLinks() catches that redirect, restores the
 // session from the URL fragment (implicit flow), and reloads into the app.
+//
+// Email links (signup confirmation, magic link) can't use the custom scheme —
+// mail clients won't treat an arbitrary custom-scheme link as tappable/safe,
+// so authRedirectUrl() points those at the hosted web app instead
+// (https://app.halftime-app.com/auth/callback). On native, that URL is also
+// registered as a Universal Link (see public/.well-known/apple-app-site-
+// association + the "Associated Domains" capability in Xcode), so tapping it
+// opens this app directly via this same appUrlOpen listener instead of
+// Safari — the AUTH_CALLBACK_PATH check below handles that case too.
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "./supabase";
 import { navigateApp } from "./routerBridge";
@@ -11,6 +20,11 @@ export const isNative = Capacitor.isNativePlatform();
 
 // Custom scheme registered in AndroidManifest.xml and ios Info.plist
 export const AUTH_DEEP_LINK = "com.halftimeapp.app://auth-callback";
+
+// Path segment shared by both the custom-scheme deep link above and the
+// Universal Link (https://app.halftime-app.com/auth/callback) — either one
+// carries the token fragment and needs the same handling.
+const AUTH_CALLBACK_PATH = "/auth/callback";
 
 // Where Supabase email links (magic link / confirmation) should land.
 // window.location.origin is https://localhost inside Capacitor, so emails
@@ -51,8 +65,10 @@ function navigateTo(path) {
 /**
  * Register the appUrlOpen listener. Call once at startup (no-op on web).
  * Handles:
- *   com.halftimeapp.app://auth-callback#access_token=…  → restore session
- *   https://app.halftime-app.com/<path>                 → route into the app
+ *   com.halftimeapp.app://auth-callback#access_token=…      → restore session
+ *   https://app.halftime-app.com/auth/callback#access_token=… (Universal Link,
+ *     e.g. from tapping a signup-confirmation email)          → restore session
+ *   https://app.halftime-app.com/<other path>                 → route into the app
  */
 export async function initNativeDeepLinks() {
   if (!isNative) return;
@@ -60,7 +76,7 @@ export async function initNativeDeepLinks() {
 
   App.addListener("appUrlOpen", async ({ url }) => {
     try {
-      if (url.startsWith(AUTH_DEEP_LINK)) {
+      if (url.startsWith(AUTH_DEEP_LINK) || url.includes(AUTH_CALLBACK_PATH)) {
         // Close the in-app browser tab if the platform supports it
         try {
           const { Browser } = await import("@capacitor/browser");

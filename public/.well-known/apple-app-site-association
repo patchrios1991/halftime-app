@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "Y2Y42U7LZ6.com.halftimeapp.app",
+        "paths": [
+          "/auth/callback",
+          "/join/*",
+          "/guest/*"
+        ]
+      }
+    ]
+  }
+}
