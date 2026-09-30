@@ -5,6 +5,7 @@
 // session from the URL fragment (implicit flow), and reloads into the app.
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "./supabase";
+import { navigateApp } from "./routerBridge";
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -32,13 +33,19 @@ export async function openInSystemBrowser(url) {
  * WebView — re-running Supabase client init, session restore, and listener
  * registration from scratch. If any of that hangs (flaky network right
  * after an OAuth round trip, a backgrounded WebView, etc.) the app is
- * stranded on a loading screen until force-restarted. React Router's
- * BrowserRouter listens for "popstate", so pushing history + dispatching
- * one triggers client-side navigation instead.
+ * stranded on a loading screen until force-restarted.
+ *
+ * A manual window.history.pushState() + synthetic "popstate" event does NOT
+ * reliably update BrowserRouter's internal location state — it keeps its own
+ * history object and reconciles popstate events against entries it created
+ * itself, so an event dispatched from outside React can be silently ignored.
+ * That's why this previously still left the sign-in screen mounted (visibly
+ * stuck on "Please wait…") even though the URL bar had changed underneath it.
+ * routerBridge.navigateApp() calls the router's own useNavigate() function
+ * instead, so it actually is a router-driven transition.
  */
 function navigateTo(path) {
-  window.history.pushState({}, "", path);
-  window.dispatchEvent(new PopStateEvent("popstate"));
+  navigateApp(path, { replace: true });
 }
 
 /**

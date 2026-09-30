@@ -13,6 +13,15 @@ import ErrorBoundary  from "./components/ErrorBoundary";
 import { T } from "./tokens";
 import { supabase, isSupabaseConfigured } from "./lib/supabase";
 import { isNative } from "./lib/native";
+import { setNavigateFn } from "./lib/routerBridge";
+
+// Hands this router's navigate() function to routerBridge so code outside
+// React (native.js's OAuth deep-link handler) can trigger real navigation.
+function NavigateBridge() {
+  const navigate = useNavigate();
+  useEffect(() => { setNavigateFn(navigate); }, [navigate]);
+  return null;
+}
 
 // ─── Admin-only route guard ───────────────────────────────────────────────────
 function AdminRoute({ children }) {
@@ -181,6 +190,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <NavigateBridge />
         <Routes>
           <Route path="/"                element={<Landing />} />
           <Route path="/app"             element={<HalfTimeApp />} />
