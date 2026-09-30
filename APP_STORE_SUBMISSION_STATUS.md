@@ -1,17 +1,20 @@
 # App Store Submission Status
 
-**Last updated:** 2026-09-29
+**Last updated:** 2026-09-30
 **Branch:** `claude/elegant-hamilton-2x8akp` (also merged into `master` as of 2026-09-29 — see below)
-**Status: Version 1.0.2 (build 1) submitted for review**, waiting on Apple. This version includes the Round 4 fixes below (sign-in stuck-loading, modal clipping). 1.0.1 is otherwise live and auto-distributed.
-
-**⚠️ Not visually tested on-device before submission** — user chose to skip the on-device test step and ship directly. If Apple approves and either bug (stuck sign-in loading screen, or any modal still appearing cut off) turns out to still be present, that's the first thing to check.
+**Status: Version 1.0.2 is LIVE — but the sign-in stuck-loading bug is CONFIRMED STILL PRESENT on it.** User tested on-device after approval: signing in with Apple/Google still leaves the sign-in screen stuck on "Please wait…" until the app is force-quit and reopened. A real root-cause fix is now committed (`fb8e307`, not yet shipped — see below). Modal-clipping fix status is **unconfirmed** — user has not yet specifically retested the delete-pod modal on 1.0.2; don't assume it works.
 
 ## Round 4 — post-launch fixes, in progress (2026-09-29)
 
 User reported three issues on the **live 1.0 build** (not the just-approved 1.0.1): (1) sign-in with Apple/Google gets stuck on a loading screen until the app is force-quit and reopened; (2) the delete-pod confirmation modal is visually cut off / unclickable; (3) general feeling that the app is slow/unpolished. Agreed with the user to fix all three in code now (safe, since 1.0.1 was already submitted and this work targets whatever version ships *after* it) without touching Xcode/App Store Connect for the in-flight review.
 
-**1. Sign-in stuck-loading fix — DONE, committed (`685def2`)**
-`src/lib/native.js`: the native OAuth deep-link handler used `window.location.assign(...)` to navigate to `/app` after restoring the session. On native that's a full WebView reload — it re-runs Supabase client init, session restore, and listener registration from scratch, and if any of that hangs after an OAuth round trip, the app is stuck on a loading screen until force-restarted. Replaced with a `navigateTo()` helper that does `history.pushState` + a synthetic `popstate` event instead, so React Router does client-side navigation without tearing down the WebView. Applied to all three navigation points (success → `/app`, error → `/auth/signin`, future App Links).
+**1. Sign-in stuck-loading fix — first attempt shipped in 1.0.2, CONFIRMED NOT FIXED, second attempt committed (`fb8e307`)**
+
+*First attempt (`685def2`, shipped in 1.0.2):* `src/lib/native.js`'s native OAuth deep-link handler used `window.location.assign(...)` to navigate to `/app` after restoring the session — a full WebView reload, which re-runs Supabase client init/session restore/listener registration from scratch and can hang. Replaced with a `navigateTo()` helper doing `window.history.pushState()` + a synthetic `popstate` event, on the theory that BrowserRouter's popstate listener would pick it up and do client-side navigation instead. **This did not actually fix it** — confirmed on-device after 1.0.2 went live, screenshot showed the sign-in form itself still stuck on "Please wait…" with Apple/Google buttons greyed out.
+
+*Real root cause:* BrowserRouter keeps its **own internal history object** and only reconciles `popstate` events against entries it created itself via its own `pushState` calls. A raw `window.history.pushState()` called from outside React (as `navigateTo()` did) changes the actual browser URL, but the router's internal location state never gets told about it — dispatching a synthetic `popstate` event afterward doesn't reliably fix this. So the URL changed underneath the still-mounted `SignIn` component, which just sat there with its local `busy` state stuck `true` forever. Only a full app relaunch (which re-reads `window.location` from scratch on boot) ever showed the signed-in state.
+
+*Second attempt (`fb8e307`, not yet shipped):* Added `src/lib/routerBridge.js` — a small module holding a reference to the router's real `useNavigate()` function, handed to it once by a `<NavigateBridge />` component mounted inside `<BrowserRouter>` in `App.jsx`. `native.js`'s deep-link handler now calls `navigateApp(path, { replace: true })`, which invokes that real `navigate()` function — an actual router-driven transition, not a hack. Lint clean, `npm run build:mobile` clean. **Not yet tested on-device or shipped.**
 
 **2. Delete-pod modal clipping fix (systemic) — DONE, committed across 9 commits**
 Root cause: WebKit/Safari clips `position: fixed` descendants to the bounds of the nearest ancestor with a non-`visible` `overflow` — and that's not just literal `overflow: auto`. `HalfTimeApp.jsx`'s outer app-shell wrapper sets `overflowX: hidden` with `overflowY` left unset; per the CSS overflow spec's used-value rule (if one axis is `visible` and the other isn't, the `visible` one's *used* value becomes `auto`), that makes the wrapper a scroll container on **both** axes, and WebKit clips fixed-position descendants to it. The inner "Screen content" div nested inside it also has an explicit `overflowY: "auto"` and a height capped to `calc(100dvh - 112px)` (room for the top bar + bottom nav) — so any modal rendered from a screen component landed inside a box shorter than the viewport, and got visibly cut off. That's exactly what "the final confirmation to delete is blocked off" was.
@@ -35,10 +38,11 @@ Verified after every file: `npx eslint <file>` (only pre-existing, unrelated err
 On Jorge's Mac: `git pull origin claude/elegant-hamilton-2x8akp` (confirmed at commit `b837a6b`) → `npm install` → `npm run build:mobile` (clean, no errors) → opened `ios/App/App.xcodeproj` → bumped Version `1.0.1` → `1.0.2`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.2` in App Store Connect, attached the processed build, **Add for Review**. Now waiting on Apple.
 
 ### Next steps for whoever picks this up
-1. 1.0.1 confirmed live (auto-distributed, no manual release step needed) — nothing to do there.
-2. Waiting on Apple's review of 1.0.2. Once it's approved/live, **on-device test both fixes immediately** (sign-in with Apple/Google lands cleanly on Home; delete-pod confirmation modal is fully visible/tappable) since this went out without that verification.
-3. If either bug is still present, that means the fix in code didn't fully address the real-device behavior — come back to `src/lib/native.js` (sign-in) or the `createPortal` sweep (modal clipping) and re-diagnose rather than assuming the diagnosis in this doc is complete.
-4. Item 3 (general polish) stays open/unscheduled — pick it up only once the user has specific examples to point at.
+1. 1.0.1 and 1.0.2 both confirmed live (auto-distributed, no manual release step needed) — nothing to do there.
+2. **On Jorge's Mac:** `git pull origin claude/elegant-hamilton-2x8akp` → `npm install` → `npm run build:mobile` → open Xcode, run on-device, and actually test the sign-in flow this time before shipping (sign out, sign back in with Apple and/or Google, confirm it lands on Home without a stuck spinner) — don't skip this step again, the last fix that skipped on-device testing turned out not to work.
+3. While on-device, also (re-)test the delete-pod confirmation modal, since that's never been specifically confirmed on 1.0.2 either.
+4. Once both are confirmed working for real: bump Version to `1.0.3`, Build to `1` (closed pre-release train — see Round 3 lesson below), archive, upload, create the `1.0.3` version in App Store Connect, submit.
+5. Item 3 (general polish) stays open/unscheduled — pick it up only once the user has specific examples to point at.
 
 ## Web app (app.halftime-app.com) synced with the iOS work — 2026-09-29
 
