@@ -177,10 +177,26 @@ cards["header-1500x500.png"] = base(1500, 500, `
     <div style="font-size:28px;color:${T.mist};margin-top:20px;letter-spacing:1px">NBA · NFL · MLB · NHL · MLS · College</div>
   </div>`);
 
+// Ad creatives: square (1:1) and wide (1.91:1) versions of the launch card.
+const SIZES = {};
+const ad = (w, h, wide) => base(w, h, `
+  <div style="position:absolute;inset:0;display:grid;${wide ? "grid-template-columns:1fr 400px;gap:56px;padding:0 70px" : "grid-template-rows:auto 1fr;padding:80px 80px 0"}">
+    <div style="align-self:center">
+      <div class="eyebrow" style="font-size:${wide ? 18 : 24}px">Now on the App Store</div>
+      <div class="serif" style="font-size:${wide ? 60 : 92}px;margin-top:14px;line-height:1.05">Split the season.<br><span style="color:${T.lime}">Share the seats.</span></div>
+      <div style="font-size:${wide ? 24 : 34}px;color:${T.mist};margin-top:18px;line-height:1.35">Split season tickets with your crew.</div>
+    </div>
+    <div style="${wide ? "margin-top:60px" : "margin:56px auto 0;width:620px"};border-radius:48px 48px 0 0;border:9px solid #1E2A22;border-bottom:none;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.6)">
+      <img src="${shot("02-pod-dashboard.png")}" style="width:100%;display:block">
+    </div>
+  </div>`);
+cards["ad-square-1200x1200.png"] = ad(1200, 1200, false); SIZES["ad-square-1200x1200.png"] = [1200, 1200];
+cards["ad-wide-1200x628.png"] = ad(1200, 628, true); SIZES["ad-wide-1200x628.png"] = [1200, 628];
+
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
 for (const [name, html] of Object.entries(cards)) {
-  const [w, h] = name.startsWith("header") ? [1500, 500] : [1600, 900];
+  const [w, h] = SIZES[name] || (name.startsWith("header") ? [1500, 500] : [1600, 900]);
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.setContent(html, { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
