@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-01
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5 — see below)
-**Status: Version 1.0.3 is APPROVED/LIVE. Version 1.0.4 (build 1) submitted for review**, waiting on Apple. 1.0.4 includes all of Round 5 (signup confirmation modal, Universal Links for email confirmation, welcome email) — all three confirmed working on-device before this build was archived. Round 4 fixes (sign-in stuck-loading, delete-pod modal clipping) are live in 1.0.3.
+**Status: Version 1.0.4 is APPROVED and LIVE (auto-distributed).** All known issues from Round 4 and Round 5 are shipped and confirmed working: sign-in stuck-loading fix, delete-pod modal clipping fix (both in 1.0.3), and the signup confirmation modal, Universal Links for email confirmation, and welcome email (all three in 1.0.4). **No open bugs. Nothing currently in flight.**
 
 ## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
 
@@ -30,9 +30,10 @@ The only existing "welcome"-style email was the admin's manual "Approve & Invite
 **Side note, unrelated to the code:** while debugging why the confirmation email itself wasn't arriving (separate from the welcome email — turned out to just be user error checking the wrong inbox/spot), confirmed along the way that custom SMTP (Resend, `smtp.resend.com`) is already correctly configured for Supabase's built-in auth emails, with a 30 emails/hour rate limit — comfortably above normal testing/usage volume, so not a concern.
 
 ### Next steps for whoever picks this up
-1. Everything in Round 5 is done, merged to `master`, and verified on-device.
-2. **1.0.3 approved and live. 1.0.4 (build 1) archived and submitted (2026-10-01)** — same flow as prior versions: pull latest → `npm run build:mobile` → bump Version `1.0.3` → `1.0.4`, Build → `1` → Archive → Distribute App → App Store Connect → Upload → created version `1.0.4` in App Store Connect → Add for Review. Now waiting on Apple.
-3. Once 1.0.4 is approved: no known open issues. Item 3 from Round 4 (general "feels slow/unpolished") remains open/unscheduled — only pick it up once the user has specific examples to point at.
+1. **1.0.3 and 1.0.4 both approved, live, and auto-distributed.** No action needed on either.
+2. **No open bugs.** Everything reported across Round 4 and Round 5 is fixed, shipped, and confirmed working on-device.
+3. Only remaining loose thread: item 3 from Round 4 (general "feels slow/unpolished") — stays unscheduled, pick it up only once the user has specific examples to point at.
+4. Whoever picks this up next: this is a clean stopping point. Start fresh from whatever the user brings up, rather than assuming there's unfinished work here.
 
 ## Round 4 — post-launch fixes, in progress (2026-09-29)
 
