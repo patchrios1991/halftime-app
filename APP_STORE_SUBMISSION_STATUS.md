@@ -1,8 +1,40 @@
 # App Store Submission Status
 
 **Last updated:** 2026-10-01
-**Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5 — see below)
-**Status: Version 1.0.4 is APPROVED and LIVE (auto-distributed).** All known issues from Round 4 and Round 5 are shipped and confirmed working: sign-in stuck-loading fix, delete-pod modal clipping fix (both in 1.0.3), and the signup confirmation modal, Universal Links for email confirmation, and welcome email (all three in 1.0.4). **No open bugs. Nothing currently in flight.**
+**Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5 — Round 6 below is NOT merged to `master` yet, deliberately — see below)
+**Status: Version 1.0.4 is APPROVED and LIVE.** All known bugs from Round 4 and Round 5 are shipped and confirmed working. **Round 6 (native push notifications) is code-complete and pushed to the feature branch, but PAUSED — waiting on the user to do external account setup (Firebase, Apple Developer, Xcode, Supabase) before it can be tested.** See Round 6 below for the exact resume steps.
+
+## Round 6 — native push notifications, code done, PAUSED for external setup (2026-10-01)
+
+User noticed push notifications don't work on the native app: no toggle in Profile, no entry in iOS Settings → Apps → HalfTime → Notifications, and the onboarding "Enable Notifications" prompt doesn't do anything real.
+
+**Root cause:** the only existing push implementation (`push_subscriptions` table, migration 003) is the **Web Push API** — `Notification.requestPermission()` + a service worker + `PushManager` + VAPID keys. That only works in a real browser context. Capacitor's embedded WKWebView on iOS does not support the Web Push API, so the native app's permission prompt never actually registered with Apple's push system — confirmed by the fact that iOS never created a Notifications entry for the app (iOS only does that once an app registers through APNs, which nothing in the code ever did). Separately, `Onboarding.jsx` had its own second, smaller bug: it only ever called `Notification.requestPermission()` and threw away the result — it never completed a real subscription on *any* platform, including web.
+
+**Fix (all code, committed `a115571`, pushed to the feature branch only):**
+- Added `@capacitor-firebase/messaging` + `firebase` (peer dep needed for the plugin's web-platform bundle to build) to `package.json`.
+- `supabase/migrations/043_device_push_tokens.sql` — new table for FCM registration tokens, separate from `push_subscriptions` (different shape: one opaque token vs. a Web Push endpoint/key pair). Not yet applied to the live database.
+- `src/hooks/usePushSubscription.js` — rewritten to branch by `isNative`. Native path requests permission and registers through Firebase Cloud Messaging (which bridges to APNs on iOS, talks to FCM directly on Android — one unified token type for the backend), saving the token to `device_push_tokens`. Web path is the original, working Web Push code, left untouched. Same external interface either way, so `ProfileScreen.jsx` needed no changes.
+- `src/pages/app/Onboarding.jsx` — replaced its broken local logic with the real shared hook, fixing the onboarding flow on *every* platform, not just native.
+- `supabase/functions/send-push/index.ts` — now also sends to `device_push_tokens` via FCM's HTTP v1 API (OAuth2 access token minted from a Firebase service account via `google-auth-library`), alongside the existing Web Push sends. Either path is independently optional — if `FIREBASE_SERVICE_ACCOUNT_JSON` isn't set, native sends are skipped and web push keeps working exactly as before.
+- `npm run build:mobile` verified clean, Capacitor correctly picked up the new plugin for both iOS and Android (SPM-compatible, matches the existing pattern).
+
+**Scope decision:** Android is explicitly deferred — the app isn't on the Play Store yet, so there's no reason to double the external setup work right now. Everything below is iOS-only; the code itself is already cross-platform-ready (the `platform` column, the hook, the edge function all handle `'android'` too) for whenever that becomes relevant.
+
+**Deliberately NOT merged to `master`** — this only exists on `claude/elegant-hamilton-2x8akp` so nothing about the live web app or a future native build changes until it's actually tested and working.
+
+**Why this is paused:** everything left requires the user's own account access (Firebase console, Apple Developer portal, Xcode, Supabase dashboard) — there's no more blind coding to do here. Agreed with the user to hold off until they have a free ~20-30 minutes, since the external steps are quick individually but benefit from being done together in one sitting rather than piecemeal.
+
+### Exact resume steps (do these in order, iOS only)
+
+1. **Firebase Console** (console.firebase.google.com): create a project. Add an iOS app to it with bundle ID `com.halftimeapp.app`. Download the generated `GoogleService-Info.plist`.
+2. **Apple Developer Portal** (developer.apple.com/account): under Certificates, Identifiers & Profiles → Keys, generate a **new** APNs Auth Key (a `.p8` file) — separate from the existing Sign in with Apple key (`638WXF48UD`). Note the new Key ID.
+3. **Back in Firebase Console:** Project Settings → Cloud Messaging → under the iOS app, upload that `.p8` file along with its Key ID and the Apple Team ID (`Y2Y42U7LZ6`) — this is what lets Firebase actually relay pushes to Apple's servers.
+4. **Xcode:** add the GoogleService-Info.plist to the project (drag into the `App` folder in the project navigator, ensure "Copy items if needed" and App target membership are checked). Then add the **Push Notifications** capability under Signing & Capabilities (same +Capability flow as Associated Domains in Round 5).
+5. **Firebase Console again:** Project Settings → Service Accounts → Generate new private key — downloads a JSON file. This is the `FIREBASE_SERVICE_ACCOUNT_JSON` secret the edge function needs.
+6. **Supabase Dashboard:** add `FIREBASE_SERVICE_ACCOUNT_JSON` as an Edge Function secret (the full JSON file contents, pasted as one value) — Project Settings → Edge Functions → Secrets, or via the CLI. Then run `supabase/migrations/043_device_push_tokens.sql` via the SQL Editor, same pattern as migrations 041/042.
+7. **On Jorge's Mac:** `git pull origin claude/elegant-hamilton-2x8akp` → `npm install` → `npm run build:mobile` → rebuild and reinstall on-device via Xcode.
+8. **Test:** Profile tab should now show the push notifications card with a working Enable toggle; after enabling, iOS Settings → Apps → HalfTime → Notifications should now actually show a toggle (the thing that was missing before). Trigger a real notification (e.g. have another pod member take an action that calls `notify()`) and confirm it arrives.
+9. Only once all of that is confirmed working: merge `claude/elegant-hamilton-2x8akp` → `master` (the same fast-forward pattern as every other round) so the web app deploy stays in sync, then ship the next version through the usual archive/upload/submit flow.
 
 ## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
 
