@@ -1,8 +1,8 @@
 # App Store Submission Status
 
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-01
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5 — see below)
-**Status: Version 1.0.3 (build 1) submitted for review**, waiting on Apple. Round 4 bugs (sign-in stuck-loading, delete-pod modal clipping) are confirmed fixed on-device and are in 1.0.3. **Round 5 work (below) is code-complete, merged to `master`, and confirmed fixed on-device — ready to ship as 1.0.4 the moment 1.0.3 is approved.**
+**Status: Version 1.0.3 is APPROVED/LIVE. Version 1.0.4 (build 1) submitted for review**, waiting on Apple. 1.0.4 includes all of Round 5 (signup confirmation modal, Universal Links for email confirmation, welcome email) — all three confirmed working on-device before this build was archived. Round 4 fixes (sign-in stuck-loading, delete-pod modal clipping) are live in 1.0.3.
 
 ## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
 
@@ -30,9 +30,9 @@ The only existing "welcome"-style email was the admin's manual "Approve & Invite
 **Side note, unrelated to the code:** while debugging why the confirmation email itself wasn't arriving (separate from the welcome email — turned out to just be user error checking the wrong inbox/spot), confirmed along the way that custom SMTP (Resend, `smtp.resend.com`) is already correctly configured for Supabase's built-in auth emails, with a 30 emails/hour rate limit — comfortably above normal testing/usage volume, so not a concern.
 
 ### Next steps for whoever picks this up
-1. Everything in Round 5 is done, merged to `master`, and verified on-device. Nothing further needed here.
-2. Waiting on Apple's review of 1.0.3.
-3. **The moment 1.0.3 is approved:** on Jorge's Mac, pull latest, `npm run build:mobile`, bump Version to `1.0.4` / Build to `1` in Xcode, archive, upload, create the `1.0.4` version in App Store Connect (include Round 5's fixes in the release notes too), submit.
+1. Everything in Round 5 is done, merged to `master`, and verified on-device.
+2. **1.0.3 approved and live. 1.0.4 (build 1) archived and submitted (2026-10-01)** — same flow as prior versions: pull latest → `npm run build:mobile` → bump Version `1.0.3` → `1.0.4`, Build → `1` → Archive → Distribute App → App Store Connect → Upload → created version `1.0.4` in App Store Connect → Add for Review. Now waiting on Apple.
+3. Once 1.0.4 is approved: no known open issues. Item 3 from Round 4 (general "feels slow/unpolished") remains open/unscheduled — only pick it up once the user has specific examples to point at.
 
 ## Round 4 — post-launch fixes, in progress (2026-09-29)
 
