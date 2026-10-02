@@ -8,6 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const APP_URL           = Deno.env.get("APP_URL") ?? "https://app.halftime-app.com";
 
 const cors = {
   "Access-Control-Allow-Origin":  "*",
@@ -28,9 +29,12 @@ serve(async (req) => {
 
     if (!STRIPE_SECRET_KEY) throw new Error("STRIPE_SECRET_KEY not configured");
 
-    // Determine return URL from Origin header (works in both dev and prod)
-    const origin    = req.headers.get("origin") ?? "http://localhost:5173";
-    const returnUrl = `${origin}/app`;
+    // Fixed app URL, not derived from the request's Origin header — inside
+    // the native app's WebView, Origin is "capacitor://localhost", which
+    // Stripe rejects as an invalid return_url. /auth/callback is registered
+    // as a Universal Link and already handled by the native deep-link
+    // listener (see create-connect-account for the same pattern).
+    const returnUrl = `${APP_URL}/auth/callback?kyc=success`;
 
     // Create Stripe Identity verification session
     const stripeResp = await fetch(
