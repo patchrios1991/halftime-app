@@ -2,6 +2,7 @@
 // Stripe Payment Elements embedded in the HalfTime mobile shell.
 // Shown when a pod member needs to fund their escrow share.
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { T } from "../../tokens";
 import { stripePromise, isStripeConfigured } from "../../lib/stripe";
@@ -380,7 +381,7 @@ export default function EscrowPaymentScreen({ podId, podName, amount, onSuccess,
 
 // ── Shared modal shell ─────────────────────────────────────────────────────────
 function Screen({ title, onClose, children }) {
-  return (
+  return createPortal(
     <div style={{
       position:       "fixed",
       inset:          0,
@@ -428,6 +429,7 @@ function Screen({ title, onClose, children }) {
 
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
