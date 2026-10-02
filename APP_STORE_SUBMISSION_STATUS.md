@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-02
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, again as of 2026-09-30 for Round 5, and again as of 2026-10-02 via a targeted cherry-pick of just the Round 7 escrow-payment fix below — note the feature branch also has Round 6 (native push notifications) on it, which is deliberately NOT merged into `master` yet since it's still untested)
-**Status: Version 1.0.4 is live, but shipped with Stripe escrow payments completely broken for every user** (see Round 7). **Version 1.0.5, containing the fix, was submitted to Apple on 2026-10-02 and is currently in review.**
+**Status: Version 1.0.4 is live, but shipped with Stripe escrow payments AND native identity verification both completely broken** (see Round 7). Both fixed and confirmed working on-device. **Version 1.0.5 (the escrow fix) was submitted to Apple on 2026-10-02 and is currently in review** — the identity verification fixes landed after submission but are backend-only and already live for 1.0.4 installs.
 
 ## Round 7 — Stripe escrow payments were completely broken in every shipped version, now fixed (2026-10-02)
 
@@ -16,14 +16,20 @@ User tried to fund their escrow portion for a pod and got a "Demo mode" screen i
 
 **Confirmed: "it all worked"** — user re-tested Fund Escrow end-to-end after all five fixes; the real Stripe payment form rendered, accepted the card, and completed. Full writeup with exact commands and commit hashes lives in this file on the `claude/elegant-hamilton-2x8akp` branch (Round 7 section there), since items 1/2/4/5 were `.env`/dashboard config done live on Jorge's Mac, not code commits.
 
-**6. Bonus find, same session:** a friend testing identity verification (Stripe Identity) hit the same "Edge Function returned a non-2xx status code" error, tested *before* the `STRIPE_SECRET_KEY` fix above — same root cause, same fix, no additional code or rebuild needed (Edge Function secrets apply instantly to every installed app version). Treated as resolved; flag if it recurs.
+**6. Identity verification was ALSO broken natively — two separate bugs, not the same root cause as the payment fix.** A friend, then Jorge's wife, hit the same generic "Edge Function returned a non-2xx status code" error on "Verify My Identity." Initial guess (same `STRIPE_SECRET_KEY` account mismatch) was wrong. Diagnosed by adding a `console.error` to `create-identity-session`'s catch block and reading the real error from Supabase Logs:
+   - **Code bug (`url_invalid`):** `create-identity-session` built Stripe's `return_url` from the request's `Origin` header — fine on web, but `capacitor://localhost` (not a valid URL) inside the native app's WebView. Fixed by switching to a fixed `APP_URL` + `/auth/callback` (a registered Universal Link), the same pattern already working in `create-connect-account`. Code change, now on `master` too (cherry-picked `3f056f8`/`f20cbf7`, i.e. the feature branch's `3f056f8`/`dc10846`).
+   - **Stripe account gate (`identity_api_invalid_application`):** Stripe Identity needs explicit per-account activation, separate from standard payments. Fixed by completing Stripe's one-time application + owner identity verification on "Half Time Solutions, Inc."
+   - Also fixed the Stripe-hosted screen showing "Jorge Rios" instead of "HalfTime" — an account-level public business name setting in Stripe Dashboard.
+
+**Confirmed working on-device.**
 
 ### Build 1.0.5 — submitted 2026-10-02, in Apple review
-Contains `936b5fa` (the `EscrowPaymentScreen.jsx` fix, the only code change this round). The other four fixes (items 1, 2, 4, 5 above, plus item 6) were `.env`/Supabase/Stripe dashboard config, already live on the backend and in effect for every installed app version — no rebuild needed for those.
+Contains `936b5fa` (the `EscrowPaymentScreen.jsx` fix). The identity verification code fix (`f20cbf7`) landed after this build was submitted but is backend-only (deployed directly via Supabase CLI) — no rebuild needed, already live for 1.0.4 installs too.
 
 ### Next steps for whoever picks this up
-1. **Waiting on Apple's review of 1.0.5.** Once approved/live, do a quick on-device sanity check of Fund Escrow on the actual shipped build.
+1. **Waiting on Apple's review of 1.0.5.** Once approved/live, do a quick on-device sanity check of Fund Escrow on the actual shipped build (identity verification already independently confirmed working).
 2. Minor non-blocking UI polish noted but not fixed: the "Pay" button's styling doesn't visually reflect Stripe's `PaymentElement` `ready` state, only `busy` — cosmetic, confirm with user before touching.
+3. **Lesson for next time:** a generic "Edge Function returned a non-2xx status code" on a *different* Edge Function doesn't mean the *same* root cause as a previous bug with that message, even if it looks similar — add a `console.error` and read the real error from Supabase Logs before assuming.
 
 ## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
 
