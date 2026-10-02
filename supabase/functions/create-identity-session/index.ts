@@ -67,6 +67,7 @@ serve(async (req) => {
       { status: 200, headers: { ...cors, "Content-Type": "application/json" } }
     );
   } catch (e) {
+    console.error("create-identity-session error:", e.message);
     return new Response(
       JSON.stringify({ error: e.message }),
       { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
