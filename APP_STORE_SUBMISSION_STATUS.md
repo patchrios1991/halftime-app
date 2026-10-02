@@ -1,8 +1,24 @@
 # App Store Submission Status
 
-**Last updated:** 2026-10-01
-**Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5 — see below)
-**Status: Version 1.0.4 is APPROVED and LIVE (auto-distributed).** All known issues from Round 4 and Round 5 are shipped and confirmed working: sign-in stuck-loading fix, delete-pod modal clipping fix (both in 1.0.3), and the signup confirmation modal, Universal Links for email confirmation, and welcome email (all three in 1.0.4). **No open bugs. Nothing currently in flight.**
+**Last updated:** 2026-10-02
+**Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, again as of 2026-09-30 for Round 5, and again as of 2026-10-02 via a targeted cherry-pick of just the Round 7 escrow-payment fix below — note the feature branch also has Round 6 (native push notifications) on it, which is deliberately NOT merged into `master` yet since it's still untested)
+**Status: Version 1.0.4 is APPROVED and LIVE, but shipped with Stripe escrow payments completely broken for every user** (see Round 7). The fix is code-complete, confirmed working on-device, and merged here, but **has not yet shipped as a new App Store build/version** — that's the next step.
+
+## Round 7 — Stripe escrow payments were completely broken in every shipped version, now fixed (2026-10-02)
+
+User tried to fund their escrow portion for a pod and got a "Demo mode" screen instead of a real payment form. This escalated into discovering and fixing five separate, stacked issues before the real payment flow worked end-to-end. **Escrow payments never worked for any real user on the live App Store app, through versions 1.0, 1.0.1, 1.0.2, 1.0.3, and 1.0.4** — a pre-existing config gap, not a regression from any of those rounds.
+
+1. **`VITE_STRIPE_PUBLISHABLE_KEY` was never set** in the `.env` used for any build ever shipped — `src/lib/stripe.js` falls back to "Demo mode" without it. Added the key.
+2. **Adding it briefly broke sign-in** (Apple + Google) — an `echo "..." >> .env` without a trailing newline concatenated the new line onto `VITE_SUPABASE_ANON_KEY`'s value, corrupting it (confirmed via `AuthApiError: Invalid API key`, 401, in Safari Web Inspector). Fixed by restoring the missing newline.
+3. **A second modal-clipping bug**, same WebKit `position: fixed`-clipped-by-overflow-ancestor issue as Round 4, found in `EscrowPaymentScreen.jsx`'s shared `Screen` modal shell (missed in the original sweep due to this file's extra-padded style not matching the original grep pattern). Fixed with `createPortal(..., document.body)` — this is the only code change in this round, now on `master` (cherry-picked from the feature branch's `936b5fa`).
+4. **Two separate Stripe accounts existed** ("Half Time Solutions, Inc." and "HalfTime"), and the frontend's publishable key belonged to one while the backend's `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` belonged to the other — a publishable/secret key pair must be on the same account. Fixed by regenerating the backend secret key and webhook signing secret from the correct account ("Half Time Solutions, Inc.") and updating both in Supabase.
+5. **A stale `stripe_customer_id`** cached on the `profiles` table from testing under the old account caused payment-intent creation to keep failing even after the keys matched. Fixed with a one-time cleanup (`update public.profiles set stripe_customer_id = null where stripe_customer_id is not null;`), safe pre-launch since it's silently and correctly recreated on next use.
+
+**Confirmed: "it all worked"** — user re-tested Fund Escrow end-to-end after all five fixes; the real Stripe payment form rendered, accepted the card, and completed. Full writeup with exact commands and commit hashes lives in this file on the `claude/elegant-hamilton-2x8akp` branch (Round 7 section there), since items 1/2/4/5 were `.env`/dashboard config done live on Jorge's Mac, not code commits.
+
+### Next steps for whoever picks this up
+1. **Ship this.** No App Store build has gone out with this fix yet — given real users could not fund escrow at all until today, this likely deserves its own version bump (e.g. 1.0.5) rather than waiting on Round 6's native push notifications (see the feature branch for that round's status).
+2. Minor non-blocking UI polish noted but not fixed: the "Pay" button's styling doesn't visually reflect Stripe's `PaymentElement` `ready` state, only `busy` — cosmetic, confirm with user before touching.
 
 ## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
 
