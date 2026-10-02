@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-02
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5, and again as of 2026-10-02 for Round 7's escrow-payment fix ONLY, via a targeted cherry-pick — Round 6 below is still NOT merged to `master`, deliberately — see below)
-**Status: Version 1.0.4 is APPROVED and LIVE, but it shipped with Stripe escrow payments completely broken** — see Round 7. The fix is code-complete, confirmed working on-device, and cherry-picked to `master`, but **has not yet shipped as a new App Store build/version.** **Round 6 (native push notifications) is still code-complete and pushed to the feature branch, but PAUSED — waiting on the user to do external account setup (Firebase, Apple Developer, Xcode, Supabase) before it can be tested.** See Round 6 below for the exact resume steps.
+**Status: Version 1.0.4 is live, but shipped with Stripe escrow payments completely broken** — see Round 7. The fix (code + Stripe/Supabase account config) is confirmed working on-device. **Version 1.0.5, containing the fix, was submitted to Apple on 2026-10-02 and is currently in review.** **Round 6 (native push notifications) is still code-complete and pushed to the feature branch, but PAUSED — waiting on the user to do external account setup (Firebase, Apple Developer, Xcode, Supabase) before it can be tested** — NOT included in 1.0.5. See Round 6 below for the exact resume steps.
 
 ## Round 7 — Stripe escrow payments were completely broken in every shipped version, now fixed and confirmed on-device (2026-10-02)
 
@@ -29,11 +29,17 @@ where stripe_customer_id is not null;
 
 **Cherry-picked `936b5fa` to `master` on its own** (not a full branch merge) — `master` doesn't have Round 6's native push commits yet since that work is still untested, so a plain fast-forward would have dragged those in too.
 
+**6. Bonus find, same session:** a friend testing identity verification (Stripe Identity, via `create-identity-session`) hit "Edge Function returned a non-2xx status code" too — same `STRIPE_SECRET_KEY` secret as the payment bug above, tested *before* that secret was corrected. Backend-only fix (no app code involved, no rebuild needed — Edge Function secrets take effect instantly for every installed app version, including the friend's existing 1.0.4). Not independently re-confirmed after the fix, but same root cause and same fix as the payment-intent bug, so treated as resolved; flag if it recurs.
+
+### Build 1.0.5 (1) — submitted 2026-10-02, in Apple review
+
+On Jorge's Mac: `git pull origin claude/elegant-hamilton-2x8akp` (commit `9ac6499`, includes `936b5fa`) → `npm install` → `npm run build:mobile` (clean) → Xcode: bumped Version `1.0.4` → `1.0.5`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.5` in App Store Connect, attached the processed build, **Add for Review**. Now waiting on Apple.
+
 ### Next steps for whoever picks this up
-1. **Ship this.** The escrow payment fix (`936b5fa`, now on both branches) has not shipped as an App Store build yet. Given real users could not fund escrow at all until today, this likely deserves its own prompt version bump (e.g. 1.0.5) rather than waiting for Round 6's push notifications.
+1. **Waiting on Apple's review of 1.0.5.** Once approved/live, do a quick on-device sanity check of Fund Escrow (and identity verification, if the friend hasn't already confirmed it) on the actual shipped build.
 2. **Minor, non-blocking UI polish identified but not fixed:** the "Pay" button's background color only changes based on the `busy` state, not whether Stripe's `PaymentElement` is actually `ready` — so it can visually look enabled while still disabled, which was part of why the button seemed unresponsive before the real bugs were found. Confirm with the user before fixing, since it's cosmetic, not broken.
 3. `.env.backup` exists on Jorge's Mac from the newline-corruption fix (gitignored, harmless) — no action needed, just noting it exists.
-4. Round 6 (native push) is unaffected by any of this — still paused on external setup, see below.
+4. Round 6 (native push) is unaffected by any of this — still paused on external setup, NOT in 1.0.5, see below.
 
 ## Round 6 — native push notifications, code done, PAUSED for external setup (2026-10-01)
 
