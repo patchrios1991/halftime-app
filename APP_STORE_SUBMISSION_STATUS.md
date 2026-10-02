@@ -1,8 +1,39 @@
 # App Store Submission Status
 
-**Last updated:** 2026-10-01
-**Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5 — Round 6 below is NOT merged to `master` yet, deliberately — see below)
-**Status: Version 1.0.4 is APPROVED and LIVE.** All known bugs from Round 4 and Round 5 are shipped and confirmed working. **Round 6 (native push notifications) is code-complete and pushed to the feature branch, but PAUSED — waiting on the user to do external account setup (Firebase, Apple Developer, Xcode, Supabase) before it can be tested.** See Round 6 below for the exact resume steps.
+**Last updated:** 2026-10-02
+**Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, and again as of 2026-09-30 for Round 5, and again as of 2026-10-02 for Round 7's escrow-payment fix ONLY, via a targeted cherry-pick — Round 6 below is still NOT merged to `master`, deliberately — see below)
+**Status: Version 1.0.4 is APPROVED and LIVE, but it shipped with Stripe escrow payments completely broken** — see Round 7. The fix is code-complete, confirmed working on-device, and cherry-picked to `master`, but **has not yet shipped as a new App Store build/version.** **Round 6 (native push notifications) is still code-complete and pushed to the feature branch, but PAUSED — waiting on the user to do external account setup (Firebase, Apple Developer, Xcode, Supabase) before it can be tested.** See Round 6 below for the exact resume steps.
+
+## Round 7 — Stripe escrow payments were completely broken in every shipped version, now fixed and confirmed on-device (2026-10-02)
+
+User tried to fund their escrow portion for a pod and got a "Demo mode" screen instead of a real payment form. This escalated into discovering and fixing five separate, stacked issues before the real payment flow worked end-to-end. **Escrow payments never worked for any real user on the live App Store app, through versions 1.0, 1.0.1, 1.0.2, 1.0.3, and 1.0.4** — this was a pre-existing config gap, not a regression from any of those rounds.
+
+**1. Stripe was never configured client-side.** `src/lib/stripe.js` gates the real payment form vs. "Demo mode" entirely on `!!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY`. That var was never set in the `.env` file used for *any* build ever shipped — confirmed via `grep` on Jorge's Mac. Fixed by adding `VITE_STRIPE_PUBLISHABLE_KEY` (the publishable key, safe to handle directly) to `.env`.
+
+**2. Adding that key broke sign-in entirely (both Apple and Google).** My mistake: appended the new line with `echo "..." >> .env`, and the existing file had no trailing newline, so the new line concatenated onto the end of `VITE_SUPABASE_ANON_KEY`'s value, corrupting it. Confirmed via Safari Web Inspector console: `AuthApiError: Invalid API key`, 401. Fixed with `cp .env .env.backup` then a `perl` one-liner to re-insert the missing newline before the new key. Clean afterward, sign-in worked again. **Lesson for next time: never bare `echo >>` into a file without first confirming it ends in a newline.**
+
+**3. A second modal-clipping bug, missed in the original Round 4 sweep.** Same WebKit `position: fixed`-clipped-by-ancestor-`overflow` bug as Round 4 (see Round 4 item 2 below for the full root cause), found in `EscrowPaymentScreen.jsx`'s shared `Screen` modal shell — both the "Fund Escrow" confirm screen and the Stripe "Payment details" checkout screen were visibly cut off at the bottom. Missed originally because this file uses extra-padded alignment (`position:       "fixed",`) that didn't match the grep pattern used for the original sweep. Fixed the same way, with `createPortal(..., document.body)` (commit `936b5fa`). Re-swept all of `src/` afterward with a whitespace-tolerant regex (`position:\s*["']fixed["']`) to confirm nothing else was missed.
+
+**4. Two separate Stripe accounts existed, and the keys didn't match.** Once the clipping was fixed, the Stripe form rendered but the "Pay" button did nothing — the `PaymentElement` was silently failing to initialize (400 error on Stripe's `sessions` endpoint, caught via Web Inspector console). Root cause: Jorge's Stripe login has two separate accounts — "Half Time Solutions, Inc." and "HalfTime" — and the frontend's publishable key (this round) belonged to one while the backend's `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` (configured months earlier, during unrelated testing) belonged to the other. A publishable key and secret key must belong to the same Stripe account to work together. Confirmed the backend secret itself was valid (just for the wrong account) via Supabase Edge Functions → `create-payment-intent` → **Invocations** tab (not the Logs tab, which only shows generic boot/shutdown noise) showing all 200 OK. Fixed by: confirming "Half Time Solutions, Inc." has the correct/matching publishable key, generating a fresh `STRIPE_SECRET_KEY` from that account and updating it in Supabase, creating a new Stripe webhook/event destination on that account (Stripe's newer "Create an event destination" UI) listening for the 5 events `stripe-webhook/index.ts` handles (`payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `identity.verification_session.verified`, `identity.verification_session.requires_input`), and updating `STRIPE_WEBHOOK_SECRET` to its signing secret.
+
+**5. A stale `stripe_customer_id` cached from the old account.** Even with matching keys, funding still failed ("Edge Function returned a non-2xx status code"). `create-payment-intent/index.ts`'s `getOrCreateCustomer()` reuses a `stripe_customer_id` stored on the user's `profiles` row without validating it still exists in the *current* Stripe account — Jorge's profile had one cached from earlier testing under the old "HalfTime" account, which Stripe rejected once the backend pointed at "Half Time Solutions, Inc." Fixed with a one-time data cleanup, run by the user via Supabase SQL Editor (safe pre-launch, since the column just gets silently and correctly recreated on next use):
+```sql
+update public.profiles
+set stripe_customer_id = null
+where stripe_customer_id is not null;
+```
+
+**Confirmed: "it all worked"** — user re-tested Fund Escrow end-to-end after all five fixes and the real Stripe payment form rendered, accepted the card, and completed.
+
+**No code changes needed for items 1, 2, 4, 5** — those were `.env`/dashboard config only. Only item 3 (`936b5fa`) touched code.
+
+**Cherry-picked `936b5fa` to `master` on its own** (not a full branch merge) — `master` doesn't have Round 6's native push commits yet since that work is still untested, so a plain fast-forward would have dragged those in too.
+
+### Next steps for whoever picks this up
+1. **Ship this.** The escrow payment fix (`936b5fa`, now on both branches) has not shipped as an App Store build yet. Given real users could not fund escrow at all until today, this likely deserves its own prompt version bump (e.g. 1.0.5) rather than waiting for Round 6's push notifications.
+2. **Minor, non-blocking UI polish identified but not fixed:** the "Pay" button's background color only changes based on the `busy` state, not whether Stripe's `PaymentElement` is actually `ready` — so it can visually look enabled while still disabled, which was part of why the button seemed unresponsive before the real bugs were found. Confirm with the user before fixing, since it's cosmetic, not broken.
+3. `.env.backup` exists on Jorge's Mac from the newline-corruption fix (gitignored, harmless) — no action needed, just noting it exists.
+4. Round 6 (native push) is unaffected by any of this — still paused on external setup, see below.
 
 ## Round 6 — native push notifications, code done, PAUSED for external setup (2026-10-01)
 
