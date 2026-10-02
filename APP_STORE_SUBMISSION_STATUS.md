@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-02
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, again as of 2026-09-30 for Round 5, and again as of 2026-10-02 via a targeted cherry-pick of just the Round 7 escrow-payment fix below — note the feature branch also has Round 6 (native push notifications) on it, which is deliberately NOT merged into `master` yet since it's still untested)
-**Status: Version 1.0.4 is APPROVED and LIVE, but shipped with Stripe escrow payments completely broken for every user** (see Round 7). The fix is code-complete, confirmed working on-device, and merged here, but **has not yet shipped as a new App Store build/version** — that's the next step.
+**Status: Version 1.0.4 is live, but shipped with Stripe escrow payments completely broken for every user** (see Round 7). **Version 1.0.5, containing the fix, was submitted to Apple on 2026-10-02 and is currently in review.**
 
 ## Round 7 — Stripe escrow payments were completely broken in every shipped version, now fixed (2026-10-02)
 
@@ -16,8 +16,13 @@ User tried to fund their escrow portion for a pod and got a "Demo mode" screen i
 
 **Confirmed: "it all worked"** — user re-tested Fund Escrow end-to-end after all five fixes; the real Stripe payment form rendered, accepted the card, and completed. Full writeup with exact commands and commit hashes lives in this file on the `claude/elegant-hamilton-2x8akp` branch (Round 7 section there), since items 1/2/4/5 were `.env`/dashboard config done live on Jorge's Mac, not code commits.
 
+**6. Bonus find, same session:** a friend testing identity verification (Stripe Identity) hit the same "Edge Function returned a non-2xx status code" error, tested *before* the `STRIPE_SECRET_KEY` fix above — same root cause, same fix, no additional code or rebuild needed (Edge Function secrets apply instantly to every installed app version). Treated as resolved; flag if it recurs.
+
+### Build 1.0.5 — submitted 2026-10-02, in Apple review
+Contains `936b5fa` (the `EscrowPaymentScreen.jsx` fix, the only code change this round). The other four fixes (items 1, 2, 4, 5 above, plus item 6) were `.env`/Supabase/Stripe dashboard config, already live on the backend and in effect for every installed app version — no rebuild needed for those.
+
 ### Next steps for whoever picks this up
-1. **Ship this.** No App Store build has gone out with this fix yet — given real users could not fund escrow at all until today, this likely deserves its own version bump (e.g. 1.0.5) rather than waiting on Round 6's native push notifications (see the feature branch for that round's status).
+1. **Waiting on Apple's review of 1.0.5.** Once approved/live, do a quick on-device sanity check of Fund Escrow on the actual shipped build.
 2. Minor non-blocking UI polish noted but not fixed: the "Pay" button's styling doesn't visually reflect Stripe's `PaymentElement` `ready` state, only `busy` — cosmetic, confirm with user before touching.
 
 ## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
