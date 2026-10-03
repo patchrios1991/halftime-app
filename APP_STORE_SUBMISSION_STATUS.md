@@ -67,19 +67,25 @@ User noticed push notifications don't work on the native app: no toggle in Profi
 
 **Deliberately NOT merged to `master`** — this only exists on `claude/elegant-hamilton-2x8akp` so nothing about the live web app or a future native build changes until it's actually tested and working.
 
-**Why this is paused:** everything left requires the user's own account access (Firebase console, Apple Developer portal, Xcode, Supabase dashboard) — there's no more blind coding to do here. Agreed with the user to hold off until they have a free ~20-30 minutes, since the external steps are quick individually but benefit from being done together in one sitting rather than piecemeal.
+**Why this is paused:** everything left requires the user's own account access (Firebase console, Apple Developer portal, Xcode, Supabase dashboard) — there's no more blind coding to do here.
 
-### Exact resume steps (do these in order, iOS only)
+### Progress as of 2026-10-03 — PAUSED mid-setup, resume at step 4
 
-1. **Firebase Console** (console.firebase.google.com): create a project. Add an iOS app to it with bundle ID `com.halftimeapp.app`. Download the generated `GoogleService-Info.plist`.
-2. **Apple Developer Portal** (developer.apple.com/account): under Certificates, Identifiers & Profiles → Keys, generate a **new** APNs Auth Key (a `.p8` file) — separate from the existing Sign in with Apple key (`638WXF48UD`). Note the new Key ID.
-3. **Back in Firebase Console:** Project Settings → Cloud Messaging → under the iOS app, upload that `.p8` file along with its Key ID and the Apple Team ID (`Y2Y42U7LZ6`) — this is what lets Firebase actually relay pushes to Apple's servers.
-4. **Xcode:** add the GoogleService-Info.plist to the project (drag into the `App` folder in the project navigator, ensure "Copy items if needed" and App target membership are checked). Then add the **Push Notifications** capability under Signing & Capabilities (same +Capability flow as Associated Domains in Round 5).
-5. **Firebase Console again:** Project Settings → Service Accounts → Generate new private key — downloads a JSON file. This is the `FIREBASE_SERVICE_ACCOUNT_JSON` secret the edge function needs.
-6. **Supabase Dashboard:** add `FIREBASE_SERVICE_ACCOUNT_JSON` as an Edge Function secret (the full JSON file contents, pasted as one value) — Project Settings → Edge Functions → Secrets, or via the CLI. Then run `supabase/migrations/043_device_push_tokens.sql` via the SQL Editor, same pattern as migrations 041/042.
-7. **On Jorge's Mac:** `git pull origin claude/elegant-hamilton-2x8akp` → `npm install` → `npm run build:mobile` → rebuild and reinstall on-device via Xcode.
-8. **Test:** Profile tab should now show the push notifications card with a working Enable toggle; after enabling, iOS Settings → Apps → HalfTime → Notifications should now actually show a toggle (the thing that was missing before). Trigger a real notification (e.g. have another pod member take an action that calls `notify()`) and confirm it arrives.
-9. Only once all of that is confirmed working: merge `claude/elegant-hamilton-2x8akp` → `master` (the same fast-forward pattern as every other round) so the web app deploy stays in sync, then ship the next version through the usual archive/upload/submit flow.
+Steps 1-3 below are **DONE**. Stopped before step 4 (Xcode) for time — pick back up there exactly, nothing earlier needs repeating.
+
+**Done:**
+- ✅ **Step 1 (Firebase Console):** HalfTime Firebase project created. iOS app registered with bundle ID `com.halftimeapp.app`. `GoogleService-Info.plist` downloaded (saved on Jorge's Mac, wherever he put it — not committed to the repo, as expected).
+- ✅ **Step 2 (Apple Developer Portal):** New APNs Auth Key created, named "HalfTime APNs Key" (separate from the existing Sign in with Apple key `638WXF48UD`). **Key ID: `7BWLN8BF8N`**. `.p8` file downloaded (one-time download, already used — if it's ever lost, a new key has to be generated from scratch, the old one can't be re-downloaded).
+  - **New Apple Developer UI note (didn't exist when this doc was first written):** Apple now requires choosing **Environment** (Sandbox / Production / **Sandbox & Production**) and **Key Restriction** (Team Scoped / Topic Scoped) when creating an APNs key, and this **cannot be changed after saving**. We chose **"Sandbox & Production"** (so the same key works for both local Xcode test builds and the live App Store app) and **"Team Scoped (All Topics)"** (no reason to restrict it). If this key ever needs replacing, make the same choices again.
+- ✅ **Step 3 (Firebase Console → Cloud Messaging):** Uploaded the `.p8` file to **both** the "Development APNs auth key" and "No production APNs auth key" slots under Apple app configuration for `com.halftimeapp.app` (Firebase keeps these as two separate upload slots even though it's the same Sandbox & Production key — had to upload it twice, once per slot). Team ID used: `Y2Y42U7LZ6`.
+
+**Not done yet — resume here:**
+- ⬜ **Step 4 (Xcode):** Add `GoogleService-Info.plist` to the Xcode project (drag into the `App` folder in the project navigator — NOT the top-level blue project icon — with "Copy items if needed" checked and the App target checkbox checked). Then add the **Push Notifications** capability: blue App project icon → App target → Signing & Capabilities tab → **+ Capability** → search "Push Notifications" → add it.
+- ⬜ **Step 5 (Firebase Console again):** Project Settings → **Service Accounts** tab → **Generate new private key** — downloads a JSON file. This is the `FIREBASE_SERVICE_ACCOUNT_JSON` secret the edge function needs.
+- ⬜ **Step 6 (Supabase Dashboard):** add `FIREBASE_SERVICE_ACCOUNT_JSON` as an Edge Function secret (the full JSON file contents, pasted as one value) — Edge Functions → Secrets. Then run `supabase/migrations/043_device_push_tokens.sql` via the SQL Editor, same pattern as migrations 041/042.
+- ⬜ **Step 7 (Jorge's Mac):** `git pull origin claude/elegant-hamilton-2x8akp` → `npm install` → `npm run build:mobile` → rebuild and reinstall on-device via Xcode.
+- ⬜ **Step 8 (Test):** Profile tab should show the push notifications card with a working Enable toggle; after enabling, iOS Settings → Apps → HalfTime → Notifications should actually show a toggle (the thing that was missing before). Trigger a real notification (e.g. have another pod member take an action that calls `notify()`) and confirm it arrives.
+- ⬜ **Step 9:** Only once all of that is confirmed working: merge `claude/elegant-hamilton-2x8akp` → `master` (the same fast-forward pattern as every other round) so the web app deploy stays in sync, then ship the next version through the usual archive/upload/submit flow.
 
 ## Round 5 — signup UX + email issues, DONE and verified on-device (2026-09-30)
 
