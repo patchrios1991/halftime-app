@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-06
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, again as of 2026-09-30 for Round 5, again as of 2026-10-02 for Round 7's escrow-payment fix via a targeted cherry-pick, and fully merged as of 2026-10-06 — everything through the 1.0.6 punch list, including Round 6, is now on `master` too)
-**Status: Version 1.0.5 (the escrow-payment fix) is in Apple review, submitted 2026-10-02.** **Version 1.0.6 was submitted to Apple on 2026-10-06** — contains push notifications (Round 6), the Browse Pods Standard/Group Buy wizard, the pod member cap race-condition fix, standard-pod captain funding exemption, and the ESPN schedule-import fixes (full detail in the 1.0.6 punch list and Round 6 sections below). Both versions are currently waiting on Apple.
+**Status: Version 1.0.5 (the escrow-payment fix) is APPROVED and LIVE.** **Version 1.0.6 was submitted to Apple on 2026-10-06 and is currently in review** — contains push notifications (Round 6), the Browse Pods Standard/Group Buy wizard, the pod member cap race-condition fix, standard-pod captain funding exemption, and the ESPN schedule-import fixes (full detail in the 1.0.6 punch list and Round 6 sections below).
 
 ## 1.0.6 punch list — decided 2026-10-06
 
@@ -60,9 +60,9 @@ where stripe_customer_id is not null;
 
 **Confirmed working on-device** — Jorge's wife completed identity verification successfully end-to-end after all of the above.
 
-### Build 1.0.5 (1) — submitted 2026-10-02, in Apple review
+### Build 1.0.5 (1) — submitted 2026-10-02, APPROVED and LIVE
 
-On Jorge's Mac: `git pull origin claude/elegant-hamilton-2x8akp` (commit `9ac6499`, includes `936b5fa`) → `npm install` → `npm run build:mobile` (clean) → Xcode: bumped Version `1.0.4` → `1.0.5`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.5` in App Store Connect, attached the processed build, **Add for Review**. Now waiting on Apple.
+On Jorge's Mac: `git pull origin claude/elegant-hamilton-2x8akp` (commit `9ac6499`, includes `936b5fa`) → `npm install` → `npm run build:mobile` (clean) → Xcode: bumped Version `1.0.4` → `1.0.5`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.5` in App Store Connect, attached the processed build, **Add for Review**. **Approved and live.**
 
 **Everything found after this build was submitted (items 6's two bugs + the business name fix) was backend/dashboard-only** (Edge Function code deployed directly via Supabase CLI, Stripe Dashboard config) — no app rebuild required, so 1.0.5 doesn't need to be resubmitted for any of it; identity verification already works on 1.0.4 installs too.
 
