@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-06
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, again as of 2026-09-30 for Round 5, again as of 2026-10-02 for Round 7's escrow-payment fix via a targeted cherry-pick, and fully merged as of 2026-10-06 — everything through the 1.0.6 punch list, including Round 6, is now on `master` too)
-**Status: Version 1.0.4 is live, but shipped with Stripe escrow payments AND native identity verification both completely broken** — see Round 7. Both are now fixed and confirmed working on-device. **Version 1.0.5 (containing the escrow fix) was submitted to Apple on 2026-10-02 and is currently in review** — the identity verification fixes landed after submission but are backend-only, so they're already live for 1.0.4 installs too and don't require 1.0.5 to be resubmitted. **1.0.6 punch list is fully DONE and confirmed on-device as of 2026-10-06** — all 5 items, code + migrations + on-device testing, complete. **Next step: ship 1.0.6** (version bump, build, archive, upload, submit) — see "Next steps" at the end of the punch list below.
+**Status: Version 1.0.5 (the escrow-payment fix) is in Apple review, submitted 2026-10-02.** **Version 1.0.6 was submitted to Apple on 2026-10-06** — contains push notifications (Round 6), the Browse Pods Standard/Group Buy wizard, the pod member cap race-condition fix, standard-pod captain funding exemption, and the ESPN schedule-import fixes (full detail in the 1.0.6 punch list and Round 6 sections below). Both versions are currently waiting on Apple.
 
 ## 1.0.6 punch list — decided 2026-10-06
 
@@ -19,11 +19,14 @@ User's explicit direction: don't ship fixes piecemeal anymore — gather everyth
    - **Bug 2 (`c854341`):** once bug 1 was fixed, Miami (FL) Hurricanes still didn't show up searching "Miami" under NCAA Football, while Miami (OH) RedHawks did — both real FBS teams. The team-list fetch was hardcoded to `limit=200`, silently truncating ESPN's response before reaching some teams depending on ESPN's internal ordering; NCAA football/basketball have 200+ teams across divisions. Bumped to `limit=1000`.
    - Neither could be verified against live ESPN data from this sandbox (its network policy blocks outbound access to espn.com) — both were diagnosed from the real error/log text Jorge pulled from Supabase and fixed from that alone, then confirmed working by Jorge on-device.
 
-### Next steps: ship 1.0.6
+### Build 1.0.6 (1) — submitted 2026-10-06, in Apple review
 
-1. **Merge `claude/elegant-hamilton-2x8akp` → `master`.** Not a plain fast-forward this time — `master` picked up its own commits earlier this session (the identity-verification cherry-picks, `785f6ec`/`9d8e6e2`/`d326eb1` etc.), while the feature branch independently has 24 commits master doesn't, including the *original* versions of those same identity-verification changes (same content, different commit SHAs from the cherry-pick). Should merge cleanly via a real merge commit since the overlapping changes are content-identical, but verify there's no conflict before pushing — don't assume.
-2. **On Jorge's Mac:** `git pull origin claude/elegant-hamilton-2x8akp` (or `master`, once merged) → `npm install` → `npm run build:mobile` → Xcode: bump Version `1.0.5` → `1.0.6`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → create version `1.0.6` in App Store Connect, attach the build, **Add for Review**.
-3. Once 1.0.6 is live: this is also the point to circle back to **Round 6 → Scope decision** above — Android push notifications were deliberately deferred, not forgotten, if that's ever worth revisiting.
+`claude/elegant-hamilton-2x8akp` → `master` merged 2026-10-06 (real merge commit `41761a9`, not a fast-forward — `master` had its own identity-verification cherry-pick commits that overlapped in content with the feature branch's originals; merged cleanly, verified with a clean `npm run build` before pushing). On Jorge's Mac: `git pull` → `npm install` → `npm run build:mobile` (clean) → Xcode: bumped Version `1.0.5` → `1.0.6`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.6` in App Store Connect, attached the build, **Add for Review**. Now waiting on Apple, same as 1.0.5.
+
+### Next steps for whoever picks this up
+1. **Waiting on Apple's review of both 1.0.5 and 1.0.6.** Once 1.0.6 is approved/live, do a quick on-device sanity check of the big items (push notifications, Browse Pods wizard, pod joining) on the actual shipped build, though everything was already confirmed pre-submission.
+2. **Android push notifications were deliberately deferred** (see Round 6 → Scope decision) — the app isn't on the Play Store yet, so there was no reason to double the external setup work. The code is already cross-platform-ready for whenever that becomes relevant.
+3. No other open items from this session — the Miami Hurricanes schedule-import report and the "3rd member in a 2-person pod" report are both resolved and confirmed.
 
 ## Round 7 — Stripe escrow payments were completely broken in every shipped version, now fixed and confirmed on-device (2026-10-02)
 
