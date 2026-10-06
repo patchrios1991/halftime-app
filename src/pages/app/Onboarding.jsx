@@ -2,14 +2,7 @@
 import { useState } from "react";
 import { T } from "../../tokens";
 import Wordmark from "../../components/Wordmark";
-
-async function requestPushPermission() {
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) return "unsupported";
-  if (Notification.permission === "granted") return "granted";
-  if (Notification.permission === "denied")  return "denied";
-  const result = await Notification.requestPermission();
-  return result;
-}
+import { usePushSubscription } from "../../hooks/usePushSubscription";
 
 const SLIDES = [
   {
@@ -42,17 +35,9 @@ function completeOnboarding(dispatch, screen) {
 }
 
 export default function Onboarding({ dispatch }) {
-  const [slide,        setSlide]        = useState(0);
-  const [notifStatus,  setNotifStatus]  = useState(null); // null | "granted" | "denied" | "unsupported"
-  const [notifBusy,    setNotifBusy]    = useState(false);
+  const [slide, setSlide] = useState(0);
+  const push = usePushSubscription();
   const isLast = slide === SLIDES.length - 1;
-
-  async function handleEnableNotifications() {
-    setNotifBusy(true);
-    const result = await requestPushPermission();
-    setNotifStatus(result);
-    setNotifBusy(false);
-  }
 
   return (
     <div style={{
@@ -103,30 +88,33 @@ export default function Onboarding({ dispatch }) {
             <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6, marginBottom: 12 }}>
               Get notified when games are allocated, trades come in, and bid auctions settle.
             </div>
-            {notifStatus === "granted" ? (
+            {push.subscribed ? (
               <div style={{ fontSize: 12, color: T.lime, fontWeight: 700 }}>
                 ✓ Notifications enabled!
               </div>
-            ) : notifStatus === "denied" ? (
+            ) : push.permission === "denied" ? (
               <div style={{ fontSize: 11, color: T.amber }}>
-                Notifications blocked — enable in browser settings to receive alerts.
+                Notifications blocked — enable in your device settings to receive alerts.
               </div>
-            ) : notifStatus === "unsupported" ? (
+            ) : !push.supported ? (
               <div style={{ fontSize: 11, color: T.mist }}>
-                Push notifications aren't supported on this browser.
+                Push notifications aren't supported here.
               </div>
             ) : (
               <button
-                onClick={handleEnableNotifications}
-                disabled={notifBusy}
+                onClick={push.subscribe}
+                disabled={push.loading}
                 style={{
                   padding: "8px 18px", background: T.lime, border: "none",
                   borderRadius: 8, color: T.dark, fontSize: 12, fontWeight: 700,
-                  cursor: notifBusy ? "not-allowed" : "pointer",
-                  opacity: notifBusy ? 0.7 : 1,
+                  cursor: push.loading ? "not-allowed" : "pointer",
+                  opacity: push.loading ? 0.7 : 1,
                 }}>
-                {notifBusy ? "Requesting…" : "Enable Notifications →"}
+                {push.loading ? "Requesting…" : "Enable Notifications →"}
               </button>
+            )}
+            {push.error && !push.subscribed && push.permission !== "denied" && (
+              <div style={{ fontSize: 11, color: T.red, marginTop: 8 }}>{push.error}</div>
             )}
           </div>
         )}

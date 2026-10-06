@@ -192,23 +192,39 @@ export default function PodScreen({ state, dispatch }) {
   }, [tab, activePodId]);
 
 
+  // Standard-pod captains already bought the tickets out of pocket — once
+  // HalfTime has verified their receipt, they're excused from also funding
+  // their own share into escrow (see 1.0.6 punch list item 4). Computed
+  // live from pod_type + receipt_verified rather than a stored flag, so it
+  // never goes stale and never conflicts with a real Stripe payment.
+  const captainMemberRow = (fullPod?.pod_members ?? []).find(m => m.user_id === fullPod?.captain_id);
+  const captainCost    = parseFloat(captainMemberRow?.cost) || 0;
+  const captainExempt  = fullPod?.pod_type === "standard" && fullPod?.receipt_verified === true;
+  const myIsCaptain    = Boolean(currentUserId) && fullPod?.captain_id === currentUserId;
+
   // Current user's membership info
-  const myEscrowFunded = Boolean(myMemberRow?.escrow_funded);
+  const myExemptFromFunding = myIsCaptain && captainExempt;
+  const myEscrowFunded = Boolean(myMemberRow?.escrow_funded) || myExemptFromFunding;
   const myAmount       = parseFloat(myMemberRow?.cost) || 0;
   const mySharePct     = parseFloat(myMemberRow?.share_pct) || 25;
 
   // Map real DB members to display format
-  const realMembers = (fullPod?.pod_members ?? []).map((m, idx) => ({
-    id:           m.user_id,
-    name:         m.user_id === currentUserId ? "You" : (m.profiles?.display_name || "Member"),
-    initials:     m.profiles?.avatar_initials || "??",
-    share:        parseFloat(m.share_pct) || 0,
-    credits:      m.bid_credits || 0,
-    color:        slotColor(idx),
-    verified:     m.profiles?.verified || false,
-    escrowFunded: m.escrow_funded || false,
-    isMe:         m.user_id === currentUserId,
-  }));
+  const realMembers = (fullPod?.pod_members ?? []).map((m, idx) => {
+    const exempt = captainExempt && m.user_id === fullPod?.captain_id;
+    return {
+      id:           m.user_id,
+      name:         m.user_id === currentUserId ? "You" : (m.profiles?.display_name || "Member"),
+      initials:     m.profiles?.avatar_initials || "??",
+      share:        parseFloat(m.share_pct) || 0,
+      credits:      m.bid_credits || 0,
+      color:        slotColor(idx),
+      verified:     m.profiles?.verified || false,
+      escrowFunded: m.escrow_funded || exempt,
+      exemptFromFunding: exempt,
+      isCaptainRow: m.user_id === fullPod?.captain_id,
+      isMe:         m.user_id === currentUserId,
+    };
+  });
 
   // Fall back to mock members when no real data yet
   const members = realMembers.length > 0 ? realMembers : state.members;
@@ -221,9 +237,11 @@ export default function PodScreen({ state, dispatch }) {
   const maxMembers = fullPod?.max_members ?? 6;
   const totalCost  = parseFloat(fullPod?.season_cost ?? myPodRow?.season_cost ?? 0);
 
-  // Escrow totals — use totalCost as ground truth; cap display at 100%
-  const escrowRequired = totalCost > 0 ? totalCost
-    : (myAmount > 0 ? myAmount / (mySharePct / 100) : 0);
+  // Escrow totals — use totalCost as ground truth; cap display at 100%.
+  // Exclude the captain's own share when they're exempt (per above) — the
+  // pod only actually needs to collect the other members' shares via Stripe.
+  const escrowRequired = (totalCost > 0 ? totalCost
+    : (myAmount > 0 ? myAmount / (mySharePct / 100) : 0)) - (captainExempt ? captainCost : 0);
   const escrowFundedCount = members.filter(m => m.escrowFunded).length;
   const escrowPct = escrowRequired > 0
     ? Math.min(100, Math.round((realEscrowBalance / escrowRequired) * 100))
@@ -684,7 +702,9 @@ export default function PodScreen({ state, dispatch }) {
                       ${myAmount.toFixed(2)} · {mySharePct}% share
                     </div>
                   </div>
-                  {myEscrowFunded
+                  {myExemptFromFunding
+                    ? <Badge color={T.lime}>🧾 Already own tickets</Badge>
+                    : myEscrowFunded
                     ? <Badge color={T.lime}>💳 Funded</Badge>
                     : (
                       <div onClick={() => setShowPayment(true)}
@@ -710,7 +730,14 @@ export default function PodScreen({ state, dispatch }) {
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700,
                           color: (m.isMe || m.id === "m1") ? T.lime : T.white,
-                          fontFamily: "Georgia,serif" }}>{m.name}</div>
+                          fontFamily: "Georgia,serif", display: "flex", alignItems: "center", gap: 6 }}>
+                          {m.name}
+                          {m.isCaptainRow && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: T.dark,
+                              background: T.amber, borderRadius: 20, padding: "2px 7px",
+                              letterSpacing: 0.3 }}>👑 CAPTAIN</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: 10, color: T.mist }}>
                           {m.share}% ownership · {m.credits} bid credits
                         </div>
@@ -721,7 +748,9 @@ export default function PodScreen({ state, dispatch }) {
                         ? <Badge color={T.teal}>✓ Verified</Badge>
                         : <Badge color={T.amber}>⏳ Unverified</Badge>
                       }
-                      {m.escrowFunded
+                      {m.exemptFromFunding
+                        ? <Badge color={T.lime}>🧾 Owns tickets</Badge>
+                        : m.escrowFunded
                         ? <Badge color={T.lime}>💳 Funded</Badge>
                         : <div style={{ background: `${T.amber}22`, color: T.amber,
                             border: `1px solid ${T.amber}44`, borderRadius: 20,
@@ -1576,7 +1605,9 @@ export default function PodScreen({ state, dispatch }) {
                   alignItems: "center", padding: "9px 0", borderBottom: "1px solid #1A4A2E" }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <Avatar initials={m.initials} size={28} color={m.color} />
-                    <span style={{ fontSize: 12, color: T.white }}>{m.name}</span>
+                    <span style={{ fontSize: 12, color: T.white }}>
+                      {m.name}{m.isCaptainRow ? " 👑" : ""}
+                    </span>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.lime,
@@ -1585,7 +1616,9 @@ export default function PodScreen({ state, dispatch }) {
                         ? `$${((totalCost * m.share) / 100).toFixed(2)}`
                         : `${m.share}%`}
                     </span>
-                    {m.escrowFunded
+                    {m.exemptFromFunding
+                      ? <Badge color={T.teal}>🧾 Owns tickets</Badge>
+                      : m.escrowFunded
                       ? <Badge color={T.teal}>✓ Funded</Badge>
                       : <span style={{ fontSize: 10, color: T.amber, fontWeight: 700 }}>Pending</span>}
                   </div>

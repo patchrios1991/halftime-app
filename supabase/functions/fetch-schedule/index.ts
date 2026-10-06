@@ -7,6 +7,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports";
 
+// ESPN's CDN (Akamai) started returning a 403 "Access Denied" block page for
+// requests with no browser-like User-Agent — Deno's default fetch() sends
+// none, so every ESPN call here was being rejected at the edge regardless of
+// sport or team. A realistic User-Agent is enough to pass as a real browser.
+const ESPN_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  "Accept": "application/json",
+};
+
 const SPORT_PATHS: Record<string, string> = {
   // ── Pro leagues — current UI values (lowercase) ──────────────────────────────
   "nba":              "basketball/nba",
@@ -96,10 +105,21 @@ serve(async (req: Request) => {
 
     // ── Search teams ─────────────────────────────────────────────────────────
     if (action === "search") {
-      const res  = await fetch(`${ESPN}/${path}/teams?limit=200`);
-      if (!res.ok) throw new Error("ESPN teams endpoint failed");
+      // NCAA football/basketball have 200+ teams across FBS/FCS or D1-D3 —
+      // limit=200 was silently truncating ESPN's list before reaching some
+      // teams (e.g. Miami (FL) Hurricanes missing while Miami (OH) RedHawks,
+      // earlier in ESPN's ordering, still showed up). Bumped well past any
+      // division's real roster size.
+      const res  = await fetch(`${ESPN}/${path}/teams?limit=1000`, { headers: ESPN_HEADERS });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(
+          `ESPN teams endpoint failed: sport="${sport}" path="${path}" status=${res.status} body=${body.slice(0, 300)}`
+        );
+      }
       const data = await res.json();
       const all: AnyObj[] = (data.sports?.[0]?.leagues?.[0]?.teams ?? []).map((t: AnyObj) => t.team);
+      console.log(`fetch-schedule search: sport="${sport}" path="${path}" query="${query}" totalTeams=${all.length}`);
 
       if (!String(query ?? "").trim()) return json(all.slice(0, 8));
 
@@ -117,8 +137,13 @@ serve(async (req: Request) => {
     if (action === "schedule") {
       if (!teamId) throw new Error("teamId is required");
 
-      const res  = await fetch(`${ESPN}/${path}/teams/${teamId}/schedule`);
-      if (!res.ok) throw new Error("ESPN schedule endpoint failed");
+      const res  = await fetch(`${ESPN}/${path}/teams/${teamId}/schedule`, { headers: ESPN_HEADERS });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(
+          `ESPN schedule endpoint failed: sport="${sport}" path="${path}" teamId="${teamId}" status=${res.status} body=${body.slice(0, 300)}`
+        );
+      }
       const data = await res.json();
 
       const marqueeList = MARQUEE[sportKey] ?? [];
