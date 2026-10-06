@@ -50,6 +50,10 @@ export default function BrowsePodsScreen({ dispatch }) {
   const [maxCost,     setMaxCost]     = useState("");
   const [spotsOnly,   setSpotsOnly]   = useState(false);
 
+  // Browse wizard: pick pod type, then sport, before the filterable list shows.
+  const [browseStep,    setBrowseStep]    = useState("type"); // "type" | "sport" | "list"
+  const [podTypeFilter, setPodTypeFilter] = useState(null);   // "standard" | "group_buy"
+
   // Pods the user can actually join — exclude any they already belong to
   // (captain or member). The browse list is for discovering NEW pods; your
   // own pods are managed from the Pod tab.
@@ -58,17 +62,32 @@ export default function BrowsePodsScreen({ dispatch }) {
     [pods, myPods]
   );
 
-  // Unique sports present in the pod list (for pills)
+  const standardCount = useMemo(
+    () => visiblePods.filter(p => p.pod_type !== "group_buy").length,
+    [visiblePods]
+  );
+  const groupBuyCount = useMemo(
+    () => visiblePods.filter(p => p.pod_type === "group_buy").length,
+    [visiblePods]
+  );
+
+  // Pods matching the chosen type (step 1) — feeds the sport step and the list
+  const podsOfType = useMemo(
+    () => visiblePods.filter(p => !podTypeFilter || p.pod_type === podTypeFilter),
+    [visiblePods, podTypeFilter]
+  );
+
+  // Unique sports present within the chosen type (for the sport step + pills)
   const availableSports = useMemo(() => {
     const seen = new Set();
-    visiblePods.forEach(p => { if (p.sport) seen.add(p.sport); });
+    podsOfType.forEach(p => { if (p.sport) seen.add(p.sport); });
     return Array.from(seen).sort();
-  }, [visiblePods]);
+  }, [podsOfType]);
 
   // Client-side filtered list
   const filteredPods = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return visiblePods.filter(pod => {
+    return podsOfType.filter(pod => {
       if (q) {
         const haystack = `${pod.name} ${pod.team_name} ${pod.sport} ${pod.venue || ""}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -86,7 +105,7 @@ export default function BrowsePodsScreen({ dispatch }) {
       }
       return true;
     });
-  }, [visiblePods, search, sportFilter, maxCost, spotsOnly]);
+  }, [podsOfType, search, sportFilter, maxCost, spotsOnly]);
 
   const filtersActive = search || sportFilter || maxCost !== "" || spotsOnly;
 
@@ -96,6 +115,33 @@ export default function BrowsePodsScreen({ dispatch }) {
     setMaxCost("");
     setSpotsOnly(false);
   }
+
+  function chooseType(type) {
+    setPodTypeFilter(type);
+    setBrowseStep("sport");
+  }
+
+  function chooseSport(sport) {
+    setSportFilter(sport); // "" = All sports
+    setBrowseStep("list");
+  }
+
+  function backToType() {
+    setBrowseStep("type");
+    setPodTypeFilter(null);
+    setSportFilter("");
+  }
+
+  function backToSport() {
+    setBrowseStep("sport");
+  }
+
+  function handleHeaderBack() {
+    if (browseStep === "sport") { backToType(); return; }
+    if (browseStep === "list")  { backToSport(); return; }
+    dispatch({ type: "SET_SCREEN", screen: returnScreen });
+  }
+
 
   // Fetch captain rating when detail sheet opens
   useEffect(() => {
@@ -224,7 +270,7 @@ export default function BrowsePodsScreen({ dispatch }) {
       <div style={{ background: `linear-gradient(160deg,${T.dark},${T.forest})`,
         padding: "20px 16px", borderBottom: "1px solid #1A4A2E" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <div onClick={() => dispatch({ type: "SET_SCREEN", screen: returnScreen })}
+          <div onClick={handleHeaderBack}
             style={{ color: T.mist, fontSize: 22, cursor: "pointer", lineHeight: 1,
               padding: "4px 8px 4px 0", minWidth: 44, minHeight: 44,
               display: "flex", alignItems: "center" }}>‹</div>
@@ -233,12 +279,125 @@ export default function BrowsePodsScreen({ dispatch }) {
           </div>
         </div>
         <div style={{ fontSize: 11, color: T.mist, marginLeft: 30 }}>
-          Open pods recruiting members right now
+          {browseStep === "type"
+            ? "Choose a pod type to get started"
+            : browseStep === "sport"
+            ? `${podTypeFilter === "group_buy" ? "🛒 Group Buy" : "🧾 Standard"} pods — pick a sport`
+            : "Open pods recruiting members right now"}
         </div>
       </div>
 
+      {/* ── Type step ──────────────────────────────────────────────────────── */}
+      {loading ? (
+        <div style={{ padding: 14 }}>
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={2} />
+        </div>
+      ) : visiblePods.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🏟️</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", marginBottom: 6 }}>No open pods yet</div>
+          <div style={{ fontSize: 12, color: T.mist, marginBottom: 20, lineHeight: 1.6 }}>
+            Be the first — create a pod and invite your people.
+          </div>
+          <button
+            onClick={() => dispatch({ type: "SET_SCREEN", screen: "create_pod" })}
+            style={{ padding: "12px 24px", background: T.lime, color: T.dark,
+              border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            Create a Pod →
+          </button>
+        </div>
+      ) : browseStep === "type" ? (
+        <div style={{ padding: 20 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.white,
+            fontFamily: "Georgia,serif", marginBottom: 6 }}>
+            What kind of pod are you looking for?
+          </div>
+          <div style={{ fontSize: 12, color: T.mist, marginBottom: 20, lineHeight: 1.6 }}>
+            Pods work differently depending on whether the tickets are already purchased.
+          </div>
+
+          <Card onClick={() => chooseType("standard")}
+            style={{ marginBottom: 14, cursor: "pointer", padding: 20 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🧾</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 4 }}>Standard</div>
+            <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6, marginBottom: 10 }}>
+              The captain already bought the season tickets and is splitting the cost with co-owners.
+            </div>
+            <div style={{ fontSize: 11, color: T.lime, fontWeight: 700 }}>
+              {standardCount} pod{standardCount !== 1 ? "s" : ""} open →
+            </div>
+          </Card>
+
+          <Card onClick={() => chooseType("group_buy")}
+            style={{ cursor: "pointer", padding: 20 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🛒</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 4 }}>Group Buy</div>
+            <div style={{ fontSize: 12, color: T.mist, lineHeight: 1.6, marginBottom: 10 }}>
+              Tickets haven't been purchased yet — the pod pools funds first, then the organizer buys them together.
+            </div>
+            <div style={{ fontSize: 11, color: T.teal, fontWeight: 700 }}>
+              {groupBuyCount} pod{groupBuyCount !== 1 ? "s" : ""} open →
+            </div>
+          </Card>
+        </div>
+      ) : browseStep === "sport" ? (
+        <div style={{ padding: 20 }}>
+          <div style={{ fontSize: 12, color: T.mist, marginBottom: 16 }}>
+            {podsOfType.length} pod{podsOfType.length !== 1 ? "s" : ""} open
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+            <button onClick={() => chooseSport("")}
+              style={{ textAlign: "left", padding: "14px 16px",
+                background: "#0D1F12", border: `1px solid #1A4A2E`,
+                borderRadius: 12, color: T.white, fontSize: 14, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit" }}>
+              All sports
+              <span style={{ float: "right", color: T.mist, fontWeight: 400 }}>{podsOfType.length}</span>
+            </button>
+            {availableSports.map(s => {
+              const count = podsOfType.filter(p => p.sport === s).length;
+              return (
+                <button key={s} onClick={() => chooseSport(s)}
+                  style={{ textAlign: "left", padding: "14px 16px",
+                    background: "#0D1F12", border: `1px solid #1A4A2E`,
+                    borderRadius: 12, color: T.white, fontSize: 14, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit" }}>
+                  {s}
+                  <span style={{ float: "right", color: T.mist, fontWeight: 400 }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button onClick={backToType}
+            style={{ background: "none", border: "none", color: T.teal,
+              fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+            ‹ Change pod type
+          </button>
+        </div>
+      ) : (
+      <>
       {/* ── Filter bar ─────────────────────────────────────────────────────── */}
       <div style={{ padding: "10px 14px 0", borderBottom: `1px solid #1A4A2E` }}>
+        {/* Current type · sport, with a way to change either */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: T.mist }}>
+            {podTypeFilter === "group_buy" ? "🛒 Group Buy" : "🧾 Standard"}
+            {sportFilter ? ` · ${sportFilter}` : " · All sports"}
+          </div>
+          <button onClick={backToType}
+            style={{ background: "none", border: "none", color: T.teal,
+              fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+            Change
+          </button>
+        </div>
         {/* Search input */}
         <div style={{ position: "relative", marginBottom: 10 }}>
           <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
@@ -343,28 +502,7 @@ export default function BrowsePodsScreen({ dispatch }) {
           </div>
         )}
 
-        {loading ? (
-          <>
-            <SkeletonCard lines={3} />
-            <SkeletonCard lines={3} />
-            <SkeletonCard lines={2} />
-          </>
-        ) : visiblePods.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 0" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🏟️</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.white,
-              fontFamily: "Georgia,serif", marginBottom: 6 }}>No open pods yet</div>
-            <div style={{ fontSize: 12, color: T.mist, marginBottom: 20, lineHeight: 1.6 }}>
-              Be the first — create a pod and invite your people.
-            </div>
-            <button
-              onClick={() => dispatch({ type: "SET_SCREEN", screen: "create_pod" })}
-              style={{ padding: "12px 24px", background: T.lime, color: T.dark,
-                border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              Create a Pod →
-            </button>
-          </div>
-        ) : filteredPods.length === 0 ? (
+        {filteredPods.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: T.white,
@@ -410,8 +548,10 @@ export default function BrowsePodsScreen({ dispatch }) {
                     <Badge color={spotsLeft > 0 ? T.lime : T.amber}>
                       {spotsLeft > 0 ? `${spotsLeft} spots` : "Waitlist"}
                     </Badge>
-                    {pod.pod_type === "group_buy" && (
+                    {pod.pod_type === "group_buy" ? (
                       <Badge color={T.teal}>🛒 Group Buy</Badge>
+                    ) : (
+                      <Badge color={T.lime}>🧾 Standard</Badge>
                     )}
                   </div>
                 </div>
@@ -463,6 +603,8 @@ export default function BrowsePodsScreen({ dispatch }) {
           })
         )}
       </div>
+      </>
+      )}
 
       {/* ── Pod detail bottom sheet ─────────────────────────────────────────── */}
       {selectedPod && (() => {
@@ -625,8 +767,8 @@ export default function BrowsePodsScreen({ dispatch }) {
                 </div>
               )}
 
-              {/* Group buy info */}
-              {pod.pod_type === "group_buy" && (
+              {/* Pod type info */}
+              {pod.pod_type === "group_buy" ? (
                 <div style={{ background: `${T.teal}08`,
                   border: "1px solid rgba(52,211,153,0.2)", borderRadius: 12,
                   padding: "14px 16px", marginBottom: 14 }}>
@@ -638,6 +780,18 @@ export default function BrowsePodsScreen({ dispatch }) {
                     the organizer has 48 hours to buy and upload a receipt. If they don't,
                     the pod is cancelled and everyone is automatically refunded.
                     Your escrow is always protected.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: `${T.lime}08`,
+                  border: "1px solid rgba(200,241,53,0.2)", borderRadius: 12,
+                  padding: "14px 16px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.lime, marginBottom: 4 }}>
+                    🧾 Standard Pod
+                  </div>
+                  <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+                    The captain already owns the season tickets and is splitting the cost
+                    with co-owners.
                   </div>
                 </div>
               )}
