@@ -97,7 +97,12 @@ serve(async (req: Request) => {
     // ── Search teams ─────────────────────────────────────────────────────────
     if (action === "search") {
       const res  = await fetch(`${ESPN}/${path}/teams?limit=200`);
-      if (!res.ok) throw new Error("ESPN teams endpoint failed");
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(
+          `ESPN teams endpoint failed: sport="${sport}" path="${path}" status=${res.status} body=${body.slice(0, 300)}`
+        );
+      }
       const data = await res.json();
       const all: AnyObj[] = (data.sports?.[0]?.leagues?.[0]?.teams ?? []).map((t: AnyObj) => t.team);
 
@@ -118,7 +123,12 @@ serve(async (req: Request) => {
       if (!teamId) throw new Error("teamId is required");
 
       const res  = await fetch(`${ESPN}/${path}/teams/${teamId}/schedule`);
-      if (!res.ok) throw new Error("ESPN schedule endpoint failed");
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(
+          `ESPN schedule endpoint failed: sport="${sport}" path="${path}" teamId="${teamId}" status=${res.status} body=${body.slice(0, 300)}`
+        );
+      }
       const data = await res.json();
 
       const marqueeList = MARQUEE[sportKey] ?? [];
