@@ -105,7 +105,12 @@ serve(async (req: Request) => {
 
     // ── Search teams ─────────────────────────────────────────────────────────
     if (action === "search") {
-      const res  = await fetch(`${ESPN}/${path}/teams?limit=200`, { headers: ESPN_HEADERS });
+      // NCAA football/basketball have 200+ teams across FBS/FCS or D1-D3 —
+      // limit=200 was silently truncating ESPN's list before reaching some
+      // teams (e.g. Miami (FL) Hurricanes missing while Miami (OH) RedHawks,
+      // earlier in ESPN's ordering, still showed up). Bumped well past any
+      // division's real roster size.
+      const res  = await fetch(`${ESPN}/${path}/teams?limit=1000`, { headers: ESPN_HEADERS });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         throw new Error(
@@ -114,6 +119,7 @@ serve(async (req: Request) => {
       }
       const data = await res.json();
       const all: AnyObj[] = (data.sports?.[0]?.leagues?.[0]?.teams ?? []).map((t: AnyObj) => t.team);
+      console.log(`fetch-schedule search: sport="${sport}" path="${path}" query="${query}" totalTeams=${all.length}`);
 
       if (!String(query ?? "").trim()) return json(all.slice(0, 8));
 
