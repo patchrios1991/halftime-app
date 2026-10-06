@@ -221,6 +221,7 @@ export default function PodScreen({ state, dispatch }) {
       verified:     m.profiles?.verified || false,
       escrowFunded: m.escrow_funded || exempt,
       exemptFromFunding: exempt,
+      isCaptainRow: m.user_id === fullPod?.captain_id,
       isMe:         m.user_id === currentUserId,
     };
   });
@@ -729,7 +730,14 @@ export default function PodScreen({ state, dispatch }) {
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700,
                           color: (m.isMe || m.id === "m1") ? T.lime : T.white,
-                          fontFamily: "Georgia,serif" }}>{m.name}</div>
+                          fontFamily: "Georgia,serif", display: "flex", alignItems: "center", gap: 6 }}>
+                          {m.name}
+                          {m.isCaptainRow && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: T.dark,
+                              background: T.amber, borderRadius: 20, padding: "2px 7px",
+                              letterSpacing: 0.3 }}>👑 CAPTAIN</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: 10, color: T.mist }}>
                           {m.share}% ownership · {m.credits} bid credits
                         </div>
@@ -1597,7 +1605,9 @@ export default function PodScreen({ state, dispatch }) {
                   alignItems: "center", padding: "9px 0", borderBottom: "1px solid #1A4A2E" }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <Avatar initials={m.initials} size={28} color={m.color} />
-                    <span style={{ fontSize: 12, color: T.white }}>{m.name}</span>
+                    <span style={{ fontSize: 12, color: T.white }}>
+                      {m.name}{m.isCaptainRow ? " 👑" : ""}
+                    </span>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.lime,
