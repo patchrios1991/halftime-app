@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-10-07
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, again as of 2026-09-30 for Round 5, again as of 2026-10-02 for Round 7's escrow-payment fix via a targeted cherry-pick, and fully merged as of 2026-10-06 — everything through the 1.0.6 punch list, including Round 6, is now on `master` too)
-**Status: Version 1.0.5 AND Version 1.0.6 are both APPROVED and LIVE.** 1.0.6 (approved 2026-10-07) contains push notifications (Round 6), the Browse Pods Standard/Group Buy wizard, the pod member cap race-condition fix, standard-pod captain funding exemption, and the ESPN schedule-import fixes (full detail in the 1.0.6 punch list and Round 6 sections below). **No open bugs. Nothing currently in flight.** See the 1.0.7 backlog below for what's queued next, whenever that round starts.
+**Status: Version 1.0.5 AND Version 1.0.6 are both APPROVED and LIVE.** 1.0.6 (approved 2026-10-07) contains push notifications (Round 6), the Browse Pods Standard/Group Buy wizard, the pod member cap race-condition fix, standard-pod captain funding exemption, and the ESPN schedule-import fixes (full detail in the 1.0.6 punch list and Round 6 sections below). **No open bugs. Nothing currently in flight.**
+
+**⏸ PAUSED HERE 2026-10-07 — user has no time today, explicitly wants to pick this back up later.** Nothing started on 1.0.7 yet — all 7 items below are still just scoped notes, no code written. When resuming: just start from item 1 in order (same pattern as 1.0.6), or ask the user which item(s) they want first if priorities have shifted since this was written.
 
 ## 1.0.7 backlog — noted 2026-10-06/07, not started
 
