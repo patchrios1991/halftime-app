@@ -1,8 +1,8 @@
 # App Store Submission Status
 
-**Last updated:** 2026-10-06
+**Last updated:** 2026-10-07
 **Branch:** `claude/elegant-hamilton-2x8akp` (merged into `master` as of 2026-09-29, again as of 2026-09-30 for Round 5, again as of 2026-10-02 for Round 7's escrow-payment fix via a targeted cherry-pick, and fully merged as of 2026-10-06 — everything through the 1.0.6 punch list, including Round 6, is now on `master` too)
-**Status: Version 1.0.5 (the escrow-payment fix) is APPROVED and LIVE.** **Version 1.0.6 was submitted to Apple on 2026-10-06 and is currently in review** — contains push notifications (Round 6), the Browse Pods Standard/Group Buy wizard, the pod member cap race-condition fix, standard-pod captain funding exemption, and the ESPN schedule-import fixes (full detail in the 1.0.6 punch list and Round 6 sections below).
+**Status: Version 1.0.5 AND Version 1.0.6 are both APPROVED and LIVE.** 1.0.6 (approved 2026-10-07) contains push notifications (Round 6), the Browse Pods Standard/Group Buy wizard, the pod member cap race-condition fix, standard-pod captain funding exemption, and the ESPN schedule-import fixes (full detail in the 1.0.6 punch list and Round 6 sections below). **No open bugs. Nothing currently in flight.** See the 1.0.7 backlog below for what's queued next, whenever that round starts.
 
 ## 1.0.7 backlog — noted 2026-10-06/07, not started
 
@@ -30,14 +30,14 @@ User's explicit direction: don't ship fixes piecemeal anymore — gather everyth
    - **Bug 2 (`c854341`):** once bug 1 was fixed, Miami (FL) Hurricanes still didn't show up searching "Miami" under NCAA Football, while Miami (OH) RedHawks did — both real FBS teams. The team-list fetch was hardcoded to `limit=200`, silently truncating ESPN's response before reaching some teams depending on ESPN's internal ordering; NCAA football/basketball have 200+ teams across divisions. Bumped to `limit=1000`.
    - Neither could be verified against live ESPN data from this sandbox (its network policy blocks outbound access to espn.com) — both were diagnosed from the real error/log text Jorge pulled from Supabase and fixed from that alone, then confirmed working by Jorge on-device.
 
-### Build 1.0.6 (1) — submitted 2026-10-06, in Apple review
+### Build 1.0.6 (1) — submitted 2026-10-06, APPROVED and LIVE 2026-10-07
 
-`claude/elegant-hamilton-2x8akp` → `master` merged 2026-10-06 (real merge commit `41761a9`, not a fast-forward — `master` had its own identity-verification cherry-pick commits that overlapped in content with the feature branch's originals; merged cleanly, verified with a clean `npm run build` before pushing). On Jorge's Mac: `git pull` → `npm install` → `npm run build:mobile` (clean) → Xcode: bumped Version `1.0.5` → `1.0.6`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.6` in App Store Connect, attached the build, **Add for Review**. Now waiting on Apple, same as 1.0.5.
+`claude/elegant-hamilton-2x8akp` → `master` merged 2026-10-06 (real merge commit `41761a9`, not a fast-forward — `master` had its own identity-verification cherry-pick commits that overlapped in content with the feature branch's originals; merged cleanly, verified with a clean `npm run build` before pushing). On Jorge's Mac: `git pull` → `npm install` → `npm run build:mobile` (clean) → Xcode: bumped Version `1.0.5` → `1.0.6`, Build → `1` → **Product → Archive** → **Distribute App → App Store Connect → Upload** → created version `1.0.6` in App Store Connect, attached the build, **Add for Review**. **Approved and live 2026-10-07.**
 
 ### Next steps for whoever picks this up
-1. **Waiting on Apple's review of both 1.0.5 and 1.0.6.** Once 1.0.6 is approved/live, do a quick on-device sanity check of the big items (push notifications, Browse Pods wizard, pod joining) on the actual shipped build, though everything was already confirmed pre-submission.
+1. **Both 1.0.5 and 1.0.6 are approved and live — no pending Apple review.** Everything shipped in 1.0.6 was already confirmed on-device pre-submission (push notifications, Browse Pods wizard, pod joining, standard-pod funding exemption, schedule import).
 2. **Android push notifications were deliberately deferred** (see Round 6 → Scope decision) — the app isn't on the Play Store yet, so there was no reason to double the external setup work. The code is already cross-platform-ready for whenever that becomes relevant.
-3. No other open items from this session — the Miami Hurricanes schedule-import report and the "3rd member in a 2-person pod" report are both resolved and confirmed.
+3. **Next up is 1.0.7** — see the "1.0.7 backlog" section near the top of this file for the four scoped items waiting whenever that round starts. No other open bugs from this session.
 
 ## Round 7 — Stripe escrow payments were completely broken in every shipped version, now fixed and confirmed on-device (2026-10-02)
 
