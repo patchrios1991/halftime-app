@@ -217,9 +217,15 @@ export default function HomeHub({ dispatch, profile }) {
           {/* This week across pods */}
           {weekGames.length > 0 && (
             <>
-              <div style={{ fontSize: 10, letterSpacing: 2, color: T.mist,
-                margin: "22px 0 10px" }}>
-                THIS WEEK — ALL PODS
+              <div style={{ display: "flex", justifyContent: "space-between",
+                alignItems: "baseline", margin: "22px 0 10px" }}>
+                <div style={{ fontSize: 10, letterSpacing: 2, color: T.mist }}>
+                  THIS WEEK — ALL PODS
+                </div>
+                <div onClick={() => dispatch({ type: "SET_SCREEN", screen: "my_games" })}
+                  style={{ fontSize: 11, fontWeight: 700, color: T.teal, cursor: "pointer" }}>
+                  See all →
+                </div>
               </div>
               <Card style={{ padding: "4px 16px" }}>
                 {weekGames.map((g, i) => {
