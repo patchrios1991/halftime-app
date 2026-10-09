@@ -23,6 +23,7 @@ import ProfileScreen     from "./pages/app/ProfileScreen";
 import CreatePodScreen    from "./pages/app/CreatePodScreen";
 import BrowsePodsScreen  from "./pages/app/BrowsePodsScreen";
 import PlayoffBidScreen  from "./pages/app/PlayoffBidScreen";
+import MyGamesScreen     from "./pages/app/MyGamesScreen";
 
 // Components
 import Wordmark from "./components/Wordmark";
@@ -199,6 +200,8 @@ function notifIcon(type) {
     case "welcome":         return "🎉";
     case "escrow_funded":   return "✅";
     case "escrow_failed":   return "❌";
+    case "receipt_verified": return "✅";
+    case "receipt_rejected": return "❌";
     case "pod_active":      return "🎉";
     case "game_allocated":  return "🎟️";
     case "game_released":   return "📤";
@@ -245,7 +248,7 @@ function LoadingScreen() {
 
 // ─── Inner app shell (needs context) ─────────────────────────────────────────
 function AppShell({ state, dispatch, profile, signOut }) {
-  const noNav = ["onboarding", "create_pod", "browse_pods", "bids"];
+  const noNav = ["onboarding", "create_pod", "browse_pods", "bids", "my_games"];
   const clearToast = useCallback(() => dispatch({ type: "CLEAR_TOAST" }), [dispatch]);
   const isVerified     = profile?.verified ?? true;
   const avatarInitials = profile?.avatar_initials || "YO";
@@ -495,6 +498,7 @@ function AppShell({ state, dispatch, profile, signOut }) {
         {state.screen === "resale"       && <ResaleScreen state={state} dispatch={dispatch} />}
         {state.screen === "profile"      && <ProfileScreen state={state} dispatch={dispatch} profile={profile} signOut={signOut} />}
         {state.screen === "bids"         && <PlayoffBidScreen dispatch={dispatch} profile={profile} />}
+        {state.screen === "my_games"     && <MyGamesScreen dispatch={dispatch} />}
       </div>
 
       {/* Bottom nav */}

@@ -167,17 +167,21 @@ serve(async (req: Request) => {
           .eq("id", pod_id)
           .single();
 
-        const { data: members } = await supabase
+        const { data: allPodMembers } = await supabase
           .from("pod_members")
-          .select("escrow_funded, user_id")
+          .select("escrow_funded, user_id, is_waitlisted")
           .eq("pod_id", pod_id);
 
-        const allFunded = members?.every((m: { escrow_funded: boolean }) => m.escrow_funded) ?? false;
+        // Waitlisted rows aren't real seats yet (share_pct/cost are 0 until
+        // promoted) — they'd never fund and would permanently block the
+        // "everyone's funded" check otherwise.
+        const members   = (allPodMembers ?? []).filter((m: { is_waitlisted?: boolean }) => !m.is_waitlisted);
+        const allFunded = members.length > 0 && members.every((m: { escrow_funded: boolean }) => m.escrow_funded);
         if (allFunded) {
 
           // ── Group Buy pod: organizer still needs to purchase tickets ────────
           if (podInfo?.pod_type === "group_buy") {
-            const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+            const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
             await supabase.from("pods")
               .update({ status: "purchasing", purchase_deadline: deadline })
               .eq("id", pod_id);
@@ -188,7 +192,7 @@ serve(async (req: Request) => {
                 user_id: podInfo.captain_id,
                 type:    "pod_purchasing",
                 title:   "🛒 All funded — buy the tickets now!",
-                body:    `${podInfo.name} is fully funded. You have 48 hours to purchase the ${podInfo.team_name} season tickets and upload your receipt. If the deadline passes without a receipt, the pod will be auto-cancelled and all members refunded.`,
+                body:    `${podInfo.name} is fully funded. You have 24 hours to purchase the ${podInfo.team_name} season tickets and upload your receipt. If the deadline passes without a receipt, the pod will be auto-cancelled and all members refunded.`,
                 pod_id,
               });
             }
@@ -200,7 +204,7 @@ serve(async (req: Request) => {
                 user_id: m.user_id,
                 type:    "pod_purchasing",
                 title:   "🎉 Pod fully funded!",
-                body:    `${podInfo.name} is fully funded. The organizer has 48 hours to purchase the tickets. You'll be notified once the tickets are confirmed.`,
+                body:    `${podInfo.name} is fully funded. The organizer has 24 hours to purchase the tickets. You'll be notified once the tickets are confirmed.`,
                 pod_id,
               }));
             if (memberNotifs.length) await supabase.from("notifications").insert(memberNotifs);

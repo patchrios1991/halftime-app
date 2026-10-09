@@ -8,7 +8,6 @@ import { SkeletonCard } from "../../components/Skeleton";
 import { useRecruitingPods } from "../../hooks/usePod";
 import { joinPod, verifyTickets } from "../../api/pods";
 import { getCaptainRating } from "../../api/ratings";
-import { joinWaitlist } from "../../api/waitlist";
 import { friendlyError } from "../../lib/friendlyError";
 import { notify } from "../../lib/notify";
 import { useActivePod } from "../../context/ActivePodContext";
@@ -38,11 +37,8 @@ export default function BrowsePodsScreen({ dispatch }) {
   const [recheckBusy,      setRecheckBusy]      = useState(false);  // URL re-check in flight
   const [captainRating,    setCaptainRating]    = useState(null);  // { avg_score, rating_count }
 
-  // Waitlist state
-  const [waitlistEmail,  setWaitlistEmail]  = useState("");
-  const [waitlistBusy,   setWaitlistBusy]   = useState(false);
+  // Waitlist state — joinPod() itself handles waitlisting when a pod is full
   const [waitlistDone,   setWaitlistDone]   = useState(false);
-  const [waitlistErr,    setWaitlistErr]    = useState(null);
 
   // Filter state
   const [search,      setSearch]      = useState("");
@@ -94,13 +90,13 @@ export default function BrowsePodsScreen({ dispatch }) {
       }
       if (sportFilter && pod.sport !== sportFilter) return false;
       if (maxCost !== "") {
-        const memberCount = pod.pod_members?.[0]?.count ?? 0;
+        const memberCount = (pod.pod_members || []).filter(m => !m.is_waitlisted).length;
         const share = Math.round(100 / pod.max_members);
         const cost = (parseFloat(pod.season_cost) * share) / 100;
         if (cost > maxCost) return false;
       }
       if (spotsOnly) {
-        const memberCount = pod.pod_members?.[0]?.count ?? 0;
+        const memberCount = (pod.pod_members || []).filter(m => !m.is_waitlisted).length;
         if (memberCount >= (pod.max_members || 6)) return false;
       }
       return true;
@@ -189,7 +185,24 @@ export default function BrowsePodsScreen({ dispatch }) {
     setError(null);
     setJoining(pod.id);
     try {
-      await joinPod(pod.id);
+      const result = await joinPod(pod.id);
+
+      if (result?.waitlisted) {
+        setWaitlistDone(true);
+        await refresh();
+        await refreshMyPods();
+        if (pod.captain_id) {
+          notify({
+            userId: pod.captain_id,
+            type:   "member_joined",
+            title:  "📋 New waitlist signup",
+            body:   `Someone joined the waitlist for ${pod.name} from Browse Pods. They'll automatically join if a spot opens up.`,
+            url:    "/app",
+          });
+        }
+        return;
+      }
+
       setJoined(pod.id);
       await refresh();
       if (pod.captain_id) {
@@ -229,13 +242,10 @@ export default function BrowsePodsScreen({ dispatch }) {
     finally { setRecheckBusy(false); }
   }
 
-  // Pre-fill waitlist email from auth when sheet opens
+  // Reset waitlist success state when the sheet closes/opens a different pod
   useEffect(() => {
-    if (!selectedPod) { setWaitlistEmail(""); setWaitlistDone(false); setWaitlistErr(null); return; }
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email) setWaitlistEmail(session.user.email);
-    });
-  }, [selectedPod?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    setWaitlistDone(false);
+  }, [selectedPod?.id]);
 
   function handleCreateLikeThis(pod) {
     localStorage.setItem("ht_pod_template", JSON.stringify({
@@ -249,19 +259,6 @@ export default function BrowsePodsScreen({ dispatch }) {
     }));
     setSelectedPod(null);
     dispatch({ type: "SET_SCREEN", screen: "create_pod" });
-  }
-
-  async function handleJoinWaitlist() {
-    setWaitlistErr(null);
-    setWaitlistBusy(true);
-    try {
-      await joinWaitlist(selectedPod.id, waitlistEmail);
-      setWaitlistDone(true);
-    } catch (e) {
-      setWaitlistErr(e.message);
-    } finally {
-      setWaitlistBusy(false);
-    }
   }
 
   return (
@@ -518,7 +515,7 @@ export default function BrowsePodsScreen({ dispatch }) {
           </div>
         ) : (
           filteredPods.map(pod => {
-            const memberCount = pod.pod_members?.[0]?.count ?? 0;
+            const memberCount = (pod.pod_members || []).filter(m => !m.is_waitlisted).length;
             const spotsLeft   = (pod.max_members || 6) - memberCount;
             const isJoined    = joined === pod.id;
 
@@ -609,7 +606,7 @@ export default function BrowsePodsScreen({ dispatch }) {
       {/* ── Pod detail bottom sheet ─────────────────────────────────────────── */}
       {selectedPod && (() => {
         const pod         = selectedPod;
-        const memberCount = pod.pod_members?.[0]?.count ?? 0;
+        const memberCount = (pod.pod_members || []).filter(m => !m.is_waitlisted).length;
         const spotsLeft   = (pod.max_members || 6) - memberCount;
         const isFull      = spotsLeft <= 0;
         const estimatedShare = Math.round(100 / pod.max_members);
@@ -777,7 +774,7 @@ export default function BrowsePodsScreen({ dispatch }) {
                   </div>
                   <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
                     The organizer hasn't purchased the tickets yet. Once all members fund,
-                    the organizer has 48 hours to buy and upload a receipt. If they don't,
+                    the organizer has 24 hours to buy and upload a receipt. If they don't,
                     the pod is cancelled and everyone is automatically refunded.
                     Your escrow is always protected.
                   </div>
@@ -1017,52 +1014,45 @@ export default function BrowsePodsScreen({ dispatch }) {
                   ✅ Joined! Taking you to your pod…
                 </div>
               ) : isFull ? (
-                /* ── Waitlist form ── */
+                /* ── Real, authenticated waitlist — joinPod() itself falls back to
+                   this when the pod is at capacity (src/api/pods.js). You're
+                   automatically promoted with a fresh 24h funding window if an
+                   active member's spot frees up. ── */
                 <div style={{ background: "#0D1F12", border: "1px solid #1A4A2E",
                   borderRadius: 12, padding: "16px" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
-                    fontFamily: "Georgia,serif", marginBottom: 4 }}>
-                    🔔 This pod is full
-                  </div>
-                  <div style={{ fontSize: 11, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
-                    Join the waitlist and we'll notify the captain. If a spot opens, they can reach out to you first.
-                  </div>
-
                   {waitlistDone ? (
                     <div style={{ background: `${T.lime}14`, border: `1px solid ${T.lime}33`,
                       borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: T.lime }}>✓ You're on the waitlist</div>
                       <div style={{ fontSize: 11, color: T.mist, marginTop: 4 }}>
-                        The captain has been notified. We'll keep your spot in line.
+                        You'll automatically become a member if a spot opens up — no need to check back.
                       </div>
                     </div>
                   ) : (
                     <>
-                      <input
-                        type="email"
-                        value={waitlistEmail}
-                        onChange={e => setWaitlistEmail(e.target.value)}
-                        placeholder="your@email.com"
-                        style={{ width: "100%", boxSizing: "border-box",
-                          padding: "11px 14px", marginBottom: 8,
-                          background: "#060F08", border: `1px solid #1A4A2E`,
-                          borderRadius: 10, color: T.white, fontSize: 13,
-                          outline: "none", fontFamily: "inherit" }}
-                      />
-                      {waitlistErr && (
-                        <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{waitlistErr}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.white,
+                        fontFamily: "Georgia,serif", marginBottom: 4 }}>
+                        🔔 This pod is full
+                      </div>
+                      <div style={{ fontSize: 11, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
+                        Join the waitlist — if an active member doesn't fund their share within
+                        24 hours, the longest-waiting person on the waitlist automatically takes
+                        their spot.
+                      </div>
+                      {error && (
+                        <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{error}</div>
                       )}
                       <button
-                        onClick={handleJoinWaitlist}
-                        disabled={waitlistBusy || !waitlistEmail.trim()}
+                        onClick={() => handleJoin(pod)}
+                        disabled={isJoining}
                         style={{ width: "100%", padding: "13px 0",
-                          background: waitlistBusy || !waitlistEmail.trim() ? "transparent" : T.teal,
-                          color: waitlistBusy || !waitlistEmail.trim() ? T.mist : T.dark,
-                          border: waitlistBusy || !waitlistEmail.trim() ? `1px solid #1A4A2E` : "none",
+                          background: isJoining ? "transparent" : T.teal,
+                          color: isJoining ? T.mist : T.dark,
+                          border: isJoining ? `1px solid #1A4A2E` : "none",
                           borderRadius: 10, fontSize: 14, fontWeight: 700,
                           fontFamily: "Georgia,serif",
-                          cursor: waitlistBusy || !waitlistEmail.trim() ? "not-allowed" : "pointer" }}>
-                        {waitlistBusy ? "Joining waitlist…" : "Join Waitlist →"}
+                          cursor: isJoining ? "not-allowed" : "pointer" }}>
+                        {isJoining ? "Joining waitlist…" : "Join Waitlist →"}
                       </button>
                     </>
                   )}

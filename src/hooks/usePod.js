@@ -77,7 +77,12 @@ export function usePod(podId) {
 
   return {
     pod,
-    members: pod?.pod_members ?? [],
+    // Waitlisted rows (migration 048) aren't real seats yet — share_pct/cost
+    // are 0 placeholders until promote_next_waitlisted fills them in, so
+    // callers that mean "actual occupants" (allocation, schedule, escrow
+    // displays) get that by default. Read pod.pod_members directly if a
+    // waitlisted row is specifically needed.
+    members: (pod?.pod_members ?? []).filter(m => !m.is_waitlisted),
     games:   pod?.games ?? [],
     escrowBalance,
     loading,

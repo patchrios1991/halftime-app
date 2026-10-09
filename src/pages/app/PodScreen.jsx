@@ -197,7 +197,7 @@ export default function PodScreen({ state, dispatch }) {
   // their own share into escrow (see 1.0.6 punch list item 4). Computed
   // live from pod_type + receipt_verified rather than a stored flag, so it
   // never goes stale and never conflicts with a real Stripe payment.
-  const captainMemberRow = (fullPod?.pod_members ?? []).find(m => m.user_id === fullPod?.captain_id);
+  const captainMemberRow = (fullPod?.pod_members ?? []).find(m => !m.is_waitlisted && m.user_id === fullPod?.captain_id);
   const captainCost    = parseFloat(captainMemberRow?.cost) || 0;
   const captainExempt  = fullPod?.pod_type === "standard" && fullPod?.receipt_verified === true;
   const myIsCaptain    = Boolean(currentUserId) && fullPod?.captain_id === currentUserId;
@@ -208,8 +208,10 @@ export default function PodScreen({ state, dispatch }) {
   const myAmount       = parseFloat(myMemberRow?.cost) || 0;
   const mySharePct     = parseFloat(myMemberRow?.share_pct) || 25;
 
-  // Map real DB members to display format
-  const realMembers = (fullPod?.pod_members ?? []).map((m, idx) => {
+  // Map real DB members to display format — waitlisted rows aren't real
+  // seats yet (share_pct/cost are 0 placeholders until promote_next_waitlisted
+  // computes the real numbers), so they're excluded here and shown separately.
+  const realMembers = (fullPod?.pod_members ?? []).filter(m => !m.is_waitlisted).map((m, idx) => {
     const exempt = captainExempt && m.user_id === fullPod?.captain_id;
     return {
       id:           m.user_id,
@@ -228,6 +230,18 @@ export default function PodScreen({ state, dispatch }) {
 
   // Fall back to mock members when no real data yet
   const members = realMembers.length > 0 ? realMembers : state.members;
+
+  // Real, authenticated waitlist (migration 048) — ordered longest-waiting
+  // first, same order promote_next_waitlisted promotes in.
+  const waitlistedMembers = (fullPod?.pod_members ?? [])
+    .filter(m => m.is_waitlisted)
+    .map(m => ({
+      id:       m.user_id,
+      name:     m.user_id === currentUserId ? "You" : (m.profiles?.display_name || "Member"),
+      joinedAt: m.joined_at,
+      isMe:     m.user_id === currentUserId,
+    }))
+    .sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt));
 
   // Pod display info
   const podName    = fullPod?.name    ?? myPodRow?.name    ?? "My Pod";
@@ -571,6 +585,20 @@ export default function PodScreen({ state, dispatch }) {
         </div>
       </div>
 
+      {/* Waitlisted banner — this user hasn't been promoted to a real spot yet */}
+      {myMemberRow?.is_waitlisted && (
+        <div style={{ margin: "14px 14px 0", background: `${T.amber}10`,
+          border: `1px solid ${T.amber}33`, borderRadius: 12, padding: "14px 16px" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.amber, marginBottom: 4 }}>
+            📋 You're #{waitlistedMembers.findIndex(w => w.isMe) + 1} on the waitlist
+          </div>
+          <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
+            You'll automatically become a member with your own 24-hour funding window if an
+            active member doesn't fund their share in time — no need to check back.
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: "flex", background: T.dark, borderBottom: "1px solid #1A4A2E" }}>
         {[
@@ -623,7 +651,7 @@ export default function PodScreen({ state, dispatch }) {
                   )}
                   {isPast && (
                     <div style={{ fontSize: 12, color: T.mist, marginBottom: 12, lineHeight: 1.6 }}>
-                      The 48-hour purchase window has passed without a receipt.
+                      The 24-hour purchase window has passed without a receipt.
                       Cancel the pod to automatically refund all members.
                     </div>
                   )}
@@ -788,12 +816,38 @@ export default function PodScreen({ state, dispatch }) {
               </div>
             )}
 
-            {/* Waitlist — captain only, when pod is full */}
-            {isCaptain && members.length >= maxMembers && waitlist.length > 0 && (
+            {/* Waitlist — captain only, when pod is full. Real authenticated
+                waitlisted members (migration 048) auto-promote; the legacy
+                anonymous email list below is historical and no longer grows
+                (joining a full pod now always uses the real waitlist). */}
+            {isCaptain && waitlistedMembers.length > 0 && (
               <div style={{ paddingTop: 16, borderTop: "1px solid #1A4A2E", marginTop: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: T.mist,
                   letterSpacing: 1, marginBottom: 10 }}>
-                  WAITLIST ({waitlist.length})
+                  WAITLIST ({waitlistedMembers.length})
+                </div>
+                {waitlistedMembers.map((entry, i) => (
+                  <div key={entry.id}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "8px 0",
+                      borderBottom: i < waitlistedMembers.length - 1 ? "1px solid #1A4A2E" : "none" }}>
+                    <div style={{ fontSize: 12, color: T.white }}>#{i + 1} {entry.name}</div>
+                    <div style={{ fontSize: 10, color: T.mist }}>
+                      {new Date(entry.joinedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontSize: 10, color: T.mist, marginTop: 8, lineHeight: 1.6 }}>
+                  They'll automatically become members, in order, if a spot opens up — no action needed.
+                </div>
+              </div>
+            )}
+
+            {isCaptain && waitlist.length > 0 && (
+              <div style={{ paddingTop: 16, borderTop: "1px solid #1A4A2E", marginTop: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.mist,
+                  letterSpacing: 1, marginBottom: 10 }}>
+                  OLD WAITLIST SIGN-UPS ({waitlist.length})
                 </div>
                 {waitlist.map((entry, i) => (
                   <div key={entry.id}
@@ -807,7 +861,7 @@ export default function PodScreen({ state, dispatch }) {
                   </div>
                 ))}
                 <div style={{ fontSize: 10, color: T.mist, marginTop: 8, lineHeight: 1.6 }}>
-                  If a spot opens, reach out to these members directly — they signed up in order.
+                  These signed up before the automatic waitlist existed — reach out directly if a spot opens.
                 </div>
               </div>
             )}
@@ -1679,7 +1733,7 @@ export default function PodScreen({ state, dispatch }) {
                     {
                       label: "Pod fill rate",
                       value: `${members.length}/${maxMembers}`,
-                      sub:   fillPct >= 100 ? (waitlist.length > 0 ? `${waitlist.length} on waitlist` : "Full") : `${maxMembers - members.length} spots open`,
+                      sub:   fillPct >= 100 ? (waitlistedMembers.length > 0 ? `${waitlistedMembers.length} on waitlist` : "Full") : `${maxMembers - members.length} spots open`,
                       pct:   fillPct,
                       color: fillPct >= 100 ? T.lime : fillPct >= 50 ? T.amber : T.mist,
                     },

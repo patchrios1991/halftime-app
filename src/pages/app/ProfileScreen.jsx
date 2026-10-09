@@ -53,6 +53,41 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
     bidWinner: false, podFounder: false, resalePro: false, loyalFan: false,
   });
 
+  // ── Referrals ────────────────────────────────────────────────────────────────
+  const [referralStats, setReferralStats] = useState({ referred: 0, rewarded: 0 });
+  const [linkCopied,    setLinkCopied]    = useState(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !profile?.id) return;
+    supabase
+      .from("profiles")
+      .select("id, referral_rewarded")
+      .eq("referred_by", profile.id)
+      .then(({ data }) => {
+        if (!data) return;
+        setReferralStats({
+          referred: data.length,
+          rewarded: data.filter(p => p.referral_rewarded).length,
+        });
+      });
+  }, [profile?.id]);
+
+  async function handleCopyReferralLink() {
+    const url = `${window.location.origin}/r/${profile?.referral_code}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2500);
+  }
+
   // ── Account modals ───────────────────────────────────────────────────────────
   const [showPaymentMethods, setShowPaymentMethods] = useState(false);
   const [showPodAgreements,  setShowPodAgreements]  = useState(false);
@@ -529,6 +564,62 @@ export default function ProfileScreen({ profile, dispatch, signOut }) {
             })}
           </div>
         </Card>
+
+        {/* ── Referrals ──────────────────────────────────────────────────── */}
+        {profile?.referral_code && (
+          <Card style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.white,
+              fontFamily: "Georgia,serif", marginBottom: 4 }}>🎁 Invite friends</div>
+            <div style={{ fontSize: 10, color: T.mist, marginBottom: 12, lineHeight: 1.5 }}>
+              Share your link — when someone you invite joins their first pod, you earn 50 bonus bid credits.
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 14 }}>
+              {[
+                { l: "Invited",  v: referralStats.referred },
+                { l: "Rewarded", v: referralStats.rewarded },
+              ].map(({ l, v }) => (
+                <div key={l} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: T.lime,
+                    fontFamily: "Georgia,serif" }}>{v}</div>
+                  <div style={{ fontSize: 9, color: T.mist }}>{l}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
+              background: "#ffffff06", border: "1px solid #1A4A2E", borderRadius: 8,
+              padding: "9px 12px" }}>
+              <span style={{ fontSize: 11, color: T.mist }}>Your code:</span>
+              <span style={{ fontFamily: "Georgia,serif", fontWeight: 900,
+                color: T.lime, fontSize: 14, letterSpacing: "0.08em" }}>{profile.referral_code}</span>
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={handleCopyReferralLink}
+                style={{ flex: 1, padding: "10px", background: linkCopied ? T.teal : T.lime,
+                  border: "none", borderRadius: 8, color: T.dark,
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  transition: "background 0.2s" }}>
+                {linkCopied ? "✓ Copied!" : "📋 Copy Link"}
+              </button>
+              {navigator.share && (
+                <button
+                  onClick={() => navigator.share({
+                    title: "Join me on HalfTime",
+                    text:  "Split the cost of season tickets with your crew — join me on HalfTime:",
+                    url:   `${window.location.origin}/r/${profile.referral_code}`,
+                  })}
+                  style={{ flex: 1, padding: "10px", background: "transparent",
+                    border: `1px solid ${T.lime}55`, borderRadius: 8,
+                    color: T.lime, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  ↗ Share
+                </button>
+              )}
+            </div>
+          </Card>
+        )}
 
         {/* ── Payment Methods modal ──────────────────────────────────────── */}
         {showPaymentMethods && createPortal(

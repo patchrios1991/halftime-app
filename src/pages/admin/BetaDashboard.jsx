@@ -6,6 +6,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../../tokens";
 import { supabase } from "../../lib/supabase";
 import { normalizeGames } from "../../lib/embed";
+import { notify } from "../../lib/notify";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function weekLabel(dateStr) {
@@ -300,12 +301,13 @@ export default function BetaDashboard() {
           .from("pods")
           .select(`
             id, name, team_name, sport, sport_emoji, season_cost, max_members,
-            status, captain_id, allocation_done, created_at, nps,
+            status, captain_id, allocation_done, created_at, nps, pod_type,
             receipt_url, receipt_verified, receipt_rejected, receipt_note,
+            receipt_ai_status, receipt_ai_note,
             pod_members(
               id, user_id, escrow_funded, escrow_funded_at, share_pct, cost, bid_credits,
               tier, churn_risk, referral_count, games_allocated, games_attended, joined_at,
-              profiles(display_name, verified)
+              is_waitlisted, profiles(display_name, verified)
             )
           `)
           .order("created_at", { ascending: false }),
@@ -336,7 +338,11 @@ export default function BetaDashboard() {
 
       // ── Transform pods ──────────────────────────────────────────────────────
       const transformedPods = realRawPods.map(p => {
-        const mems     = p.pod_members || [];
+        // Waitlisted rows aren't real seats (share_pct/cost are 0 placeholders
+        // until promoted) — exclude them so member/escrow metrics reflect
+        // actual pod occupancy, not people waiting for a spot.
+        const mems     = (p.pod_members || []).filter(m => !m.is_waitlisted);
+        const waitlistCount = (p.pod_members || []).filter(m => m.is_waitlisted).length;
         const podGames = rawGames.filter(g => g.pod_id === p.id);
         const isPast = (g) => {
           if (!g.game_date) return false;
@@ -357,6 +363,7 @@ export default function BetaDashboard() {
           team:         p.team_name,
           sportEmoji:   p.sport_emoji || "🏟️",
           members:      mems.length,
+          waitlistCount,
           maxMembers:   p.max_members,
           escrowFunded: mems.filter(m => m.escrow_funded).length,
           escrowPending: mems.filter(m => !m.escrow_funded).length,
@@ -370,11 +377,14 @@ export default function BetaDashboard() {
           status:           p.status,
           created:          p.created_at,
           captainId:        p.captain_id,
+          podType:          p.pod_type,
           allocationDone:   p.allocation_done,
           receiptUrl:       p.receipt_url ?? null,
           receiptVerified:  p.receipt_verified ?? false,
           receiptRejected:  p.receipt_rejected ?? false,
           receiptNote:      p.receipt_note ?? null,
+          receiptAiStatus:  p.receipt_ai_status ?? "unchecked",
+          receiptAiNote:    p.receipt_ai_note ?? null,
         };
       });
 
@@ -394,6 +404,7 @@ export default function BetaDashboard() {
           tier:         m.tier,
           churnRisk:    m.churn_risk || "unknown",
           joinedAt:     m.joined_at,
+          isWaitlisted: m.is_waitlisted ?? false,
         }))
       );
 
@@ -410,7 +421,9 @@ export default function BetaDashboard() {
         ensureWeek(p.created_at).newPods++;
       });
       realRawPods.forEach(p => {
-        (p.pod_members || []).forEach(m => {
+        // Waitlisted rows aren't real members yet — don't count them toward
+        // growth until they're actually promoted into a seat.
+        (p.pod_members || []).filter(m => !m.is_waitlisted).forEach(m => {
           ensureWeek(m.joined_at).newMembers++;
           // Weekly GMV = realized escrow, bucketed by the week it was funded.
           if (m.escrow_funded) {
@@ -459,19 +472,43 @@ export default function BetaDashboard() {
       receipt_note:     null,
     }).eq("id", podId);
     setReceiptBusy(null);
+    const pod = pods.find(p => p.id === podId);
+    if (pod?.captainId) {
+      const body = pod.podType === "group_buy"
+        ? `Your ticket availability proof for ${pod.name} is verified.`
+        : `Your ticket receipt for ${pod.name} is verified — the pod is now open for members to join.`;
+      notify({
+        userId: pod.captainId,
+        type:   "receipt_verified",
+        title:  "✅ Receipt verified!",
+        body,
+        url:    "/app",
+      });
+    }
     loadAllData();
   }
 
   async function handleReceiptReject(podId) {
     setReceiptBusy(podId);
+    const note = rejectNote[podId]?.trim() || "HalfTime could not verify this receipt. Please contact your captain.";
     await supabase.from("pods").update({
       receipt_verified: false,
       receipt_rejected: true,
-      receipt_note:     rejectNote[podId]?.trim() || "HalfTime could not verify this receipt. Please contact your captain.",
+      receipt_note:     note,
     }).eq("id", podId);
     setReceiptBusy(null);
     setShowRejectBox(null);
     setRejectNote(n => ({ ...n, [podId]: "" }));
+    const pod = pods.find(p => p.id === podId);
+    if (pod?.captainId) {
+      notify({
+        userId: pod.captainId,
+        type:   "receipt_rejected",
+        title:  "⚠️ Receipt needs attention",
+        body:   `HalfTime couldn't verify your receipt for ${pod.name}: ${note}`,
+        url:    "/app",
+      });
+    }
     loadAllData();
   }
 
@@ -1525,7 +1562,13 @@ export default function BetaDashboard() {
 
         {/* ── RECEIPTS ─────────────────────────────────────────────────────────── */}
         {tab === "receipts" && (() => {
-          const pending  = pods.filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected);
+          // Flagged-by-AI pods surface first — they're the ones most likely to need
+          // a real look; needs_review next; plain unchecked (no AI key, or a PDF
+          // the AI can't read) last, same as before this feature existed.
+          const aiPriority = { flagged: 0, needs_review: 1, unchecked: 2 };
+          const pending  = pods
+            .filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected)
+            .sort((a, b) => (aiPriority[a.receiptAiStatus] ?? 2) - (aiPriority[b.receiptAiStatus] ?? 2));
           const verified = pods.filter(p => p.receiptVerified);
           const rejected = pods.filter(p => p.receiptRejected);
           const noReceipt = pods.filter(p => !p.receiptUrl);
@@ -1547,13 +1590,29 @@ export default function BetaDashboard() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {pod.receiptVerified && pod.receiptAiStatus === "auto_approved" && (
+                      <Badge color={T.teal}>🤖 Auto-approved</Badge>
+                    )}
                     {pod.receiptVerified && <Badge color={T.lime}>✓ Verified</Badge>}
                     {pod.receiptRejected && <Badge color={T.red}>✗ Rejected</Badge>}
                     {pod.receiptUrl && !pod.receiptVerified && !pod.receiptRejected && (
-                      <Badge color={T.amber}>⏳ Pending</Badge>
+                      <>
+                        <Badge color={T.amber}>⏳ Pending</Badge>
+                        {pod.receiptAiStatus === "flagged" && <Badge color={T.red}>🤖 AI flagged</Badge>}
+                        {pod.receiptAiStatus === "needs_review" && <Badge color={T.amber}>🤖 AI: review</Badge>}
+                      </>
                     )}
                   </div>
                 </div>
+
+                {/* AI assessment note (pending or auto-approved only — once rejected, the human's note wins) */}
+                {pod.receiptAiNote && !pod.receiptRejected && (
+                  <div style={{ fontSize: 11, color: T.teal, background: `${T.teal}08`,
+                    border: `1px solid ${T.teal}25`, borderRadius: 6,
+                    padding: "6px 10px", marginBottom: 8 }}>
+                    🤖 AI: {pod.receiptAiNote}
+                  </div>
+                )}
 
                 {/* Receipt note (if rejected) */}
                 {pod.receiptNote && (

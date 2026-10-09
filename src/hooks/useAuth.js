@@ -31,8 +31,27 @@ export function useAuth() {
   const loadProfile = useCallback(async (authUser) => {
     if (!authUser) { setProfile(null); return; }
     try {
-      const p = await getProfile();
+      let p = await getProfile();
       setProfile(p);
+
+      // Claim a pending referral code left by a /r/:code visit (migration 050),
+      // if this user hasn't already been attributed to a referrer. Runs on
+      // every profile load, not just right after signup, so it works
+      // regardless of auth method or an email-confirmation gap in between.
+      let pendingCode = null;
+      try { pendingCode = localStorage.getItem("ht_referral_code"); } catch { /* ignore */ }
+      if (pendingCode && p && !p.referred_by) {
+        try {
+          await supabase.rpc("claim_referral", { p_code: pendingCode });
+          p = await getProfile();
+          setProfile(p);
+        } catch (e) {
+          console.warn("useAuth: referral claim failed", e.message);
+        }
+      }
+      if (pendingCode) {
+        try { localStorage.removeItem("ht_referral_code"); } catch { /* ignore */ }
+      }
     } catch (e) {
       console.warn("useAuth: could not load profile", e.message);
     }

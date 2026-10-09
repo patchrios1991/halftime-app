@@ -116,6 +116,10 @@ serve(async (req: Request) => {
 
     if (deleteErr) throw deleteErr;
 
+    // A voluntary leave frees a spot just like the 24h funding-deadline
+    // removal does — same waitlist-promotion function (migration 048).
+    await supabase.rpc("promote_next_waitlisted", { p_pod_id: podId });
+
     // ── Notify the captain ──────────────────────────────────────────────────
     if (pod.captain_id) {
       const { data: profile } = await supabase

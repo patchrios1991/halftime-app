@@ -407,7 +407,7 @@ export default function AllocationScreen({ state, dispatch }) {
                   <>
                     <input
                       style={{ ...inputStyle, marginBottom: 8 }}
-                      placeholder="Search team (e.g. Chicago Bulls)"
+                      placeholder="Search team"
                       value={fetchQuery}
                       onChange={e => handleSearchTeams(e.target.value)}
                     />
