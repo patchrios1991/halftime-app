@@ -199,6 +199,8 @@ function notifIcon(type) {
     case "welcome":         return "🎉";
     case "escrow_funded":   return "✅";
     case "escrow_failed":   return "❌";
+    case "receipt_verified": return "✅";
+    case "receipt_rejected": return "❌";
     case "pod_active":      return "🎉";
     case "game_allocated":  return "🎟️";
     case "game_released":   return "📤";

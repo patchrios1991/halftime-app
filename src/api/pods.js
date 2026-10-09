@@ -36,12 +36,18 @@ export async function getMyPods() {
   }));
 }
 
-/** Fetch all pods open for recruiting (browse/explore) */
+/** Fetch all pods open for recruiting (browse/explore).
+ *  Standard pods (captain already owns the tickets) are hidden from this
+ *  list until HalfTime has verified the captain's purchase receipt — a
+ *  captain can't recruit members with zero proof they own what they're
+ *  selling shares of. Group Buy pods use a separate verification flow
+ *  (AI screenshot + ticket URL check) and aren't subject to this gate. */
 export async function getRecruitingPods({ sport } = {}) {
   let query = supabase
     .from("pods")
     .select("*, pod_members(count)")
     .eq("status", "recruiting")
+    .or("pod_type.eq.group_buy,receipt_verified.eq.true")
     .order("created_at", { ascending: false });
 
   if (sport) query = query.eq("sport", sport);
@@ -144,11 +150,13 @@ export async function joinPod(podId) {
 
   const { data: pod, error: podErr } = await supabase
     .from("pods")
-    .select("season_cost, max_members, status")
+    .select("season_cost, max_members, status, pod_type, receipt_verified")
     .eq("id", podId)
     .single();
   if (podErr) throw podErr;
   if (pod.status !== "recruiting") throw new Error("This pod is no longer recruiting");
+  if (pod.pod_type !== "group_buy" && !pod.receipt_verified)
+    throw new Error("This pod's ticket receipt hasn't been verified yet — check back once the captain's proof of purchase is approved.");
 
   const { data: members, error: memberErr } = await supabase
     .from("pod_members")

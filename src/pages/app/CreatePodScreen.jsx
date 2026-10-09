@@ -468,6 +468,17 @@ export default function CreatePodScreen({ dispatch }) {
             }
           </div>
 
+          {podType === "standard" && (
+            <div style={{ background: `${T.amber}10`, border: `1px solid ${T.amber}33`,
+              borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: T.amber, lineHeight: 1.6 }}>
+                ⏳ Your pod won't be visible in Browse Pods or joinable by invite link until
+                HalfTime verifies your receipt. This usually happens quickly — you'll be notified
+                once it's approved.
+              </div>
+            </div>
+          )}
+
           {/* Ticket URL — group_buy only */}
           {podType === "group_buy" && (
             <div style={{ marginBottom: 14 }}>

@@ -135,6 +135,7 @@ export default function JoinPodScreen() {
   const emoji = SPORT_EMOJI[pod.sport?.toLowerCase()] ?? pod.sport_emoji ?? "🏟️";
   const isFull = spotsLeft <= 0;
   const isRecruiting = pod.status === "recruiting";
+  const needsReceiptVerification = pod.pod_type !== "group_buy" && !pod.receipt_verified;
 
   return (
     <Screen>
@@ -157,12 +158,12 @@ export default function JoinPodScreen() {
               </div>
               <div style={{ display: "flex", gap: 5, marginTop: 5, flexWrap: "wrap" }}>
                 <div style={{ display: "inline-block",
-                  background: isRecruiting ? `${T.lime}22` : `${T.amber}22`,
-                  border: `1px solid ${isRecruiting ? T.lime : T.amber}44`,
+                  background: isRecruiting && !needsReceiptVerification ? `${T.lime}22` : `${T.amber}22`,
+                  border: `1px solid ${isRecruiting && !needsReceiptVerification ? T.lime : T.amber}44`,
                   borderRadius: 20, padding: "2px 10px",
                   fontSize: 10, fontWeight: 700,
-                  color: isRecruiting ? T.lime : T.amber }}>
-                  {isRecruiting ? "Open for members" : "Pod active"}
+                  color: isRecruiting && !needsReceiptVerification ? T.lime : T.amber }}>
+                  {!isRecruiting ? "Pod active" : needsReceiptVerification ? "Pending verification" : "Open for members"}
                 </div>
                 {pod.pod_type === "group_buy" && (
                   <div style={{ display: "inline-block",
@@ -301,6 +302,17 @@ export default function JoinPodScreen() {
           </div>
           <div style={{ color: T.mist, fontSize: 12, marginTop: 4 }}>
             The pod is already full or has started its season.
+          </div>
+        </div>
+      ) : needsReceiptVerification ? (
+        <div style={{ width: "100%", maxWidth: 360, background: `${T.amber}12`,
+          border: `1px solid ${T.amber}33`, borderRadius: 12,
+          padding: "14px 16px", textAlign: "center" }}>
+          <div style={{ color: T.amber, fontWeight: 700, fontSize: 14 }}>
+            Not open to join yet
+          </div>
+          <div style={{ color: T.mist, fontSize: 12, marginTop: 4 }}>
+            HalfTime is still verifying the captain's ticket receipt. Check back once it's approved.
           </div>
         </div>
       ) : isFull ? (

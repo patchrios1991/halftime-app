@@ -6,6 +6,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../../tokens";
 import { supabase } from "../../lib/supabase";
 import { normalizeGames } from "../../lib/embed";
+import { notify } from "../../lib/notify";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function weekLabel(dateStr) {
@@ -300,7 +301,7 @@ export default function BetaDashboard() {
           .from("pods")
           .select(`
             id, name, team_name, sport, sport_emoji, season_cost, max_members,
-            status, captain_id, allocation_done, created_at, nps,
+            status, captain_id, allocation_done, created_at, nps, pod_type,
             receipt_url, receipt_verified, receipt_rejected, receipt_note,
             pod_members(
               id, user_id, escrow_funded, escrow_funded_at, share_pct, cost, bid_credits,
@@ -370,6 +371,7 @@ export default function BetaDashboard() {
           status:           p.status,
           created:          p.created_at,
           captainId:        p.captain_id,
+          podType:          p.pod_type,
           allocationDone:   p.allocation_done,
           receiptUrl:       p.receipt_url ?? null,
           receiptVerified:  p.receipt_verified ?? false,
@@ -459,19 +461,43 @@ export default function BetaDashboard() {
       receipt_note:     null,
     }).eq("id", podId);
     setReceiptBusy(null);
+    const pod = pods.find(p => p.id === podId);
+    if (pod?.captainId) {
+      const body = pod.podType === "group_buy"
+        ? `Your ticket availability proof for ${pod.name} is verified.`
+        : `Your ticket receipt for ${pod.name} is verified — the pod is now open for members to join.`;
+      notify({
+        userId: pod.captainId,
+        type:   "receipt_verified",
+        title:  "✅ Receipt verified!",
+        body,
+        url:    "/app",
+      });
+    }
     loadAllData();
   }
 
   async function handleReceiptReject(podId) {
     setReceiptBusy(podId);
+    const note = rejectNote[podId]?.trim() || "HalfTime could not verify this receipt. Please contact your captain.";
     await supabase.from("pods").update({
       receipt_verified: false,
       receipt_rejected: true,
-      receipt_note:     rejectNote[podId]?.trim() || "HalfTime could not verify this receipt. Please contact your captain.",
+      receipt_note:     note,
     }).eq("id", podId);
     setReceiptBusy(null);
     setShowRejectBox(null);
     setRejectNote(n => ({ ...n, [podId]: "" }));
+    const pod = pods.find(p => p.id === podId);
+    if (pod?.captainId) {
+      notify({
+        userId: pod.captainId,
+        type:   "receipt_rejected",
+        title:  "⚠️ Receipt needs attention",
+        body:   `HalfTime couldn't verify your receipt for ${pod.name}: ${note}`,
+        url:    "/app",
+      });
+    }
     loadAllData();
   }
 
