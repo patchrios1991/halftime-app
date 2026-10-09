@@ -1,8 +1,13 @@
 // ─── Edge Function: verify-tickets ────────────────────────────────────────────
-// Verifies ticket availability for group-buy pods.
+// Verifies ticket availability for group-buy pods, and purchase receipts for
+// standard pods.
 //   action "url"        → HEAD-fetches ticket_url, stores live/dead result
-//   action "screenshot" → downloads receipt image, sends to Claude Vision, stores result
-//   action "both"       → runs both
+//   action "screenshot" → downloads group-buy availability screenshot, sends to Claude Vision, stores result
+//   action "both"       → runs both (group-buy only)
+//   action "receipt"    → downloads a standard pod's purchase receipt, sends to Claude Vision;
+//                         a clear, high-confidence match auto-sets receipt_verified = true
+//                         (same effect as an admin manually verifying) — anything less
+//                         confident is left pending for manual review in BetaDashboard
 import { serve }        from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -42,7 +47,7 @@ serve(async (req: Request) => {
 
     const { podId, action = "both" } = await req.json() as {
       podId:   string;
-      action?: "url" | "screenshot" | "both";
+      action?: "url" | "screenshot" | "both" | "receipt";
     };
     if (!podId) throw new Error("podId is required");
 
@@ -50,7 +55,7 @@ serve(async (req: Request) => {
 
     const { data: pod, error: podErr } = await supabase
       .from("pods")
-      .select("id, ticket_url, receipt_url, pod_type, venue, section, row, seat")
+      .select("id, name, ticket_url, receipt_url, pod_type, venue, section, row, seat, team_name, season, season_cost, captain_id")
       .eq("id", podId)
       .single();
 
@@ -170,8 +175,94 @@ serve(async (req: Request) => {
       }
     }
 
+    // ── AI receipt analysis (standard pods only) ──────────────────────────────
+    if (action === "receipt" && pod.pod_type !== "group_buy" && pod.receipt_url && ANTHROPIC_API_KEY) {
+      try {
+        const imgRes = await fetch(pod.receipt_url);
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get("content-type") ?? "image/jpeg";
+
+          if (contentType.includes("pdf")) {
+            updates.receipt_ai_status = "unchecked";
+            updates.receipt_ai_note   = "PDF files cannot be analyzed automatically. An admin will review.";
+          } else {
+            const mediaType =
+              contentType.includes("png")  ? "image/png"  :
+              contentType.includes("webp") ? "image/webp" :
+              contentType.includes("gif")  ? "image/gif"  : "image/jpeg";
+
+            const buf    = await imgRes.arrayBuffer();
+            const base64 = toBase64(buf);
+
+            const claimedCost = pod.season_cost ? `$${Number(pod.season_cost).toLocaleString()}` : "an unknown amount";
+            const prompt = `This image is a receipt uploaded by someone who created a season-ticket cost-splitting pod on HalfTime (a ticket co-ownership app). They claim it proves they purchased a season ticket package for the ${pod.team_name || "listed team"}${pod.season ? ` (${pod.season} season)` : ""}, totaling approximately ${claimedCost}. Carefully check: (1) does this clearly look like a real purchase confirmation or receipt (not a cart page, a price estimate, a seat map, or an unrelated screenshot), (2) if a team or league is visible, does it match the claim, (3) is the total amount shown reasonably close to the claimed cost (roughly within 25%)? Only use "high" confidence if the receipt clearly and unambiguously satisfies all of this — use "low" confidence for anything illegible, cropped, ambiguous, or only partially matching. Reply ONLY with valid JSON, no markdown: {"valid": true or false, "confidence": "high" or "low", "note": "one sentence summarizing what you see and why"}`;
+
+            const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "x-api-key":         ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type":      "application/json",
+              },
+              body: JSON.stringify({
+                model:      "claude-haiku-4-5-20251001",
+                max_tokens: 200,
+                messages: [{
+                  role: "user",
+                  content: [
+                    { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+                    { type: "text", text: prompt },
+                  ],
+                }],
+              }),
+            });
+
+            if (aiRes.ok) {
+              const aiData = await aiRes.json() as {
+                content?: Array<{ type: string; text: string }>;
+              };
+              const text      = aiData.content?.[0]?.text ?? "";
+              const jsonMatch = text.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]) as {
+                  valid?: boolean; confidence?: "high" | "low"; note?: string;
+                };
+                updates.receipt_ai_note = parsed.note ?? null;
+
+                if (parsed.valid && parsed.confidence === "high") {
+                  updates.receipt_ai_status = "auto_approved";
+                  updates.receipt_verified  = true;
+                  updates.receipt_rejected  = false;
+                  updates.receipt_note      = null;
+                } else if (parsed.valid) {
+                  updates.receipt_ai_status = "needs_review";
+                } else {
+                  updates.receipt_ai_status = "flagged";
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Receipt AI analysis failed:", err);
+        // Non-fatal — leave receipt_ai_status as 'unchecked', fully manual review still applies
+      }
+    }
+
     if (Object.keys(updates).length > 0) {
       await supabase.from("pods").update(updates).eq("id", podId);
+
+      // Auto-approval is the same gating event as an admin manually verifying
+      // (migration 046) — let the captain know their pod is now recruitable.
+      if (updates.receipt_verified === true && pod.captain_id) {
+        await supabase.from("notifications").insert({
+          user_id: pod.captain_id,
+          type:    "receipt_verified",
+          title:   "✅ Receipt verified!",
+          body:    `Your ticket receipt for ${pod.name} is verified — the pod is now open for members to join.`,
+          pod_id:  podId,
+        });
+      }
     }
 
     return new Response(

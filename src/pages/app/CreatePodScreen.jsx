@@ -205,9 +205,11 @@ export default function CreatePodScreen({ dispatch }) {
         }
       }
 
-      // Fire ticket verification in background — non-blocking
+      // Fire ticket/receipt verification in background — non-blocking
       if (podType === "group_buy" && (availabilityUrl.trim() || receiptFile)) {
         verifyTickets(pod.id).catch(() => {});
+      } else if (podType === "standard" && receiptFile) {
+        verifyTickets(pod.id, "receipt").catch(() => {});
       }
 
       // Refresh pods list so context knows about the new pod,

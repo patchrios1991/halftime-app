@@ -303,6 +303,7 @@ export default function BetaDashboard() {
             id, name, team_name, sport, sport_emoji, season_cost, max_members,
             status, captain_id, allocation_done, created_at, nps, pod_type,
             receipt_url, receipt_verified, receipt_rejected, receipt_note,
+            receipt_ai_status, receipt_ai_note,
             pod_members(
               id, user_id, escrow_funded, escrow_funded_at, share_pct, cost, bid_credits,
               tier, churn_risk, referral_count, games_allocated, games_attended, joined_at,
@@ -377,6 +378,8 @@ export default function BetaDashboard() {
           receiptVerified:  p.receipt_verified ?? false,
           receiptRejected:  p.receipt_rejected ?? false,
           receiptNote:      p.receipt_note ?? null,
+          receiptAiStatus:  p.receipt_ai_status ?? "unchecked",
+          receiptAiNote:    p.receipt_ai_note ?? null,
         };
       });
 
@@ -1551,7 +1554,13 @@ export default function BetaDashboard() {
 
         {/* ── RECEIPTS ─────────────────────────────────────────────────────────── */}
         {tab === "receipts" && (() => {
-          const pending  = pods.filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected);
+          // Flagged-by-AI pods surface first — they're the ones most likely to need
+          // a real look; needs_review next; plain unchecked (no AI key, or a PDF
+          // the AI can't read) last, same as before this feature existed.
+          const aiPriority = { flagged: 0, needs_review: 1, unchecked: 2 };
+          const pending  = pods
+            .filter(p => p.receiptUrl && !p.receiptVerified && !p.receiptRejected)
+            .sort((a, b) => (aiPriority[a.receiptAiStatus] ?? 2) - (aiPriority[b.receiptAiStatus] ?? 2));
           const verified = pods.filter(p => p.receiptVerified);
           const rejected = pods.filter(p => p.receiptRejected);
           const noReceipt = pods.filter(p => !p.receiptUrl);
@@ -1573,13 +1582,29 @@ export default function BetaDashboard() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {pod.receiptVerified && pod.receiptAiStatus === "auto_approved" && (
+                      <Badge color={T.teal}>🤖 Auto-approved</Badge>
+                    )}
                     {pod.receiptVerified && <Badge color={T.lime}>✓ Verified</Badge>}
                     {pod.receiptRejected && <Badge color={T.red}>✗ Rejected</Badge>}
                     {pod.receiptUrl && !pod.receiptVerified && !pod.receiptRejected && (
-                      <Badge color={T.amber}>⏳ Pending</Badge>
+                      <>
+                        <Badge color={T.amber}>⏳ Pending</Badge>
+                        {pod.receiptAiStatus === "flagged" && <Badge color={T.red}>🤖 AI flagged</Badge>}
+                        {pod.receiptAiStatus === "needs_review" && <Badge color={T.amber}>🤖 AI: review</Badge>}
+                      </>
                     )}
                   </div>
                 </div>
+
+                {/* AI assessment note (pending or auto-approved only — once rejected, the human's note wins) */}
+                {pod.receiptAiNote && !pod.receiptRejected && (
+                  <div style={{ fontSize: 11, color: T.teal, background: `${T.teal}08`,
+                    border: `1px solid ${T.teal}25`, borderRadius: 6,
+                    padding: "6px 10px", marginBottom: 8 }}>
+                    🤖 AI: {pod.receiptAiNote}
+                  </div>
+                )}
 
                 {/* Receipt note (if rejected) */}
                 {pod.receiptNote && (
