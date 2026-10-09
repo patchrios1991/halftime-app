@@ -2,13 +2,27 @@
 
 **Last updated:** 2026-10-09
 **Branch:** `claude/elegant-hamilton-2x8akp` fully merged into `master` as of 2026-10-09 (1.0.7, below, included) — same as every prior round, this deploys to `app.halftime-app.com` via Vercel. Prior merges: 2026-09-29, 2026-09-30 (Round 5), 2026-10-02 (Round 7's escrow fix, targeted cherry-pick), 2026-10-06 (1.0.6 punch list + Round 6).
-**Status: Version 1.0.5 AND Version 1.0.6 are both APPROVED and LIVE on the App Store.** `app.halftime-app.com` is now running 1.0.7 (web only — not yet submitted to Apple as a new iOS build, see "Next steps" below).
+**Status: Version 1.0.5 AND Version 1.0.6 are both APPROVED and LIVE on the App Store.** `app.halftime-app.com` is already running 1.0.7. **Version 1.0.7 (build 2) was submitted to Apple for review on 2026-10-09 — pending approval.**
 
 **✅ All 6 items of the 1.0.7 backlog are coded, deployed (5 migrations + 4 edge functions), and confirmed working on-device by Jorge (2026-10-09).** Walked through migrations/edge-function deploys/on-device testing together step by step since this sandbox has no Supabase credentials and can't run the app itself. Every item passed its test on the first try — no bugs found during testing. Merged into `master` same day.
 
+### Build 1.0.7 (2) — submitted 2026-10-09, pending Apple review
+
+Walked through the full release process together: Xcode → Version bumped `1.0.6` → `1.0.7`, Build `1` → `2` → **Product → Archive** → Organizer → **Distribute App → App Store Connect → Upload** → created version 1.0.7 in App Store Connect with release notes → attached the build → **Submit for Review**.
+
+Release notes used:
+```
+• Invite friends and earn bonus bid credits when they join their first pod
+• See all your upcoming games across every pod in one place
+• Pods with a full waitlist now automatically fill open spots when one opens up
+• Faster, AI-assisted pod verification
+• Various improvements and bug fixes
+```
+
 ### Next steps
-1. **Bump the version number and submit a new iOS build to Apple** for 1.0.7, same process as every prior round (Xcode → bump version/build number → Archive → Distribute App → App Store Connect → Add for Review). Not done yet — waiting on Jorge to decide when he wants to do this.
-2. Nothing else currently open. No bugs found during 1.0.7 testing.
+1. **Waiting on Apple's review of 1.0.7 (build 2).** Typically takes anywhere from a few hours to a couple of days. No action needed until Jorge hears back (approved, or Apple requests changes).
+2. Once approved: log it here as live, same as every prior version.
+3. Nothing else currently open. No bugs found during 1.0.7 testing. The 1.0.8+ backlog is empty — no outstanding feature requests right now.
 
 ## 1.0.7 backlog — all 6 items coded 2026-10-09, confirmed working on-device 2026-10-09 (item 7, price-benchmarking, removed 2026-10-09 per user — tabled indefinitely, not currently planned)
 
