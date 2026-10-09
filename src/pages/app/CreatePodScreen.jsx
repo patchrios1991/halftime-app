@@ -276,7 +276,7 @@ export default function CreatePodScreen({ dispatch }) {
             </div>
             <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.6 }}>
               Members fund their share into escrow. Once the pod is fully funded, you'll have
-              <strong style={{ color: T.chalk }}> 48 hours</strong> to purchase the tickets and
+              <strong style={{ color: T.chalk }}> 24 hours</strong> to purchase the tickets and
               upload your receipt. HalfTime verifies the receipt and releases the escrow to
               reimburse you. If you miss the window, the pod is cancelled and all members are
               automatically refunded.
@@ -664,7 +664,7 @@ export default function CreatePodScreen({ dispatch }) {
                   flexShrink: 0, cursor: "pointer" }} />
               <span style={{ fontSize: 12, color: T.mist, lineHeight: 1.6 }}>
                 I agree to purchase the season tickets within{" "}
-                <strong style={{ color: T.white }}>48 hours</strong> of full funding,
+                <strong style={{ color: T.white }}>24 hours</strong> of full funding,
                 under my own name, and to upload the purchase receipt for HalfTime verification.
                 I understand that failure to do so will result in the pod being cancelled and
                 all members being automatically refunded.

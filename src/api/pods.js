@@ -12,7 +12,7 @@ export async function getMyPods() {
   // Step 1: get this user's pod memberships
   const { data: memberships, error: memberErr } = await supabase
     .from("pod_members")
-    .select("pod_id, share_pct, cost, escrow_funded, bid_credits, games_allocated, games_attended")
+    .select("pod_id, share_pct, cost, escrow_funded, bid_credits, games_allocated, games_attended, is_waitlisted")
     .eq("user_id", user.id);
 
   if (memberErr) throw memberErr;
@@ -45,7 +45,7 @@ export async function getMyPods() {
 export async function getRecruitingPods({ sport } = {}) {
   let query = supabase
     .from("pods")
-    .select("*, pod_members(count)")
+    .select("*, pod_members(is_waitlisted)")
     .eq("status", "recruiting")
     .or("pod_type.eq.group_buy,receipt_verified.eq.true")
     .order("created_at", { ascending: false });
@@ -142,7 +142,12 @@ export async function markAllocationDone(podId, method) {
   return updatePod(podId, { allocation_done: true, allocation_method: method });
 }
 
-/** Join a recruiting pod as a member (equal share of remaining %) */
+/** Join a recruiting pod as a member (equal share of remaining %).
+ *  If the pod is already at its member cap, joins the real (authenticated)
+ *  waitlist instead of failing outright — share_pct/cost stay 0 as a
+ *  placeholder until promote_next_waitlisted (migration 048) computes the
+ *  real numbers once a spot actually frees up.
+ *  Returns { waitlisted: boolean }. */
 export async function joinPod(podId) {
   const { data: { session } } = await supabase.auth.getSession();
   const user = session?.user;
@@ -150,7 +155,7 @@ export async function joinPod(podId) {
 
   const { data: pod, error: podErr } = await supabase
     .from("pods")
-    .select("season_cost, max_members, status, pod_type, receipt_verified")
+    .select("season_cost, max_members, status, pod_type, receipt_verified, perks_included")
     .eq("id", podId)
     .single();
   if (podErr) throw podErr;
@@ -158,18 +163,26 @@ export async function joinPod(podId) {
   if (pod.pod_type !== "group_buy" && !pod.receipt_verified)
     throw new Error("This pod's ticket receipt hasn't been verified yet — check back once the captain's proof of purchase is approved.");
 
-  const { data: members, error: memberErr } = await supabase
+  const { data: allMembers, error: memberErr } = await supabase
     .from("pod_members")
-    .select("share_pct, user_id")
+    .select("share_pct, user_id, is_waitlisted")
     .eq("pod_id", podId);
   if (memberErr) throw memberErr;
 
-  if (members.some(m => m.user_id === user.id))
+  if (allMembers.some(m => m.user_id === user.id))
     throw new Error("You are already a member of this pod");
 
-  const usedPct       = members.reduce((sum, m) => sum + parseFloat(m.share_pct || 0), 0);
-  const remainingSpots = (pod.max_members || 6) - members.length;
-  if (remainingSpots <= 0) throw new Error("This pod is full");
+  const activeMembers  = allMembers.filter(m => !m.is_waitlisted);
+  const usedPct        = activeMembers.reduce((sum, m) => sum + parseFloat(m.share_pct || 0), 0);
+  const remainingSpots = (pod.max_members || 6) - activeMembers.length;
+
+  if (remainingSpots <= 0) {
+    const { error: waitlistErr } = await supabase
+      .from("pod_members")
+      .insert({ pod_id: podId, user_id: user.id, share_pct: 0, cost: 0, tier: "starter", is_waitlisted: true });
+    if (waitlistErr) throw waitlistErr;
+    return { waitlisted: true };
+  }
 
   const sharePct = Math.round((100 - usedPct) / remainingSpots);
   const baseCost = (parseFloat(pod.season_cost) * sharePct) / 100;
@@ -178,16 +191,17 @@ export async function joinPod(podId) {
 
   const { error: joinErr } = await supabase
     .from("pod_members")
-    .insert({ pod_id: podId, user_id: user.id, share_pct: sharePct, cost, tier: "starter" });
+    .insert({ pod_id: podId, user_id: user.id, share_pct: sharePct, cost, tier: "starter", is_waitlisted: false });
 
   if (joinErr) throw joinErr;
+  return { waitlisted: false };
 }
 
 /** Fetch a pod by its invite code (public — no auth required) */
 export async function getPodByInviteCode(code) {
   const { data, error } = await supabase
     .from("pods")
-    .select("*, pod_members(count)")
+    .select("*, pod_members(is_waitlisted)")
     .eq("invite_code", code.toUpperCase().trim())
     .single();
 

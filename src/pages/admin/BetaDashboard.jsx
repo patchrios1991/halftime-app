@@ -307,7 +307,7 @@ export default function BetaDashboard() {
             pod_members(
               id, user_id, escrow_funded, escrow_funded_at, share_pct, cost, bid_credits,
               tier, churn_risk, referral_count, games_allocated, games_attended, joined_at,
-              profiles(display_name, verified)
+              is_waitlisted, profiles(display_name, verified)
             )
           `)
           .order("created_at", { ascending: false }),
@@ -338,7 +338,11 @@ export default function BetaDashboard() {
 
       // ── Transform pods ──────────────────────────────────────────────────────
       const transformedPods = realRawPods.map(p => {
-        const mems     = p.pod_members || [];
+        // Waitlisted rows aren't real seats (share_pct/cost are 0 placeholders
+        // until promoted) — exclude them so member/escrow metrics reflect
+        // actual pod occupancy, not people waiting for a spot.
+        const mems     = (p.pod_members || []).filter(m => !m.is_waitlisted);
+        const waitlistCount = (p.pod_members || []).filter(m => m.is_waitlisted).length;
         const podGames = rawGames.filter(g => g.pod_id === p.id);
         const isPast = (g) => {
           if (!g.game_date) return false;
@@ -359,6 +363,7 @@ export default function BetaDashboard() {
           team:         p.team_name,
           sportEmoji:   p.sport_emoji || "🏟️",
           members:      mems.length,
+          waitlistCount,
           maxMembers:   p.max_members,
           escrowFunded: mems.filter(m => m.escrow_funded).length,
           escrowPending: mems.filter(m => !m.escrow_funded).length,
@@ -399,6 +404,7 @@ export default function BetaDashboard() {
           tier:         m.tier,
           churnRisk:    m.churn_risk || "unknown",
           joinedAt:     m.joined_at,
+          isWaitlisted: m.is_waitlisted ?? false,
         }))
       );
 
@@ -415,7 +421,9 @@ export default function BetaDashboard() {
         ensureWeek(p.created_at).newPods++;
       });
       realRawPods.forEach(p => {
-        (p.pod_members || []).forEach(m => {
+        // Waitlisted rows aren't real members yet — don't count them toward
+        // growth until they're actually promoted into a seat.
+        (p.pod_members || []).filter(m => !m.is_waitlisted).forEach(m => {
           ensureWeek(m.joined_at).newMembers++;
           // Weekly GMV = realized escrow, bucketed by the week it was funded.
           if (m.escrow_funded) {

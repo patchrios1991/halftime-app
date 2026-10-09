@@ -81,7 +81,7 @@ export default function HomeHub({ dispatch, profile }) {
     const items = [];
     for (const pod of pods) {
       const me = pod.pod_members?.[0];
-      if (me && me.escrow_funded === false) {
+      if (me && !me.is_waitlisted && me.escrow_funded === false) {
         items.push({
           key:   `escrow-${pod.id}`,
           icon:  "💰",
@@ -176,10 +176,13 @@ export default function HomeHub({ dispatch, profile }) {
             const me        = pod.pod_members?.[0];
             const nextGame  = nextGameByPod.get(pod.id);
             const status    = STATUS_LABEL[pod.status] ?? { text: pod.status, color: T.mist };
-            const unfunded  = me && me.escrow_funded === false;
+            const unfunded  = me && !me.is_waitlisted && me.escrow_funded === false;
 
             let line, lineColor;
-            if (unfunded) {
+            if (me?.is_waitlisted) {
+              line = "On the waitlist";
+              lineColor = T.amber;
+            } else if (unfunded) {
               line = "Escrow share unfunded";
               lineColor = T.amber;
             } else if (nextGame) {

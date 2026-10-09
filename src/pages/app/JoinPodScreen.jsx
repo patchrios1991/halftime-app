@@ -23,13 +23,9 @@ export default function JoinPodScreen() {
   const [user,              setUser]              = useState(undefined); // undefined = not yet checked
   const [joining,           setJoining]           = useState(false);
   const [joined,            setJoined]            = useState(false);
+  const [waitlisted,        setWaitlisted]        = useState(false);
   const [joinErr,           setJoinErr]           = useState(null);
   const [showSeatMap,       setShowSeatMap]       = useState(false);
-
-  // Waitlist state (when pod is full)
-  const [waitlistEmail,     setWaitlistEmail]     = useState("");
-  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
-  const [waitlistBusy,      setWaitlistBusy]      = useState(false);
 
   useEffect(() => {
     // Resolve auth + pod in parallel
@@ -54,7 +50,23 @@ export default function JoinPodScreen() {
     setJoining(true);
     setJoinErr(null);
     try {
-      await joinPod(pod.id);
+      const result = await joinPod(pod.id);
+
+      if (result?.waitlisted) {
+        setWaitlisted(true);
+        setJoining(false);
+        if (pod.captain_id && pod.captain_id !== user?.id) {
+          notify({
+            userId: pod.captain_id,
+            type:   "member_joined",
+            title:  "📋 New waitlist signup",
+            body:   `Someone joined the waitlist for ${pod.name} via your invite link. They'll automatically join if a spot opens up.`,
+            url:    "/app",
+          });
+        }
+        return;
+      }
+
       setJoined(true);
       // Notify the captain a new member joined (skip if user IS the captain)
       if (pod.captain_id && pod.captain_id !== user?.id) {
@@ -126,7 +138,7 @@ export default function JoinPodScreen() {
   }
 
   // ── Pod preview ────────────────────────────────────────────────────────────
-  const memberCount = pod.pod_members?.[0]?.count ?? 0;
+  const memberCount = (pod.pod_members || []).filter(m => !m.is_waitlisted).length;
   const spotsLeft   = (pod.max_members || 6) - memberCount;
   const usedPct     = memberCount === 0 ? 0 : (100 - (pod.captain_share || 25));
   const myEstimate  = spotsLeft > 0
@@ -212,7 +224,7 @@ export default function JoinPodScreen() {
             </div>
             <div style={{ fontSize: 11, color: T.mist, lineHeight: 1.5 }}>
               The organizer hasn't purchased the tickets yet. Once all members fund their share,
-              the organizer has 48 hours to buy and upload a receipt. If they don't, the pod is
+              the organizer has 24 hours to buy and upload a receipt. If they don't, the pod is
               cancelled and you're automatically refunded. Your money is safe in escrow until then.
             </div>
           </div>
@@ -316,9 +328,11 @@ export default function JoinPodScreen() {
           </div>
         </div>
       ) : isFull ? (
-        // ── Waitlist form when pod is full ──────────────────────────────────
+        // ── Real, authenticated waitlist — joinPod() itself falls back to
+        // this when the pod is at capacity (src/api/pods.js). Automatically
+        // promoted with a fresh 24h funding window if a spot opens up. ──
         <div style={{ width: "100%", maxWidth: 360 }}>
-          {waitlistSubmitted ? (
+          {waitlisted ? (
             <div style={{ background: `${T.teal}12`, border: `1px solid ${T.teal}33`,
               borderRadius: 12, padding: "20px 16px", textAlign: "center" }}>
               <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
@@ -326,8 +340,8 @@ export default function JoinPodScreen() {
                 You're on the waitlist!
               </div>
               <div style={{ color: T.mist, fontSize: 12, lineHeight: 1.6 }}>
-                We'll email <strong style={{ color: T.chalk }}>{waitlistEmail}</strong> if a spot opens up in{" "}
-                <strong style={{ color: T.chalk }}>{pod.name}</strong>.
+                You'll automatically become a member of <strong style={{ color: T.chalk }}>{pod.name}</strong>{" "}
+                if a spot opens up — no need to check back.
               </div>
             </div>
           ) : (
@@ -337,37 +351,16 @@ export default function JoinPodScreen() {
                 Pod is full
               </div>
               <div style={{ color: T.mist, fontSize: 12, lineHeight: 1.6, marginBottom: 14 }}>
-                All spots have been claimed — but pods sometimes open up. Leave your email and we'll let you know if a seat becomes available.
+                Join the waitlist — if an active member doesn't fund their share within 24 hours,
+                the longest-waiting person on the waitlist automatically takes their spot.
               </div>
-              <input
-                type="email"
-                value={waitlistEmail}
-                onChange={e => setWaitlistEmail(e.target.value)}
-                placeholder="your@email.com"
-                style={{ width: "100%", padding: "11px 12px", background: T.forest,
-                  border: `1px solid #1A4A2E`, borderRadius: 8, color: T.white,
-                  fontSize: 13, outline: "none", fontFamily: "Calibri,sans-serif",
-                  boxSizing: "border-box", marginBottom: 10 }}
-              />
               <button
-                onClick={async () => {
-                  if (!waitlistEmail.includes("@")) return;
-                  setWaitlistBusy(true);
-                  try {
-                    await supabase.from("pod_waitlist").insert({
-                      pod_id: pod.id,
-                      email:  waitlistEmail.trim().toLowerCase(),
-                    });
-                    setWaitlistSubmitted(true);
-                  } catch { /* ignore duplicate / RLS errors silently */ }
-                  finally { setWaitlistBusy(false); }
-                }}
-                disabled={waitlistBusy || !waitlistEmail.includes("@")}
-                style={{ width: "100%", padding: "12px", background: T.amber,
+                onClick={handleJoin}
+                disabled={joining}
+                style={{ width: "100%", padding: "12px", background: joining ? T.mist : T.amber,
                   border: "none", borderRadius: 8, color: T.dark,
-                  fontSize: 13, fontWeight: 700, cursor: "pointer",
-                  opacity: !waitlistEmail.includes("@") ? 0.5 : 1 }}>
-                {waitlistBusy ? "Joining waitlist…" : "Join Waitlist →"}
+                  fontSize: 13, fontWeight: 700, cursor: joining ? "not-allowed" : "pointer" }}>
+                {joining ? "Joining waitlist…" : user ? "Join Waitlist →" : "Sign in to join waitlist →"}
               </button>
             </div>
           )}
